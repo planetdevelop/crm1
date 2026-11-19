@@ -5,7 +5,7 @@ phase's acceptance evidence here.
 
 | Phase | Status |
 | --- | --- |
-| 0: fork/staging baseline, shared records, permissions, Planet Ops name | **Repository work done (PR into `planet-ops-staging`)**; Railway staging and logo pending owner |
+| 0: fork/staging baseline, shared records, permissions, Planet Ops name | **Repository work done (PR into `planet-ops-staging`)**; Railway staging pending owner |
 | 1: quotes, proposals, terms, signatures, change orders | Not started |
 | 2–9 | Not started. Gusto and historical import remain deferred |
 
@@ -36,10 +36,12 @@ phase's acceptance evidence here.
     labels, first-run setup screen.
   - Fixed an issue that branding exposed: Spanish error translation (`translateError`) took a renamed
     but untranslated English line for a translation and skipped its pattern fallback.
-  - **Interim mark**: a plain planet-and-orbit placeholder in the brand colors
-    (`apps/web/public/planet-ops-mark.svg`, favicon, PWA icons, boot screen, `BrandMark`). It replaces
-    the Crewtavo logo, which NOTICE §7(e) forbids on a modified version. It is **not** a redraw of
-    the crest.
+  - **Logo**: the approved full-color crest (supplied by the owner, kept as
+    `docs/brand/planet-ops-crest.png`) on the sign-in pages and as the installed-app icons
+    (`icon-192/512`, maskable, Apple touch). For small sizes where the crest isn't readable (sidebar,
+    favicon, boot screen, chat avatar, hub footer), the mark is the orbital planet "O" **cropped from
+    the crest's wordmark** on a dark tile (`planet-ops-mark.png`, `favicon*`). Nothing was redrawn.
+    It replaces the Crewtavo logo, which NOTICE §7(e) forbids on a modified version.
   - **Modified-version marking**: NOTICE has a "Planet Ops modified version" paragraph; the license
     screen says Planet Ops is a modified version (not an official Crewtavo release) and links both
     sources (AGPL §13). LICENSE, TERMS and the "Crewtavo Terms" acceptance text are unchanged.
@@ -83,9 +85,8 @@ where the message is still raw (see "Remaining").
 
 ### Remaining / blocked (owner)
 
-- **Logo (pending)**: the approved full-color crest artwork ("Planet Ops" on one line, orbital
-  planet as the O) was not supplied to the session. Send the image file(s), ideally SVG plus a
-  1024 px PNG. Claude will derive favicon/PWA sizes from it and replace the interim mark.
+- **Logo**: supplied as a raster image (1277×1232). A vector (SVG) or larger PNG export would
+  give sharper large icons; swap `docs/brand/planet-ops-crest.png` and regenerate the icons.
 - **Railway**: confirm the production app's source (runbook §1), then create `staging` following
   runbook §2. Claude did not configure Railway.
 - **GitHub Actions**: enable in the fork. Decide on upstream's CI "Authorship" step and the

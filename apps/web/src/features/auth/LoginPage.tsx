@@ -9,7 +9,7 @@ import { api, loadConfig, supabase, type AppConfig } from "@/lib/api";
 import { KEY_FILE_NAME, readKeyFile } from "@/lib/keyFile";
 import { formatPhoneTyping } from "@/lib/validate";
 import styles from "./auth.module.css";
-import { BrandLockup } from "@/components/shell/BrandMark";
+import { BrandCrest } from "@/components/shell/BrandMark";
 import { afterAsking, ASK_THE_OFFICE, askFor, codeDigits, codeProblem, emailInstead, filledAtOnce, newPhoneOffers, NOTHING_CAME, readAddress, resendIn, resendLabel, sentTo, signInWith, TEXTING_OFF, wholeCode, type CodeStep, type CodeWay } from "./textCode";
 import { getLocale, LOCALE_NAMES, msg, pickAtSignIn, showScreenLang, T, t } from "@/lib/i18n";
 import { LOCALES } from "@crewtavo/core/i18n";
@@ -60,7 +60,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <div className={styles.brand}><BrandLockup size={34} /></div>
+        <div className={styles.brand}><BrandCrest width={200} /></div>
         {children}
         <LanguageSwitch />
       </main>
