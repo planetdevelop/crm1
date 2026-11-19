@@ -939,7 +939,7 @@ insert into public.quote_line_items (company_id, quote_id, name, unit_price) val
 update public.quotes set status = 'sent', sent_at = now() where id = :'qco';
 commit;
 set role service_role;
-select t_options.check(public.approve_hub_quote(:'co', :'qco', '{}', '{"name": "Dana Homeowner"}', :'oco2', 2600), 'Dana approves the change order''s copper gutters online');
+select t_options.check(public.approve_hub_quote(:'co', :'qco', '{}', '{"name": "Dana Homeowner", "signed_at": "2026-05-01T12:00:00Z"}', :'oco2', 2600), 'Dana approves the change order''s copper gutters online');
 reset role;
 select t_options.check((select status = 'converted' and (approval ->> 'total')::numeric = 2600 from public.quotes where id = :'qco')
                    and (select array_agg(name order by name) = array['Copper gutters', 'Downspout'] from public.job_line_items where job_id = :'qm_job' and source_quote_id = :'qco'),

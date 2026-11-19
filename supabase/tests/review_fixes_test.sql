@@ -210,7 +210,7 @@ insert into public.quotes (company_id, client_id, title, change_order_for, disco
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price, sort) values (:'co', :'change', 'Edging', 2, 'ea', 150, 0) returning id as edging \gset
 commit;
 update public.quotes set status = 'sent', sent_at = now() where id = :'change';
-update public.quotes set status = 'approved', approved_at = now() where id = :'change';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total) where id = :'change';
 select t41.check((select contract_total from public.job_financials where job_id = :'job') = 1470, 'an approved change order joins its job, less its discount (1200 + 300 - 30)');
 -- Re-opened, changed (one more length of edging, lights, a bigger discount) and approved again.
 update public.quotes set status = 'sent' where id = :'change';
@@ -221,7 +221,7 @@ update public.quote_line_items set quantity = 3 where id = :'edging';
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price, sort) values (:'co', :'change', 'Lights', 1, 'ea', 200, 1);
 update public.quotes set discount_amount = 50 where id = :'change';
 commit;
-update public.quotes set status = 'approved', approved_at = now() where id = :'change';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total) where id = :'change';
 select t41.check((select status from public.quotes where id = :'change') = 'converted', 'approved again, it''s added to the job');
 select t41.check((select contract_total from public.job_financials where job_id = :'job') = 1800, 'and the job''s total is what was approved last (1200 + 450 + 200 - 50)');
 select t41.check((select string_agg(name || ' x' || quantity::integer, ', ' order by sort) from public.job_line_items where source_quote_id = :'change' and name <> 'Change order discount') = 'Edging x3, Lights x1', 'its lines on the job are its current ones, once');
@@ -238,7 +238,7 @@ insert into public.quotes (company_id, client_id, title, change_order_for) value
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'bench', 'Bench', 1, 'ea', 100);
 commit;
 update public.quotes set status = 'sent', sent_at = now() where id = :'gate';
-update public.quotes set status = 'approved', approved_at = now() where id = :'gate';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total) where id = :'gate';
 update public.quotes set status = 'sent' where id = :'gate';
 begin;
 set local role authenticated;
@@ -248,9 +248,9 @@ insert into public.job_line_items (company_id, job_id, name, quantity, unit, uni
 commit;
 select t41.check((select contract_total from public.job_financials where job_id = :'job') = 2050, 'a deleted change order''s lines stay on the job (1800 + 300 - 40, and 10 off typed in)');
 update public.quotes set status = 'sent', sent_at = now() where id = :'bench';
-update public.quotes set status = 'approved', approved_at = now() where id = :'bench';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total) where id = :'bench';
 update public.quotes set status = 'sent' where id = :'bench';
-update public.quotes set status = 'approved', approved_at = now() where id = :'bench';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total) where id = :'bench';
 select t41.check((select contract_total from public.job_financials where job_id = :'job') = 2150, 'a later change order approved twice adds only its own lines (2050 + 100)');
 select t41.check((select count(*) from public.job_line_items where job_id = :'job' and name = 'Change order discount' and source_quote_id is null) = 2, 'and leaves the other discounts as they were');
 

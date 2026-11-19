@@ -505,7 +505,7 @@ insert into public.quotes (company_id, client_id, title, tax_rate, change_order_
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit_price, taxable) values (:'co', :'edging', 'Edging', 1, 20, true);
 select public.apply_promo_code('quote', :'edging', 'CO10');
 update public.quotes set status = 'sent', sent_at = now() where id = :'edging';
-update public.quotes set status = 'approved', approved_at = now() where id = :'edging';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total) where id = :'edging';
 select tpo.check((select discount_billing = 'once' and discount_key = :'edging' from public.job_line_items where job_id = :'job16' and name = 'Change order discount'),
   'a change order''s code is once per job too, keyed by the change order');
 select tpo.mowed(:'job16', '2026-06-01');
@@ -513,7 +513,7 @@ select tpo.bill(:'job16') as r1 \gset
 select tpo.check(tpo.off(:'r1') = 35 and tpo.figures(:'r1') = '25.00/1.25/26.25', 'the first invoice takes the job''s code and the change order''s');
 select tpo.send(:'r1');
 update public.quotes set status = 'sent' where id = :'edging';
-update public.quotes set status = 'approved', approved_at = now() where id = :'edging';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total) where id = :'edging';
 select tpo.check((select count(*) = 1 from public.job_line_items where job_id = :'job16' and name = 'Change order discount'), 'approved again, its discount is on the job once');
 select tpo.mowed(:'job16', '2026-06-08');
 select tpo.bill(:'job16') as r2 \gset
@@ -824,8 +824,8 @@ update public.invoices set status = 'void' where id = :'o4a';
 -- Two change orders with the same code and the same discount, each copied onto both visits.
 select tpo.old_job(:'co', :'mo', null) as old5 \gset
 delete from public.job_line_items where job_id = :'old5' and name like 'Promo code %';
-insert into public.quotes (company_id, client_id, title, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Edging', 'converted', :'old5', :'co10') returning id as co_a \gset
-insert into public.quotes (company_id, client_id, title, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Hedges', 'converted', :'old5', :'co10') returning id as co_b \gset
+insert into public.quotes (company_id, client_id, title, approval, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Edging', '{"name": "Mo", "signed_at": "2026-05-01T12:00:00Z", "total": 0}', 'converted', :'old5', :'co10') returning id as co_a \gset
+insert into public.quotes (company_id, client_id, title, approval, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Hedges', '{"name": "Mo", "signed_at": "2026-05-01T12:00:00Z", "total": 0}', 'converted', :'old5', :'co10') returning id as co_b \gset
 insert into public.job_line_items (company_id, job_id, name, quantity, unit, unit_price, taxable, sort, source_quote_id) values
   (:'co', :'old5', 'Change order discount', 1, 'ea', -10, true, 100000, :'co_a'), (:'co', :'old5', 'Change order discount', 1, 'ea', -10, true, 100000, :'co_b');
 select tpo.mowed(:'old5', d) from unnest('{2026-05-04,2026-05-11}'::date[]) d;
@@ -851,20 +851,20 @@ select public.apply_promo_code('invoice', :'o8a', 'THANKS5');
 -- A change order with a typed $10 discount, then one with a code: the same line name.
 select tpo.old_job(:'co', :'mo', null) as old9 \gset
 delete from public.job_line_items where job_id = :'old9' and name like 'Promo code %';
-insert into public.quotes (company_id, client_id, title, status, change_order_for) values (:'co', :'mo', 'Edging', 'converted', :'old9') returning id as co_typed \gset
+insert into public.quotes (company_id, client_id, title, approval, status, change_order_for) values (:'co', :'mo', 'Edging', '{"name": "Mo", "signed_at": "2026-05-01T12:00:00Z", "total": 0}', 'converted', :'old9') returning id as co_typed \gset
 insert into public.job_line_items (company_id, job_id, name, quantity, unit, unit_price, taxable, sort, source_quote_id) values
   (:'co', :'old9', 'Change order discount', 1, 'ea', -10, true, 100000, :'co_typed');
 select tpo.mowed(:'old9', d) from unnest('{2026-05-04,2026-05-11}'::date[]) d;
 select tpo.bill(:'old9') as o9a \gset
 select tpo.send(:'o9a');
-insert into public.quotes (company_id, client_id, title, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Hedges', 'converted', :'old9', :'co10') returning id as co_code \gset
+insert into public.quotes (company_id, client_id, title, approval, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Hedges', '{"name": "Mo", "signed_at": "2026-05-01T12:00:00Z", "total": 0}', 'converted', :'old9', :'co10') returning id as co_code \gset
 insert into public.job_line_items (company_id, job_id, name, quantity, unit, unit_price, taxable, sort, source_quote_id) values
   (:'co', :'old9', 'Change order discount', 1, 'ea', -30, true, 100000, :'co_code');
 -- And the same, with both $10 and on an invoice together.
 select tpo.old_job(:'co', :'mo', null) as old10 \gset
 delete from public.job_line_items where job_id = :'old10' and name like 'Promo code %';
-insert into public.quotes (company_id, client_id, title, status, change_order_for) values (:'co', :'mo', 'Edging', 'converted', :'old10') returning id as co_typed2 \gset
-insert into public.quotes (company_id, client_id, title, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Hedges', 'converted', :'old10', :'co10') returning id as co_code2 \gset
+insert into public.quotes (company_id, client_id, title, approval, status, change_order_for) values (:'co', :'mo', 'Edging', '{"name": "Mo", "signed_at": "2026-05-01T12:00:00Z", "total": 0}', 'converted', :'old10') returning id as co_typed2 \gset
+insert into public.quotes (company_id, client_id, title, approval, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Hedges', '{"name": "Mo", "signed_at": "2026-05-01T12:00:00Z", "total": 0}', 'converted', :'old10', :'co10') returning id as co_code2 \gset
 insert into public.job_line_items (company_id, job_id, name, quantity, unit, unit_price, taxable, sort, source_quote_id) values
   (:'co', :'old10', 'Change order discount', 1, 'ea', -10, true, 100000, :'co_typed2'), (:'co', :'old10', 'Change order discount', 1, 'ea', -10, true, 100000, :'co_code2');
 select tpo.mowed(:'old10', d) from unnest('{2026-05-04,2026-05-11}'::date[]) d;
@@ -883,8 +883,8 @@ update public.invoice_line_items set taxable = false where invoice_id = :'o12a' 
 -- A change order's typed discount (untaxed) and one with a code (taxed), the typed one's copy ticked Taxable on the draft.
 select tpo.old_job(:'co', :'mo', null) as old13 \gset
 delete from public.job_line_items where job_id = :'old13' and name like 'Promo code %';
-insert into public.quotes (company_id, client_id, title, status, change_order_for) values (:'co', :'mo', 'Edging', 'converted', :'old13') returning id as co_typed3 \gset
-insert into public.quotes (company_id, client_id, title, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Hedges', 'converted', :'old13', :'co10') returning id as co_code3 \gset
+insert into public.quotes (company_id, client_id, title, approval, status, change_order_for) values (:'co', :'mo', 'Edging', '{"name": "Mo", "signed_at": "2026-05-01T12:00:00Z", "total": 0}', 'converted', :'old13') returning id as co_typed3 \gset
+insert into public.quotes (company_id, client_id, title, approval, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Hedges', '{"name": "Mo", "signed_at": "2026-05-01T12:00:00Z", "total": 0}', 'converted', :'old13', :'co10') returning id as co_code3 \gset
 insert into public.job_line_items (company_id, job_id, name, quantity, unit, unit_price, taxable, sort, source_quote_id) values
   (:'co', :'old13', 'Change order discount', 1, 'ea', -10, false, 100000, :'co_typed3'), (:'co', :'old13', 'Change order discount', 1, 'ea', -30, true, 100001, :'co_code3');
 select tpo.mowed(:'old13', '2026-05-04');
@@ -893,8 +893,8 @@ update public.invoice_line_items set taxable = true where invoice_id = :'o13a' a
 -- The same two, the code's copy cut to $20 on the draft: its price changed, and it's the other part from the typed one.
 select tpo.old_job(:'co', :'mo', null) as old14 \gset
 delete from public.job_line_items where job_id = :'old14' and name like 'Promo code %';
-insert into public.quotes (company_id, client_id, title, status, change_order_for) values (:'co', :'mo', 'Edging', 'converted', :'old14') returning id as co_typed4 \gset
-insert into public.quotes (company_id, client_id, title, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Hedges', 'converted', :'old14', :'co10') returning id as co_code4 \gset
+insert into public.quotes (company_id, client_id, title, approval, status, change_order_for) values (:'co', :'mo', 'Edging', '{"name": "Mo", "signed_at": "2026-05-01T12:00:00Z", "total": 0}', 'converted', :'old14') returning id as co_typed4 \gset
+insert into public.quotes (company_id, client_id, title, approval, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Hedges', '{"name": "Mo", "signed_at": "2026-05-01T12:00:00Z", "total": 0}', 'converted', :'old14', :'co10') returning id as co_code4 \gset
 insert into public.job_line_items (company_id, job_id, name, quantity, unit, unit_price, taxable, sort, source_quote_id) values
   (:'co', :'old14', 'Change order discount', 1, 'ea', -10, false, 100000, :'co_typed4'), (:'co', :'old14', 'Change order discount', 1, 'ea', -30, true, 100001, :'co_code4');
 select tpo.mowed(:'old14', '2026-05-04');
@@ -903,8 +903,8 @@ update public.invoice_line_items set unit_price = -20 where invoice_id = :'o14a'
 -- A typed discount and a code's of the same name, both taxed, both copies unticked on the draft.
 select tpo.old_job(:'co', :'mo', null) as old15 \gset
 delete from public.job_line_items where job_id = :'old15' and name like 'Promo code %';
-insert into public.quotes (company_id, client_id, title, status, change_order_for) values (:'co', :'mo', 'Edging', 'converted', :'old15') returning id as co_typed5 \gset
-insert into public.quotes (company_id, client_id, title, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Hedges', 'converted', :'old15', :'co10') returning id as co_code5 \gset
+insert into public.quotes (company_id, client_id, title, approval, status, change_order_for) values (:'co', :'mo', 'Edging', '{"name": "Mo", "signed_at": "2026-05-01T12:00:00Z", "total": 0}', 'converted', :'old15') returning id as co_typed5 \gset
+insert into public.quotes (company_id, client_id, title, approval, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Hedges', '{"name": "Mo", "signed_at": "2026-05-01T12:00:00Z", "total": 0}', 'converted', :'old15', :'co10') returning id as co_code5 \gset
 insert into public.job_line_items (company_id, job_id, name, quantity, unit, unit_price, taxable, sort, source_quote_id) values
   (:'co', :'old15', 'Change order discount', 1, 'ea', -10, true, 100000, :'co_typed5'), (:'co', :'old15', 'Change order discount', 1, 'ea', -30, true, 100001, :'co_code5');
 select tpo.mowed(:'old15', '2026-05-04');

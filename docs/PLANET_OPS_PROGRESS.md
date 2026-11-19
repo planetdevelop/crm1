@@ -5,8 +5,8 @@ phase's acceptance evidence here.
 
 | Phase | Status |
 | --- | --- |
-| 0: fork/staging baseline, shared records, permissions, Planet Ops name | **Repository work done (PR into `planet-ops-staging`)**; Railway staging pending owner |
-| 1: quotes, proposals, terms, signatures, change orders | Not started |
+| 0: fork/staging baseline, shared records, permissions, Planet Ops name | **Merged** into `planet-ops-staging` (PR #1); Railway staging pending owner |
+| 1: quotes, proposals, terms, signatures, change orders | **In progress**: slice 1a (change-order signature gate) in review; 1b–1e to follow |
 | 2–9 | Not started. Gusto and historical import remain deferred |
 
 ## Phase 0 (branch `claude/phase-0-foundation`)
@@ -111,3 +111,42 @@ where the message is still raw (see "Remaining").
 - [ ] Sidebar, sign-in, tab title and installed-app name show Planet Ops
 - [ ] Fictional client/request created; one upload works
 - [ ] Each permission test account opens only what PERMISSIONS.md lists
+
+## Phase 1 (in progress)
+
+Delivered as small PRs into `planet-ops-staging`, in this order:
+
+| Slice | Scope | Status |
+| --- | --- | --- |
+| 1a | **Change orders finalize only with the customer's signature on the exact version** (database, API, UI) | PR open |
+| 1b | Quotes & Proposals: line-item quote vs proposal layout (one authoritative total), narrative sections (overview, scope in work order, inclusions, exclusions, assumptions, alternates), nav relabel | Next |
+| 1c | Document revisions: a snapshot per sent version, superseded versions can't be signed; **Request changes** note tied to the revision reviewed, office notice and follow-up task, signing paused until a revision is issued | To do |
+| 1d | `send_pricing` permission (build vs approve/send customer pricing); separate states for customer accepted, company countersigned, deposit received, ready to schedule; job summary of original contract, change orders, revised total, invoiced, paid, remaining | To do |
+| 1e | Convert Quote / Proposal to Job links the exact signed revision; repeat conversion opens the existing job | To do |
+
+Owner inputs still needed: contract terms wording, payment terms, and whether the company must
+countersign. Until then, documents use the existing contract-section library and clearly marked
+placeholders; no legal text is invented.
+
+### 1a: change-order signature gate
+
+- Before: staff "Mark approved" on a change order (a trigger then added its lines to the job), and
+  "Convert / Add to job" on an unsigned one (it saved a "manual" approval first), both finalized it
+  without the customer.
+- Now: migration `20261120000100_planet_ops_change_order_signature.sql` refuses any move of a change
+  order to approved/converted, by anyone (signed-in staff, assistants, the server, automations), unless
+  its approval is the customer's own (client hub, or signed in person). The approval must have the
+  signer's name, the time, and a signed total equal to the current total. A finalized change order's
+  signed scope and price can't change. Added charges, credits and $0 changes are all covered. Change
+  orders finalized before the migration keep their state.
+- Same rule in `packages/core/src/changeOrders.ts` for the interface: the quote page hides "Mark
+  approved" and "Add to job" on an unsigned change order and explains why; the job's change-order
+  list shows "Awaiting customer signature".
+- Tests: `supabase/tests/planet_ops_change_order_signature_test.sql` (28 checks, every bypass attempt
+  plus positive, credit and $0 change orders, retried signatures applying once);
+  `packages/core/test/changeOrders.test.ts`. Existing database tests that finalized change orders
+  without a customer now give them a customer signature, since that is the rule they encode now.
+- Checks: typecheck pass; unit tests api 2574, web 1983, core 1221 pass; `test:db` all pass;
+  `test:upgrade` from `v0.5.3` passes with this migration applied to a database with rows.
+- Open question for the owner: today a client-hub signature can be a typed name (recorded with the
+  time and address) instead of a drawn signature. Say if change orders must require a drawn one.

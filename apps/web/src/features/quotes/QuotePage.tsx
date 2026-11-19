@@ -11,6 +11,7 @@
  * as a signature on the Client Hub or the iPad does. The option math is core money.ts; options.ts has
  * the option records.
  */
+import { changeOrderBlocker } from "@crewtavo/core/changeOrders";
 import { depositFor } from "@crewtavo/core/contracts";
 import { shownCustomFields } from "@crewtavo/core/customFields";
 import { usesDepth } from "@crewtavo/core/formulas";
@@ -559,6 +560,10 @@ export function QuotePage() {
   // A change order adds to an existing job instead of becoming a new one.
   const changeJob = q.change_job as { id: string; number: number; title: string } | null;
   const convertLabel = changeJob ? `Add to job #${changeJob.number}` : "Convert to job";
+  // Planet Ops: a change order joins its job only with the customer's signature on this exact
+  // version (core changeOrders.ts; the database refuses anything else), so the office isn't offered
+  // "Mark approved" or "Add to job" for one that isn't signed.
+  const coBlocker = changeJob && q.status !== "converted" ? changeOrderBlocker(q) : null;
 
   // With options: the one looked at, its totals and its cost. Without, the quote as it is.
   const offers = offersOptions(options, q.lines);
@@ -614,7 +619,7 @@ export function QuotePage() {
               ) : (
                 <Button icon="send" variant={q.status === "draft" || q.status === "changes_requested" ? "primary" : "secondary"} onClick={() => setDialog("send")} disabled={!q.lines.length} title={!q.lines.length ? "Add a line item first" : undefined}>{q.status === "draft" ? "Send quote" : "Resend"}</Button>
               ))}
-            {q.status !== "draft" && ["approved", "sent", "changes_requested"].includes(q.status) && (
+            {q.status !== "draft" && ["approved", "sent", "changes_requested"].includes(q.status) && !coBlocker && (
               <Button variant={q.status === "approved" ? "primary" : "secondary"} icon="job" loading={converting} disabled={!q.lines.length || settling} onClick={startConvert}>{convertLabel}</Button>
             )}
             <Menu
@@ -624,8 +629,8 @@ export function QuotePage() {
                 { label: "Copy as new draft", icon: "copy", disabled: copy.isPending, onSelect: () => copy.mutate() },
                 { label: "Save as template", icon: "quote", onSelect: () => setDialog("template") },
                 { separator: true },
-                { label: "Mark approved", icon: "check", hidden: !["sent", "changes_requested", "draft"].includes(q.status), disabled: approve.isPending || settling, onSelect: startApprove },
-                { label: convertLabel, icon: "job", hidden: q.status !== "draft", disabled: settling, onSelect: startConvert },
+                { label: "Mark approved", icon: "check", hidden: !["sent", "changes_requested", "draft"].includes(q.status) || Boolean(changeJob), disabled: approve.isPending || settling, onSelect: startApprove },
+                { label: convertLabel, icon: "job", hidden: q.status !== "draft" || Boolean(coBlocker), disabled: settling, onSelect: startConvert },
                 { label: "Mark as lost", icon: "x", hidden: !EDITABLE.includes(q.status), onSelect: () => setDialog("lost") },
                 { label: "Reopen as draft", icon: "undo", hidden: !["lost", "archived"].includes(q.status), onSelect: () => update.mutate({ status: "draft", lost_reason: null }) },
                 { label: "Archive", icon: "archive", hidden: ["archived", "converted"].includes(q.status), onSelect: () => update.mutate({ status: "archived" }) },
@@ -677,7 +682,8 @@ export function QuotePage() {
           <Icon name="job" size={20} />
           <div className="grow">
             <div>Change order for <Link to={`/jobs/${changeJob.id}`} className="strong">job #{changeJob.number}</Link>: {changeJob.title}</div>
-            <div className="small" style={{ fontWeight: 400 }}>{q.status === "converted" ? "It's been added to the job." : "Once the client approves it, its items are added to the job and its total goes up."}</div>
+            <div className="small" style={{ fontWeight: 400 }}>{q.status === "converted" ? "The customer signed it, and it's been added to the job." : "Once the customer signs this exact version, its items are added to the job and the contract total changes. A staff approval or a note can't stand in for the signature, for credits and $0 changes too."}</div>
+            {coBlocker && q.status !== "draft" && <div className="small" style={{ fontWeight: 600, marginTop: 4 }}>Awaiting the customer's signature.</div>}
           </div>
         </div>
       )}

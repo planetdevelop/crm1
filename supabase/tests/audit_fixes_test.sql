@@ -245,9 +245,9 @@ commit;
 insert into public.quotes (company_id, client_id, title, change_order_for) values (:'co', :'client', 'Add aeration', :'job') returning id as change \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'change', 'Aeration', 1, 'ea', 250);
 update public.quotes set status = 'sent', sent_at = now() where id = :'change';
-update public.quotes set status = 'approved', approved_at = now() where id = :'change';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total) where id = :'change';
 update public.quotes set status = 'sent' where id = :'change';
-update public.quotes set status = 'approved', approved_at = now() where id = :'change';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total) where id = :'change';
 select t16.check((select count(*) from public.job_line_items where job_id = :'job' and source_quote_id = :'change') = 1, 'a change order approved twice adds its lines to the job once');
 select t16.check((select status from public.quotes where id = :'change') = 'converted', 'and is marked added to the job');
 

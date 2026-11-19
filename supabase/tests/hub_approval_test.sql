@@ -87,7 +87,7 @@ select t53.check((select status = 'draft' and approval is null from public.quote
 
 -- ===== A change order joins its job with the options picked ===================================
 set role service_role;
-select t53.check(public.approve_hub_quote(:'co', :'change', array[:'handrail']::uuid[], '{"name": "Ana Smith"}'), 'the client approves a change order');
+select t53.check(public.approve_hub_quote(:'co', :'change', array[:'handrail']::uuid[], '{"name": "Ana Smith", "signed_at": "2026-05-01T12:00:00Z"}'), 'the client approves a change order');
 reset role;
 select t53.check((select status = 'converted' from public.quotes where id = :'change'), 'it''s added to its job');
 select t53.check((select count(*) = 2 and sum(unit_price) = 750 from public.job_line_items where job_id = :'job' and source_quote_id = :'change'), 'with the option the client picked');
