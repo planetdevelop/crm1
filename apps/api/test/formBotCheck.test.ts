@@ -789,7 +789,7 @@ describe("the app's page", () => {
     const db = fakeDb({ tables: { ...tables, website_forms: () => row } });
     const res = await patch({ bot_check: "turnstile" });
     expect(res.status).toBe(400);
-    expect(((await res.json()) as { error: string }).error).toBe("This Crewtavo can't read your Turnstile keys any more. Enter them again, then turn it on for this form.");
+    expect(((await res.json()) as { error: string }).error).toBe("This Planet Ops can't read your Turnstile keys any more. Enter them again, then turn it on for this form.");
     expect(db.formUpdates()).toEqual([]);
 
     fakeDb({ tables: { companies: tables.companies, website_forms: tables.website_forms } });

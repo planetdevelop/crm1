@@ -253,7 +253,7 @@ describe("a number the office stopped", () => {
       expect([res.status, await res.json()], kind).toEqual([400, { error: "Ana Smith asked not to be texted, so texts to them are off. Send it by email instead." }]);
       // Named outright, her number is refused too.
       const named = await call(`/${kind}/${id}/send`, { channel: "sms", to: "540.555.0100" });
-      expect([named.status, await named.json()], kind).toEqual([400, { error: "540.555.0100 asked not to be texted, so Crewtavo can't text it." }]);
+      expect([named.status, await named.json()], kind).toEqual([400, { error: "540.555.0100 asked not to be texted, so Planet Ops can't text it." }]);
     }
     expect(sendSms).not.toHaveBeenCalled();
   });
@@ -281,7 +281,7 @@ describe("a number the office stopped", () => {
   it("isn't texted from Messages", async () => {
     serve({ tables: { memberships: [member("office")], companies: [company], ...stopped } });
     const res = await call("/messages/send", { client_id: ANA_ID, channel: "sms", body: "Running late" });
-    expect([res.status, await res.json()]).toEqual([400, { error: "(540) 555-0100 asked not to be texted, so Crewtavo can't text it." }]);
+    expect([res.status, await res.json()]).toEqual([400, { error: "(540) 555-0100 asked not to be texted, so Planet Ops can't text it." }]);
     expect(sendSms).not.toHaveBeenCalled();
     // A client the office's switch marked says so by name.
     serve({ tables: { memberships: [member("office")], companies: [company], clients: [{ ...ANA, sms_opt_out_at: "2026-10-20T15:00:00Z" }], sms_stops: [officeStop()] } });

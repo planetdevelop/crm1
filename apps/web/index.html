@@ -4,20 +4,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#F6F5F1" />
-    <title>Crewtavo</title>
-    <meta name="description" content="Crewtavo: quotes, scheduling, field work and invoicing for service businesses." />
+    <title>Planet Ops</title>
+    <meta name="description" content="Planet Ops: the operating system for Planet Demolition. Based on Crewtavo." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <!-- Added to an iPhone's Home Screen: its name there, and the status bar above the page rather than over it (a see-through one has white text, lost on the light theme). -->
-    <meta name="apple-mobile-web-app-title" content="Crewtavo" />
+    <meta name="apple-mobile-web-app-title" content="Planet Ops" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <!-- The page's own color (--page in src/styles/tokens.css) from the first paint, so opening the app never flashes white in dark mode. -->
     <style>
       html { background: #ffffff; }
       html.dark { background: #111110; color-scheme: dark; }
-      /* A booking form inside the business's own website (?embed=1) sits on that site's background, with no Crewtavo logo while it loads. */
+      /* A booking form inside the business's own website (?embed=1) sits on that site's background, with no app logo while it loads. */
       html.embedded, html.embedded body { background: transparent; }
       html.embedded .boot { display: none; }
     </style>
@@ -39,16 +39,15 @@
   </head>
   <body>
     <div id="root">
-      <div class="boot" role="status" aria-label="Loading Crewtavo">
-        <svg class="boot-mark" viewBox="0 0 211 251" aria-hidden="true"><path fill="#182430" d="M115 0 156.2 23.8 41.5 90 41.5 157.1 115 199.5 115 247.4 0 181 0 66.4Z" /><path fill="#F4B143" d="M156.2 56 211 87.64 211 125.64 156.2 94 70 143.77 70 105.77Z" /><path fill="#182430" d="M156.2 124 211 155.64 211 193.14 156.2 161.5ZM156.2 181.5 211 213.14 211 250.64 156.2 219Z" /></svg>
+      <div class="boot" role="status" aria-label="Loading Planet Ops">
+        <svg class="boot-mark" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="17" fill="#1C50E4" /><ellipse cx="32" cy="32" rx="29" ry="9.5" fill="none" stroke="#17801B" stroke-width="4.5" transform="rotate(-24 32 32)" /><path d="M15 32a17 17 0 0 0 34 0" fill="#1C50E4" /></svg>
       </div>
     </div>
     <style>
       .boot { position: fixed; inset: 0; display: grid; place-items: center; background: #fff; }
-      .boot-mark { width: 40px; height: 48px; animation: boot 1.2s ease-in-out infinite; }
+      .boot-mark { width: 48px; height: 48px; animation: boot 1.2s ease-in-out infinite; }
       @keyframes boot { 0%, 100% { transform: scale(0.92); opacity: 0.7; } 50% { transform: scale(1); opacity: 1; } }
       .dark .boot { background: #111110; }
-      .dark .boot-mark path[fill="#182430"] { fill: #eeeeec; }
     </style>
     <script type="module" src="/src/main.tsx"></script>
   </body>

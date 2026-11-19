@@ -24,7 +24,9 @@ export { LICENSE_TEXT, NOTICE_TEXT, TERMS_TEXT, TERMS_VERSION };
  * Where this version's source code is. The AGPL asks anyone running a modified Crewtavo for others to
  * offer them its source (section 13): a modified version points this at its own.
  */
-export const SOURCE_URL = "https://github.com/jviars/crewtavo";
+// Planet Ops is a modified version: its own source (packages/core/src/brand.ts).
+export { SOURCE_URL } from "@crewtavo/core/brand";
+import { SOURCE_URL, UPSTREAM_SOURCE_URL } from "@crewtavo/core/brand";
 
 /**
  * TERMS and NOTICE are wrapped at 100 characters for reading as files. Joins each paragraph's
@@ -76,7 +78,7 @@ export function LicenseNotice() {
   return (
     <div className="stack-sm" style={{ gap: 10 }}>
       <span className="muted small">
-        Copyright (C) 2026 Joshua Viars. Crewtavo is free software under the GNU Affero General Public License, version 3, with the additional terms in its notice, and comes with no warranty. <a href={SOURCE_URL} target="_blank" rel="noopener noreferrer">Source code</a>
+        Planet Ops is a modified version of Crewtavo and is not an official Crewtavo release. Crewtavo is copyright (C) 2026 Joshua Viars, and is free software under the GNU Affero General Public License, version 3, with the additional terms in its notice, and comes with no warranty; Planet Ops is under the same license. <a href={SOURCE_URL} target="_blank" rel="noopener noreferrer">Planet Ops source code</a> · <a href={UPSTREAM_SOURCE_URL} target="_blank" rel="noopener noreferrer">Crewtavo source code</a>
       </span>
       <details className="more-options">
         <summary>Read the notice and additional terms</summary>

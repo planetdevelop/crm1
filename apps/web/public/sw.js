@@ -196,7 +196,7 @@ async function pruneAssets(cache, loaded) {
 }
 
 self.addEventListener("push", (event) => {
-  let message = { title: "Crewtavo", body: "", link: "/", tag: undefined };
+  let message = { title: "Planet Ops", body: "", link: "/", tag: undefined };
   try {
     message = { ...message, ...event.data.json() };
   } catch {
@@ -260,12 +260,12 @@ self.addEventListener("sync", (event) => {
       const onScreen = (w) => appWindow(w) && (w.visibilityState === "visible" || w.focused);
       if (windows.some(onScreen)) {
         if (event.lastChance) return;
-        throw new Error("Crewtavo is open on the screen: it sends them itself.");
+        throw new Error("Planet Ops is open on the screen: it sends them itself.");
       }
       // In the app's language when it left its words (src/lib/offline.ts tellServiceWorker), else English.
       const words = await waitingWords();
-      await self.registration.showNotification("Crewtavo", {
-        body: words ? (waiting === 1 ? words.one : words.other.replace("{count}", String(waiting))) : `${waiting === 1 ? "1 update is" : `${waiting} updates are`} waiting to be sent. Open Crewtavo to send them.`,
+      await self.registration.showNotification("Planet Ops", {
+        body: words ? (waiting === 1 ? words.one : words.other.replace("{count}", String(waiting))) : `${waiting === 1 ? "1 update is" : `${waiting} updates are`} waiting to be sent. Open Planet Ops to send them.`,
         tag: SYNC_TAG,
         icon: "/icon-192.png",
         badge: "/icon-192.png",

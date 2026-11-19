@@ -4,6 +4,7 @@
  * words for Timesheets: who or what changed an entry, what it said before and says now, and why.
  * The worker reads the changes to their own time, the office everyone's, a crew lead their crew's.
  */
+import { PRODUCT_NAME } from "@crewtavo/core/brand";
 import { supabase } from "@/lib/api";
 import { dateIn, formatTime } from "@/lib/format";
 import { intlLocale, t } from "@/lib/i18n";
@@ -63,7 +64,7 @@ export function changedBy(change: Pick<TimeChange, "changed_by" | "source">, me:
   const who = change.changed_by ? name(change.changed_by) : null;
   switch (change.source) {
     case "person":
-      return mine ? t("You") : (who ?? "Crewtavo");
+      return mine ? t("You") : (who ?? PRODUCT_NAME);
     case "assistant":
       return mine ? t("Your AI assistant") : who ? t("{name}'s AI assistant", { name: who }) : t("An AI assistant");
     case "geofence":
@@ -77,7 +78,7 @@ export function changedBy(change: Pick<TimeChange, "changed_by" | "source">, me:
     case "sub_off_clock":
       return t("Crewtavo, on being taken off the clock");
     default:
-      return "Crewtavo";
+      return PRODUCT_NAME;
   }
 }
 
@@ -85,7 +86,7 @@ export function changedBy(change: Pick<TimeChange, "changed_by" | "source">, me:
 export function editNote(change: Pick<TimeChange, "action" | "changed_by" | "source">, me: string, name: (id: string) => string): string {
   const person = change.source === "person" || change.source === "assistant";
   if (person && change.source === "person" && change.changed_by === me) return change.action === "added" ? t("You added this") : change.action === "deleted" ? t("You deleted this") : t("You changed this");
-  const who = person ? changedBy(change, me, name) : "Crewtavo";
+  const who = person ? changedBy(change, me, name) : PRODUCT_NAME;
   return change.action === "added" ? t("Added by {who}", { who }) : change.action === "deleted" ? t("Deleted by {who}", { who }) : t("Changed by {who}", { who });
 }
 

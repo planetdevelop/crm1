@@ -93,14 +93,14 @@ describe("the code", () => {
     expect(codeDigits("123456")).toBe("123456");
     expect(codeDigits("123 456")).toBe("123456");
     expect(codeDigits("123-456")).toBe("123456");
-    expect(codeDigits("123456 is your sign-in code for Uniform Roofing on Crewtavo. It runs out in 10 minutes.")).toBe("123456");
+    expect(codeDigits("123456 is your sign-in code for Uniform Roofing on Planet Ops. It runs out in 10 minutes.")).toBe("123456");
     expect(codeDigits("12a")).toBe("12");
   });
 
   it("takes the code, not a company name's digits, from the whole email pasted in", () => {
     const { text } = signInCodeEmail({ code: "042517", companyName: "A1 Roofing", name: "Al" });
     expect(codeDigits(text)).toBe("042517");
-    expect(codeDigits("042517 is your sign-in code for 4 Seasons Lawn on Crewtavo.")).toBe("042517");
+    expect(codeDigits("042517 is your sign-in code for 4 Seasons Lawn on Planet Ops.")).toBe("042517");
     // A longer run of digits isn't a code on its own; the digits typed are still taken.
     expect(codeDigits("1234567")).toBe("123456");
   });
@@ -228,7 +228,7 @@ describe("the sub's Signing in note on their profile", () => {
 
   it("points to the code by text when this Crewtavo can text", () => {
     const note = signingInNote("Uniform Roofing", textOnly);
-    expect(note).toContain("On a new phone, open Crewtavo and tap Get a sign-in code by text.");
+    expect(note).toContain("On a new phone, open Planet Ops and tap Get a sign-in code by text.");
     expect(note).toContain("the number Uniform Roofing has for you");
     expect(note).toContain("If no code comes, ask Uniform Roofing for a new sign-in link.");
     expect(note).not.toContain("email");
@@ -243,7 +243,7 @@ describe("the sub's Signing in note on their profile", () => {
   it("points to the code by email when this Crewtavo can't text but the company's email goes out", () => {
     const note = signingInNote("Uniform Roofing", emailOnly);
     expect(note).toBe(
-      "There's no password. You stay signed in on this phone until you sign out. On a new phone, open Crewtavo and tap Get a sign-in code by email. We'll email a code to the address Uniform Roofing has for you. If no code comes, ask Uniform Roofing for a new sign-in link.",
+      "There's no password. You stay signed in on this phone until you sign out. On a new phone, open Planet Ops and tap Get a sign-in code by email. We'll email a code to the address Uniform Roofing has for you. If no code comes, ask Uniform Roofing for a new sign-in link.",
     );
     expect(note).not.toContain("text a code");
   });
@@ -257,15 +257,15 @@ describe("the sub's Signing in note on their profile", () => {
 
 describe("the sub's Sign out? question", () => {
   it("points to the code by text when this Crewtavo can text", () => {
-    expect(signOutNote("Uniform Roofing", { text: true, email: false })).toBe("There's no password. To get back in, open Crewtavo and tap Get a sign-in code by text.");
+    expect(signOutNote("Uniform Roofing", { text: true, email: false })).toBe("There's no password. To get back in, open Planet Ops and tap Get a sign-in code by text.");
   });
 
   it("names both ways when both go out", () => {
-    expect(signOutNote("Uniform Roofing", { text: true, email: true })).toBe("There's no password. To get back in, open Crewtavo and get a sign-in code by text or by email.");
+    expect(signOutNote("Uniform Roofing", { text: true, email: true })).toBe("There's no password. To get back in, open Planet Ops and get a sign-in code by text or by email.");
   });
 
   it("points to the code by email when only email goes out", () => {
-    expect(signOutNote("Uniform Roofing", { text: false, email: true })).toBe("There's no password. To get back in, open Crewtavo and tap Get a sign-in code by email.");
+    expect(signOutNote("Uniform Roofing", { text: false, email: true })).toBe("There's no password. To get back in, open Planet Ops and tap Get a sign-in code by email.");
   });
 
   it("says to ask the office for a new link when no code can go", () => {
@@ -320,7 +320,7 @@ describe("which ways a signed-in sub has", () => {
     expect(signOutNote("Uniform Roofing", emailOnly)).toBe("There's no password. To get back in, ask Uniform Roofing to text you a new sign-in link.");
     // Texting on, but no number on their record: email it is.
     const noPhone = subCodeWays({ sms: true, emailCodes: true, email: true }, { has_phone: false, has_email: true });
-    expect(signOutNote("Uniform Roofing", noPhone)).toBe("There's no password. To get back in, open Crewtavo and tap Get a sign-in code by email.");
+    expect(signOutNote("Uniform Roofing", noPhone)).toBe("There's no password. To get back in, open Planet Ops and tap Get a sign-in code by email.");
     expect(signingInNote("Uniform Roofing", noPhone)).toContain("tap Get a sign-in code by email. We'll email a code to the address Uniform Roofing has for you.");
   });
 });

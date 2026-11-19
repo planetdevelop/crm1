@@ -1,10 +1,19 @@
-/** The Crewtavo mark (same shapes as public/crewtavo-mark.svg). */
+import { PRODUCT_NAME } from "@crewtavo/core/brand";
+
+/**
+ * The Planet Ops mark (same shapes as public/planet-ops-mark.svg).
+ *
+ * INTERIM: a plain planet-and-orbit placeholder in the brand colors (#1C50E4, #17801B), so the
+ * modified version stops showing the Crewtavo logo (NOTICE section 7(e)). It is deliberately not a
+ * redraw of the Planet Demolition crest: replace it with the approved crest artwork once supplied
+ * (docs/PLANET_OPS_PROGRESS.md, "Pending owner inputs").
+ */
 export function BrandMark({ size = 28, className }: { size?: number; className?: string }) {
   return (
-    <svg className={className} width={(size * 211) / 251} height={size} viewBox="0 0 211 251" aria-hidden="true" focusable="false">
-      <path fill="var(--brand-ink, #182430)" d="M115 0 156.2 23.8 41.5 90 41.5 157.1 115 199.5 115 247.4 0 181 0 66.4Z" />
-      <path fill="#F4B143" d="M156.2 56 211 87.64 211 125.64 156.2 94 70 143.77 70 105.77Z" />
-      <path fill="var(--brand-ink, #182430)" d="M156.2 124 211 155.64 211 193.14 156.2 161.5ZM156.2 181.5 211 213.14 211 250.64 156.2 219Z" />
+    <svg className={className} width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <circle cx="32" cy="32" r="17" fill="#1C50E4" />
+      <ellipse cx="32" cy="32" rx="29" ry="9.5" fill="none" stroke="#17801B" strokeWidth="4.5" transform="rotate(-24 32 32)" />
+      <path d="M15 32a17 17 0 0 0 34 0" fill="#1C50E4" />
     </svg>
   );
 }
@@ -14,7 +23,7 @@ export function BrandLockup({ size = 28 }: { size?: number }) {
   return (
     <>
       <BrandMark size={size} />
-      <span className="brand-name">Crewtavo</span>
+      <span className="brand-name">{PRODUCT_NAME}</span>
     </>
   );
 }

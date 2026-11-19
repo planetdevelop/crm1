@@ -6,6 +6,7 @@
  * that keeps accounts (and test and live mode) apart the way Stripe does: one account's invoice is
  * "No such invoice" to another's key.
  */
+import { brandText } from "@crewtavo/core/brand";
 import type { IncomingMessage } from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { app } from "../src/app";
@@ -667,7 +668,7 @@ describe("replacing the Stripe key", () => {
     const res = await app.request("/api/apps/stripe/key", { method: "PUT", headers, body: JSON.stringify({ api_key: "rk_live_NEW", password: others.password }) }, env);
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: string }).error).toBe(
-      "That key can't add a webhook. Make a new one with Get a key from Stripe, which gives it everything Crewtavo needs. Stripe stays connected as it was.",
+      "That key can't add a webhook. Make a new one with Get a key from Stripe, which gives it everything Planet Ops needs. Stripe stays connected as it was.",
     );
     // Nothing was taken out, and the old key and its webhook are still the ones in use.
     expect(stripe.calls.filter((c) => c.includes("DELETE"))).toEqual([]);
@@ -915,7 +916,8 @@ describe("changing the Stripe key: the password, the record and the owners", () 
     (db.db as unknown as { auth: { getClaims: unknown } }).auth.getClaims = async () => ({ data: { claims: { sub: USER, app_metadata: { provider: "google", providers: ["google"] } } }, error: null });
     const res = await putKey(stripeKey("sk_live_Aqzx9", "acct_A"), "anything");
     expect(res.status).toBe(400);
-    expect(await errorOf(res)).toBe(NO_PASSWORD);
+    // Planet Ops: the API names the product as the app does (brand.ts).
+    expect(await errorOf(res)).toBe(brandText(NO_PASSWORD));
     expect(NO_PASSWORD).toContain("Settings → Profile → Change password");
   });
 

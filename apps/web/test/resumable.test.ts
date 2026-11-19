@@ -182,7 +182,7 @@ describe("sending a file in pieces", () => {
     const error = await upload.promise.catch((e: unknown) => e);
     expect(error).toBeInstanceOf(lib.TooLargeError);
     expect((error as InstanceType<typeof lib.TooLargeError>).fromServer).toBe(true);
-    expect((error as Error).message).toBe("Set A.pdf (120 MB) is bigger than this Crewtavo accepts.");
+    expect((error as Error).message).toBe("Set A.pdf (120 MB) is bigger than this Planet Ops accepts.");
   });
 
   it("says plainly when Storage won't take it from this person, or the connection gave out", async () => {
@@ -216,7 +216,7 @@ describe("sending a file in pieces", () => {
   });
 
   it("turns Storage's 507 into storage full, in the server's own words, without trying again", async () => {
-    const sentence = "Crewtavo's storage is full: 45 GB of the 50 GB limit. An owner or admin can raise it in Settings → Storage, or empty the Trash.";
+    const sentence = "Planet Ops's storage is full: 45 GB of the 50 GB limit. An owner or admin can raise it in Settings → Storage, or empty the Trash.";
     const upload = lib.resumableUpload({ path: "co-1/plans/f1.pdf", file: pdf(), contentType: "application/pdf", onProgress: () => undefined });
     const tus = await started();
     tus.options.onError(failed("POST", 507, JSON.stringify({ statusCode: "507", error: "Storage full", message: sentence })));
