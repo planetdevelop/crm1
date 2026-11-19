@@ -50,8 +50,10 @@ language sql stable security definer set search_path = '' as $$
     'quote', (select jsonb_build_object(
         'client_id', q.client_id, 'property_id', q.property_id, 'change_order_for', q.change_order_for,
         'title', q.title, 'message', q.message,
-        'discount_amount', q.discount_amount, 'tax_rate', q.tax_rate, 'promo_code_id', q.promo_code_id, 'promo_every_visit', q.promo_every_visit,
-        'deposit_amount', q.deposit_amount, 'deposit_percent', q.deposit_percent, 'payment_schedule', q.payment_schedule,
+        -- promo_every_visit is fixed as it's approved (from the code's own setting), and a deposit
+        -- given as a percent comes to its amount from the total: neither is the document's own.
+        'discount_amount', q.discount_amount, 'tax_rate', q.tax_rate, 'promo_code_id', q.promo_code_id,
+        'deposit_amount', case when q.deposit_percent is null then q.deposit_amount end, 'deposit_percent', q.deposit_percent, 'payment_schedule', q.payment_schedule,
         'recurrence_rule', q.recurrence_rule, 'active_months', q.active_months, 'starts_on', q.starts_on, 'ends_on', q.ends_on,
         'valid_until', q.valid_until, 'template_id', q.template_id, 'section_ids', q.section_ids,
         'range_low', q.range_low, 'range_high', q.range_high)
