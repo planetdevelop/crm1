@@ -168,5 +168,10 @@ placeholders; no legal text is invented.
   customer would, and expect reopening a signed one to be refused.
 - Checks: typecheck pass; unit tests api 2574, web 1983, core 1221 pass; `test:db` all pass;
   `test:upgrade` from `v0.5.3` passes with this migration applied to a database with rows.
-- Open question for the owner: a client-hub signature can be a typed name (recorded with the time and
-  address) instead of a drawn one. Say if change orders must require a drawn signature.
+- **Drawn signatures required (owner decision).** A customer signature is three separate fields: the
+  printed name, the signing time and a signature drawn with a finger, mouse or stylus (a PNG from the
+  signature pad). The database refuses any customer acceptance without the drawing, on quotes,
+  proposals and change orders; a typed name alone never signs. The client hub's API requires the
+  drawing too, and its pad says "Draw your signature with your finger, mouse or stylus". Tests cover a
+  typed name only, words in place of the drawing, a non-PNG picture, and each of the three fields
+  missing.

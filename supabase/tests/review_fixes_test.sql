@@ -212,7 +212,7 @@ insert into public.quotes (company_id, client_id, title, change_order_for, disco
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price, sort) values (:'co', :'change', 'Edging', 2, 'ea', 150, 0) returning id as edging \gset
 commit;
 update public.quotes set status = 'sent', sent_at = now() where id = :'change';
-update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'change';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'change';
 select t41.check((select contract_total from public.job_financials where job_id = :'job') = 1470, 'a signed change order joins its job, less its discount (1200 + 300 - 30)');
 select t41.expect_error(format('update public.quotes set status = ''sent'' where id = %L', :'change'), 'it can''t be re-opened to change it');
 begin;
@@ -236,9 +236,9 @@ insert into public.quote_line_items (company_id, quote_id, name, quantity, unit,
 insert into public.job_line_items (company_id, job_id, name, quantity, unit, unit_price) values (:'co', :'job', 'Change order discount', 1, 'ea', -10);
 commit;
 update public.quotes set status = 'sent', sent_at = now() where id in (:'gate', :'bench');
-update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'gate';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'gate';
 select t41.check((select contract_total from public.job_financials where job_id = :'job') = 1720, 'another signed change order joins too (1470 + 300 - 40, and 10 off typed in)');
-update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'bench';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'bench';
 select t41.check((select contract_total from public.job_financials where job_id = :'job') = 1820, 'a later one adds only its own lines (1720 + 100)');
 select t41.check((select count(*) from public.job_line_items where job_id = :'job' and name = 'Change order discount' and source_quote_id is null) = 1, 'and leaves the typed discount as it was');
 

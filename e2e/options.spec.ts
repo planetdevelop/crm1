@@ -92,7 +92,7 @@ test("two options → the client picks the second, initials and signs → a job 
 
     // Signed for the option picked, at its price.
     await hub.getByLabel("Your full name").fill("Pat Client");
-    const signaturePad = hub.getByRole("img", { name: /Sign with your finger or mouse/ });
+    const signaturePad = hub.getByRole("img", { name: /Draw your signature with your finger, mouse or stylus/ });
     await signaturePad.scrollIntoViewIfNeeded();
     const pad = await signaturePad.boundingBox();
     await portal.mouse.move(pad!.x + 30, pad!.y + 80);

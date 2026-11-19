@@ -24,7 +24,7 @@ end $$;
 -- The customer signs on their link, from a page that showed the version with this fingerprint.
 create function tpo_co.customer_signs(p_company uuid, p_quote uuid, p_seen text) returns boolean language sql as $$
   select public.approve_hub_quote(p_company, p_quote, '{}',
-    jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'ip', '203.0.113.5', 'seen_fingerprint', p_seen))
+    jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'ip', '203.0.113.5', 'seen_fingerprint', p_seen))
 $$;
 grant execute on all functions in schema tpo_co to authenticated, service_role;
 
@@ -64,9 +64,9 @@ select tpo_co.expect_error(format('insert into public.quotes (company_id, client
   'a change order can''t be inserted already finalized', '%customer signs this exact version%');
 -- Fabricated signature metadata: a customer-looking approval, with or without the right total and
 -- fingerprint, written by someone signed in, is refused whether or not it finalizes anything.
-select tpo_co.expect_error(format('update public.quotes set approval = jsonb_build_object(''name'', ''Test Customer'', ''signed_at'', now(), ''total'', total, ''method'', ''in_person'', ''seen_fingerprint'', public.quote_fingerprint(id)) where id = %L', :'add'),
+select tpo_co.expect_error(format('update public.quotes set approval = jsonb_build_object(''name'', ''Test Customer'', ''signed_at'', now(), ''signature'', ''data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='', ''total'', total, ''method'', ''in_person'', ''seen_fingerprint'', public.quote_fingerprint(id)) where id = %L', :'add'),
   'staff can''t write a customer signature into the quote', '%Only the customer can sign%');
-select tpo_co.expect_error(format('update public.quotes set status = ''approved'', approved_at = now(), approval = jsonb_build_object(''name'', ''Test Customer'', ''signed_at'', now(), ''total'', total, ''seen_fingerprint'', public.quote_fingerprint(id)) where id = %L', :'add'),
+select tpo_co.expect_error(format('update public.quotes set status = ''approved'', approved_at = now(), approval = jsonb_build_object(''name'', ''Test Customer'', ''signed_at'', now(), ''signature'', ''data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='', ''total'', total, ''seen_fingerprint'', public.quote_fingerprint(id)) where id = %L', :'add'),
   'nor approve it with one', '%Only the customer can sign%');
 select tpo_co.expect_error(format('select public.sign_quote(%L, ''{"name": "Test Customer", "method": "in_person", "signed_at": "2026-11-20T15:00:00Z"}'')', :'add'),
   'nor call the in-person signing step directly', '%permission denied%');
@@ -76,6 +76,20 @@ select tpo_co.check(not exists (select 1 from public.job_line_items where source
 -- Members get the fingerprint for their own quotes only, the signing screen's.
 select tpo_co.check(public.quote_fingerprint(:'add') ~ '^[0-9a-f]{32}$', 'a member can read the version fingerprint of their own change order (the signing screen''s)');
 commit;
+
+-- ===== Only a drawn signature signs: a typed name alone never does ============================
+select tpo_co.expect_error(format('select public.approve_hub_quote(%L, %L, %L, jsonb_build_object(%L, %L, %L, now(), %L, public.quote_fingerprint(%L)))', :'co', :'add', '{}', 'name', 'Test Customer', 'signed_at', 'seen_fingerprint', :'add'),
+  'a change order can''t be signed with a typed name alone', '%drawn signature is needed%');
+select tpo_co.expect_error(format('select public.approve_hub_quote(%L, %L, %L, jsonb_build_object(%L, %L, %L, now(), %L, %L, %L, public.quote_fingerprint(%L)))', :'co', :'add', '{}', 'name', 'Test Customer', 'signed_at', 'signature', 'Test Customer', 'seen_fingerprint', :'add'),
+  'nor with words where the drawing goes', '%drawn signature is needed%');
+select tpo_co.expect_error(format('select public.approve_hub_quote(%L, %L, %L, jsonb_build_object(%L, %L, %L, now(), %L, %L, %L, public.quote_fingerprint(%L)))', :'co', :'add', '{}', 'name', 'Test Customer', 'signed_at', 'signature', 'data:image/jpeg;base64,/9j/4AAQ', 'seen_fingerprint', :'add'),
+  'nor with a picture that isn''t a drawn signature', '%drawn signature is needed%');
+select tpo_co.check(private.is_customer_signature(jsonb_build_object('name', 'A', 'signed_at', '2026-11-20T15:00:00Z', 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='))
+                and not private.is_customer_signature('{"name": "A", "signed_at": "2026-11-20T15:00:00Z"}')
+                and not private.is_customer_signature(jsonb_build_object('signed_at', '2026-11-20T15:00:00Z', 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='))
+                and not private.is_customer_signature(jsonb_build_object('name', 'A', 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=')),
+  'a customer signature is the printed name, the signing time and the drawing, each needed');
+select tpo_co.check((select status from public.quotes where id = :'add') = 'sent', 'the change order is still unsigned');
 
 -- ===== Acceptance is tied to the whole document version, not just its total ===================
 select public.quote_fingerprint(:'add') as v1 \gset
@@ -175,7 +189,9 @@ insert into public.quotes (company_id, client_id, title) values (:'co', :'client
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'fence', 'Remove fence', 1, 'ea', 900);
 update public.quotes set status = 'sent', sent_at = now() where id = :'fence';
 commit;
-select tpo_co.check(tpo_co.customer_signs(:'co', :'fence', public.quote_fingerprint(:'fence')), 'the customer signs a quote on their link');
+select tpo_co.expect_error(format('select public.approve_hub_quote(%L, %L, %L, jsonb_build_object(%L, %L, %L, now()))', :'co', :'fence', '{}', 'name', 'Test Customer', 'signed_at'),
+  'an ordinary quote can''t be accepted with a typed name alone either', '%drawn signature is needed%');
+select tpo_co.check(tpo_co.customer_signs(:'co', :'fence', public.quote_fingerprint(:'fence')), 'the customer signs a quote on their link, drawing their signature');
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "a0c00000-0000-0000-0000-000000000001", "role": "authenticated"}', true);

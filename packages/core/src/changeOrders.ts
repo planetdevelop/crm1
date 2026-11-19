@@ -43,6 +43,10 @@ const cents = (value: unknown): number | null => {
   return Number.isFinite(n) ? Math.round(n * 100) : null;
 };
 
+/** A signature drawn on the signature pad (a PNG data URL), as the database checks it (private.is_drawn_signature). */
+export const isDrawnSignature = (value: unknown): value is string =>
+  typeof value === "string" && value.length <= 300_100 && /^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/=]+$/.test(value);
+
 /** Whether this change order carries the customer's own signature on the version it is now. */
 export function changeOrderSignature(quote: ChangeOrderLike): ChangeOrderSignature {
   if (!quote.change_order_for) return { signed: false, reason: "not_a_change_order" };
@@ -51,7 +55,9 @@ export function changeOrderSignature(quote: ChangeOrderLike): ChangeOrderSignatu
   const approval = a as Record<string, unknown>;
   if (approval.method === "manual") return { signed: false, reason: "staff_approval" };
   const name = typeof approval.name === "string" ? approval.name.trim() : "";
-  if (!name || typeof approval.signed_at !== "string" || !approval.signed_at) return { signed: false, reason: "no_signature" };
+  // The printed name, the signing time and the drawn signature (a PNG from the pad), each needed: a
+  // typed name alone never signs.
+  if (!name || typeof approval.signed_at !== "string" || !approval.signed_at || !isDrawnSignature(approval.signature)) return { signed: false, reason: "no_signature" };
   const signedTotal = cents(approval.total);
   if (signedTotal === null || signedTotal !== cents(quote.total)) return { signed: false, reason: "changed_since_signed" };
   return { signed: true };

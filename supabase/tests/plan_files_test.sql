@@ -166,7 +166,7 @@ insert into public.plan_files (company_id, quote_id, title, path, file_name) val
 select tpf.check((select job_id is null from public.plan_files where id = :'lane'), 'a change order''s file waits for the approval');
 update public.quotes set status = 'sent', sent_at = now() where id = :'co_quote';
 commit;
-update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'co_quote';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'co_quote';
 select tpf.check((select job_id = :'job' from public.plan_files where id = :'lane'), 'once the change order is approved, its files go on the job');
 
 -- ===== Files sent with a booking request ======================================================

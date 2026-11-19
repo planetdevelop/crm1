@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { CHANGE_ORDER_CHANGED_SINCE_SIGNED, CHANGE_ORDER_NEEDS_SIGNATURE, changeOrderBlocker, changeOrderSignature } from "../src/changeOrders";
 
 const co = (approval: unknown, total: number | string = 2500) => ({ change_order_for: "job-1", status: "sent", total, approval });
-const signed = { name: "Test Customer", signed_at: "2026-11-20T15:00:00Z", total: 2500 };
+const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+const signed = { name: "Test Customer", signed_at: "2026-11-20T15:00:00Z", signature: PNG, total: 2500 };
 
 describe("changeOrderSignature", () => {
   it("counts the customer's own signature on this version", () => {
@@ -13,6 +14,12 @@ describe("changeOrderSignature", () => {
 
   it("never counts a staff approval, however complete it looks", () => {
     expect(changeOrderSignature(co({ ...signed, method: "manual" }))).toEqual({ signed: false, reason: "staff_approval" });
+  });
+
+  it("needs the drawn signature: a typed name alone never signs", () => {
+    expect(changeOrderSignature(co({ ...signed, signature: undefined }))).toEqual({ signed: false, reason: "no_signature" });
+    expect(changeOrderSignature(co({ ...signed, signature: "Test Customer" }))).toEqual({ signed: false, reason: "no_signature" });
+    expect(changeOrderSignature(co({ ...signed, signature: "data:image/jpeg;base64,/9j/4AAQ" }))).toEqual({ signed: false, reason: "no_signature" });
   });
 
   it("needs a signer and a time", () => {

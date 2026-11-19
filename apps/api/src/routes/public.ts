@@ -695,8 +695,10 @@ publicRoutes.post("/hub/:token/approve", async (c) => {
     z.object({
       name: z.string().trim().min(2).max(120),
       selected_line_ids: z.array(postedId).max(200).default([]),
-      // Drawn on the screen (a small PNG of a size a signature pad makes); kept with the approval.
-      signature: signatureImage.optional(),
+      // Drawn on the screen with a finger, mouse or stylus (a small PNG of a size a signature pad
+      // makes); kept with the approval beside the printed name and the signing time. Planet Ops:
+      // required, as a typed name alone never signs (the database refuses one too: 20261120000100).
+      signature: signatureImage,
       // The option they picked: required when the quote offers options.
       option_id: postedId.optional(),
       // The total they saw (core chosenTotals): the database turns the approval down if it's changed.
@@ -778,7 +780,7 @@ publicRoutes.post("/hub/:token/approve", async (c) => {
     p_quote: l.id,
     p_selected: picked,
     p_approval: {
-      name: body.name, selected_line_ids: picked, signature: body.signature ?? null, signed_at: signedAt, ip: clientIp(c),
+      name: body.name, selected_line_ids: picked, signature: body.signature, signed_at: signedAt, ip: clientIp(c),
       ...(body.fingerprint ? { seen_fingerprint: body.fingerprint } : {}),
       template: asJson(template),
       ...(company ? { company } : {}),
