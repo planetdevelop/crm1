@@ -77,7 +77,7 @@ test("a crew member is told once what's saved about where they are, and the date
 
   const page = await as("employee", PHONE);
   await page.goto("/field");
-  const notice = page.getByRole("dialog", { name: "Before Crewtavo uses your location" });
+  const notice = page.getByRole("dialog", { name: "Before Planet Ops uses your location" });
   await expect(notice).toBeVisible();
   await expect(notice).toContainText("saves where you are when you clock in and when you clock out");
   await expectAccessible(page, "the location notice (phone)");
