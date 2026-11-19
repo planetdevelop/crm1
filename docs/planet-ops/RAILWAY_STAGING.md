@@ -109,16 +109,20 @@ Phase 0 adds no migration. Before the first phase that does reaches production: 
 good nightly backup under Settings → Your data, a Railway volume backup (Pro), saved secrets, and a
 rehearsed restore into staging ([docs/deploy.md](../deploy.md#restoring-a-backup)).
 
-## 4. Fork repository settings to review (owner)
+## 4. Fork CI (GitHub Actions)
 
-- **GitHub Actions**: no workflow has run in the fork yet (GitHub disables Actions on new forks
-  until you enable them in the **Actions** tab). Enable them to get CI on pull requests.
-- **`ci.yml` "Authorship" step**: this is upstream's own policy. It fails a push to `main` whose
-  commits aren't by upstream's owner or that carry `Co-authored-by` lines, so this fork's own
-  commits will fail it. It runs only on pushes to `main`. Decide whether to remove that step in the
-  fork. Claude did not change CI.
-- **`close-pull-requests.yml`**: closes pull requests opened by anyone other than the repository
-  owner (`planetdevelop`). PRs opened as `planetdevelop` are unaffected; a collaborator's PR would be
-  closed automatically. Decide whether to keep it.
-- **`release.yml`**: pushing a `v*` tag would publish images to the fork's own GHCR namespace. Don't
-  push version tags unless you intend to.
+Actions is enabled in the fork. At the owner's request, the upstream-only restrictions are removed
+and every build and test check is kept:
+
+- **`ci.yml`**: runs on every pull request (including those into `planet-ops-staging`) and on pushes
+  to `main` and `planet-ops-staging`. Jobs: `check` (typecheck, unit tests, `test:db`, server build),
+  `upgrade`, `instance` (the whole Docker stack) and `browser` (lifecycle and Playwright tests).
+  Upstream's **Authorship** step was removed. It required every commit to be by upstream's owner with
+  no co-authors.
+- **`upgrade` job**: the fork has no release tags, so it fetches upstream's `v*` tags (the releases a
+  production instance runs) and checks the upgrade from the latest one behind HEAD. On a pull
+  request it also checks the upgrade from the PR's base commit.
+- **`close-pull-requests.yml`**: removed. It closed every PR not opened by the repository owner.
+- **PR template**: replaced upstream's "contributions not accepted" text with a Planet Ops checklist.
+- **`release.yml`**: unchanged. Pushing a `v*` tag would publish images to the fork's own GHCR
+  namespace, so don't push version tags unless you intend to. LICENSE, NOTICE and TERMS are unchanged.

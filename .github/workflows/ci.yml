@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # Planet Ops: the reviewed staging branch is checked on every push, as well as main.
+    branches: [main, planet-ops-staging]
+  # Every pull request, including those into planet-ops-staging.
   pull_request:
   # The release workflow runs all of this for the tagged commit before it publishes anything
   # (release.yml), so the checks stay in one place.
@@ -15,21 +17,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # Crewtavo takes no outside contributions (CONTRIBUTING.md): every commit is its owner's, with no
-      # co-authors. Merges made on GitHub keep the owner as author and GitHub as committer. Each push
-      # checks the commits since the last release (the newest version tag before it), or all of them
-      # when there isn't one. A release counts as a push too (called from release.yml, the event is
-      # the tag's push), so what it adds is checked again before anything is published.
-      - name: Authorship
-        if: github.event_name == 'push'
-        run: |
-          since=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^ 2>/dev/null || true)
-          range="${since:+$since..}HEAD"
-          others=$(git log --format='%an <%ae>%n%cn <%ce>' "$range" | grep -viE 'jviars|noreply@github\.com' | sort -u)
-          if [ -n "$others" ] || git log --format='%B' "$range" | grep -qi '^co-authored-by:'; then
-            echo "Every commit must be the owner's, with no co-authors. Others found: $others" >&2
-            exit 1
-          fi
+      # Planet Ops: upstream's "Authorship" step (every commit by upstream's owner, no co-authors) is
+      # upstream's own contribution policy, so this fork doesn't run it. The checks below all stay.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -57,7 +46,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Planet Ops: the fork has no release tags of its own. Upstream's are the releases a production
+      # instance runs (its image), so the upgrade from the latest of them behind HEAD is checked.
+      - name: Fetch upstream release tags
+        run: git fetch --no-tags https://github.com/jviars/crewtavo.git '+refs/tags/v*:refs/tags/v*'
       - run: npm run test:upgrade
+      # And, for a pull request, the upgrade from the branch it goes into (the fork's own migrations).
+      - name: Upgrade from the pull request's base
+        if: github.event_name == 'pull_request'
+        run: npm run test:upgrade -- ${{ github.event.pull_request.base.sha }}
 
   # A whole Crewtavo instance, as the Railway template creates it (docker-compose.yml): it must
   # start, apply every migration and reach the "create the owner account" step on its own.

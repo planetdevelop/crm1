@@ -77,7 +77,8 @@ Baseline = untouched `planet-ops-staging` (`bd6eae6`), run in a clean worktree. 
 | `npm run test:db` (throwaway Postgres 17 in Docker) | 203 test files, all passed | unchanged: no migration or SQL change |
 | `npm run build:server` | — | pass; built server answers `/api/health` `{"ok":true,"version":"dev"}`, page title, manifest and setup screen show Planet Ops (desktop and phone screenshots) |
 | `npm run instance` (full five-service Docker stack) | — | **blocked in the session**: the image's `apk add postgresql17-client` step can't reach `dl-cdn.alpinelinux.org` (session network policy). The app build stage inside Docker completed. Railway builds on its own network |
-| `npm run test:upgrade`, `test:e2e`, `test:browser` | not run: need the fork's release tags / a local Supabase CLI stack | not run (no schema change; UI change is text and icons) |
+| `npm run test:upgrade` | — | pass from upstream `v0.5.3` and from the PR base `bd6eae6` (24,100 rows in 177 tables, 0 new migrations) |
+| `test:e2e`, `test:browser` | not run locally (need a local Supabase CLI stack) | run in CI (`browser` job) |
 
 No baseline failures existed. Every test change in this branch is an expected product-name text
 update: an assertion now expects "Planet Ops" where the code path is branded, and stays "Crewtavo"
@@ -89,8 +90,9 @@ where the message is still raw (see "Remaining").
   give sharper large icons; swap `docs/brand/planet-ops-crest.png` and regenerate the icons.
 - **Railway**: confirm the production app's source (runbook §1), then create `staging` following
   runbook §2. Claude did not configure Railway.
-- **GitHub Actions**: enable in the fork. Decide on upstream's CI "Authorship" step and the
-  auto-close PR workflow (runbook §4). Claude did not change CI.
+- **GitHub Actions**: enabled by the owner. At the owner's request, the upstream-only Authorship step
+  and the auto-close PR workflow were removed, and the build and test jobs are kept. CI runs on PRs
+  into `planet-ops-staging` (runbook §4).
 - **Upstream sync before cutover**: if production auto-updates from upstream, merge upstream into
   the fork before Phase 9 (runbook §1).
 
