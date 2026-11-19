@@ -70,3 +70,12 @@ apply to every copy and every modified version.
 
 If any of these terms is held unenforceable, the rest stay in effect, and that term applies to the
 fullest extent the law allows.
+
+
+PLANET OPS MODIFIED VERSION
+
+Planet Ops is a modified version of Crewtavo, made for Planet Demolition. It is not an official
+Crewtavo release and is not endorsed by Crewtavo's copyright holder. It is distributed under the
+same license and additional terms as above. Its source code: https://github.com/planetdevelop/crm1
+Modifications are listed in docs/PLANET_OPS_PROGRESS.md and in this repository's history from
+upstream commit bd6eae6c0143e08631f3978d500ecc20ad6a5c7c onward.

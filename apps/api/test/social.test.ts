@@ -1358,7 +1358,7 @@ describe("the routes", () => {
     const post = (b: Row, path = "/social/posts", method = "POST") => app.request(`/api${path}`, { method, headers: { Authorization: `Bearer ${token}`, "X-Company-Id": CO, "Content-Type": "application/json" }, body: JSON.stringify(b) }, local);
     const photos = await post(body({ attachment_ids: [c.ids[0]] }));
     expect(photos.status).toBe(409);
-    expect(((await photos.json()) as { error: string }).error).toBe("Crewtavo's address isn't public, so Meta and Google can't fetch the pictures. Save it as a draft, or use Share elsewhere.");
+    expect(((await photos.json()) as { error: string }).error).toBe("Planet Ops's address isn't public, so Meta and Google can't fetch the pictures. Save it as a draft, or use Share elsewhere.");
     expect((await post(body({ attachment_ids: [c.ids[0]], when: "draft" }))).status).toBe(201);
     expect((await post(body({ source: "text", caption: "Booking spring cleanups now" }))).status).toBe(201);
     expect((await post({ auto: { enabled: true, networks: ["facebook"] } }, "/social/settings", "PUT")).status).toBe(409);

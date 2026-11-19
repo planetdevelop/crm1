@@ -1074,7 +1074,7 @@ describe("Sync now", () => {
     for (const problem of ["approval", "not_enabled"]) {
       const w = serve({ tables: await connected({ sync: { problem } }) });
       const res = await request("/reviews/google/sync", { method: "POST" });
-      expect([res.status, await res.json()]).toEqual([409, { error: "Google isn't letting Crewtavo in yet, so there's nothing to bring in. Crewtavo checks again every 6 hours." }]);
+      expect([res.status, await res.json()]).toEqual([409, { error: "Google isn't letting Planet Ops in yet, so there's nothing to bring in. Planet Ops checks again every 6 hours." }]);
       expect(rpcs(w, "rate_limit_hit")).toEqual([]);
       expect(w.calls.some(isReviews)).toBe(false);
     }

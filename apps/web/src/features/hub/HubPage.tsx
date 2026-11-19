@@ -24,6 +24,7 @@ import { Icon } from "@/components/ui/Icon";
 import { PrivacyLink } from "@/components/ui/PrivacyLink";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { BrandMark } from "@/components/shell/BrandMark";
+import { PRODUCT_NAME } from "@crewtavo/core/brand";
 import {
   awaitingInitials,
   choiceLabel,
@@ -280,7 +281,7 @@ export function HubPage() {
             <footer className="public-foot hub-foot">
               <span><Icon name="lock" size={12} /> Private link{clientName ? ` for ${clientName}` : ""}. Keep it to yourself.</span>
               {d.company.privacy_url && <span><PrivacyLink url={d.company.privacy_url} /></span>}
-              <span className="hub-powered">Powered by <BrandMark size={13} /> <strong>Crewtavo</strong></span>
+              <span className="hub-powered">Powered by <BrandMark size={13} /> <strong>{PRODUCT_NAME}</strong></span>
             </footer>
           </>
         )}
@@ -721,7 +722,7 @@ function RangeHub({ token, data, onChanged, onAsk, onPrint }: { token: string; d
             {credits && <span>{credits}</span>}
             {company.privacy_url && <span><PrivacyLink url={company.privacy_url} /></span>}
           </div>
-          <span className={styles.private}>A private link{clientName ? ` for ${clientName}` : ""}. Powered by Crewtavo.</span>
+          <span className={styles.private}>A private link{clientName ? ` for ${clientName}` : ""}. Powered by {PRODUCT_NAME}.</span>
         </div>
       </footer>
     </div>

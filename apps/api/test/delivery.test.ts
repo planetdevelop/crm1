@@ -387,7 +387,7 @@ describe("someone who uses Crewtavo in Spanish (profiles.locale)", () => {
     expect(await deliverNotifications(env)).toMatchObject({ email: 1, sms: 1, push: 1 });
     const [email] = sent.emails();
     expect(email!.subject).toBe("Te pusieron en Smith mowing: jue, 12 de nov, 7:00 a.m.");
-    expect(email!.text).toContain("Te llegan por tu configuración de notificaciones. Cámbiala en Crewtavo en Configuración → Perfil: https://ops.example.com/settings?tab=profile");
+    expect(email!.text).toContain("Te llegan por tu configuración de notificaciones. Cámbiala en Planet Ops en Configuración → Perfil: https://ops.example.com/settings?tab=profile");
     expect(sent.texts()[0]!.Body).toBe("November Lawn: Te pusieron en Smith mowing: jue, 12 de nov, 7:00 a.m. https://ops.example.com/field/visits/v1");
     expect(sendPush.mock.calls[0]![2]).toMatchObject({ title: "Te pusieron en Smith mowing: jue, 12 de nov, 7:00 a.m.", body: "November Lawn" });
   });
@@ -407,7 +407,7 @@ describe("someone who uses Crewtavo in Spanish (profiles.locale)", () => {
     const sent = serve(world([notice()]));
     await deliverNotifications(env);
     expect(sent.emails()[0]!.subject).toBe("You're on Smith mowing: Thu Nov 12, 7:00 AM");
-    expect(sent.emails()[0]!.text).toContain("You get these because of your notification settings. Change them in Crewtavo under Settings → Profile: https://ops.example.com/settings?tab=profile");
+    expect(sent.emails()[0]!.text).toContain("You get these because of your notification settings. Change them in Planet Ops under Settings → Profile: https://ops.example.com/settings?tab=profile");
     expect(sent.texts()[0]!.Body).toBe("November Lawn: You're on Smith mowing: Thu Nov 12, 7:00 AM https://ops.example.com/field/visits/v1");
   });
 });

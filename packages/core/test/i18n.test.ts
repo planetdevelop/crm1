@@ -370,7 +370,7 @@ describe("notifications to the team, in Spanish", () => {
     // Sending from the field to someone whose texts are off.
     expect(translateError("es", "Texts off")).toBe("Mensajes de texto desactivados");
     expect(translateError("es", "Pat Lee asked not to be texted, so texts to them are off. Send it by email instead.")).toBe("Pat Lee pidió no recibir mensajes de texto, así que están desactivados. Envíalo por correo.");
-    expect(translateError("es", "540-555-0133 asked not to be texted, so Crewtavo can't text it.")).toBe("540-555-0133 pidió no recibir mensajes de texto, así que Crewtavo no puede enviarle.");
+    expect(translateError("es", "540-555-0133 asked not to be texted, so Crewtavo can't text it.")).toBe("540-555-0133 pidió no recibir mensajes de texto, así que Planet Ops no puede enviarle.");
   });
 });
 

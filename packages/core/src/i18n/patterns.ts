@@ -28,6 +28,7 @@
  * as it is: it is never matched against sentences. A notification whose title or body isn't a
  * shape its kind writes stays in English whole, rather than half translated.
  */
+import { brandText } from "../brand";
 import { oneOClock, translator, type Locale } from "./index";
 
 export type PatternTable = ReadonlyArray<readonly [english: string, translation: string]>;
@@ -201,8 +202,10 @@ export function translateNotice<N extends { kind?: string | null; title: string;
 export function translateError(locale: Locale | string | null | undefined, message: string): string {
   if (locale !== "es" || !tables.es || !message) return message;
   const exact = translator("es")(message);
-  if (exact !== message) return exact;
-  return apply("es", message, tables.es.errors) ?? message;
+  // The translator brands even a line it has no Spanish for (brand.ts), so "translated" means it
+  // differs from the branded English, not from the English as sent.
+  if (exact !== brandText(message)) return exact;
+  return brandText(apply("es", message, tables.es.errors) ?? message);
 }
 
 /** For tests: whether the errors table has a line for this text. */

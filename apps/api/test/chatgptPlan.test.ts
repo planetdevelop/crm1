@@ -115,7 +115,7 @@ describe("the sign-in address", () => {
     expect(params).toEqual({
       response_type: "code",
       client_id: "dynamic_agent_client",
-      agent_name_hint: "Crewtavo",
+      agent_name_hint: "Planet Ops",
       ext_agent_host_id: "urn:uuid:6f1b8f0e-3c59-4d0a-9d55-1f2a3b4c5d6e",
       redirect_uri: CALLBACK,
       scope: "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct",
@@ -152,7 +152,7 @@ describe("the sign-in address", () => {
     expect(params.id_token_hint).toBeUndefined();
     // Use a different account starts a new registration.
     const fresh = Object.fromEntries((await begin(pat, { fresh: true })).url.searchParams);
-    expect(fresh).toMatchObject({ client_id: "dynamic_agent_client", agent_name_hint: "Crewtavo" });
+    expect(fresh).toMatchObject({ client_id: "dynamic_agent_client", agent_name_hint: "Planet Ops" });
     expect(fresh.login_hint).toBeUndefined();
   });
 

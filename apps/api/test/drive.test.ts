@@ -218,7 +218,7 @@ describe("importing from Google Drive", () => {
     const requests = google({});
     const res = await post("/drive/import", { accessToken: TOKEN, files: [{ id: "f1" }], target: { folder_id: FORMS } }, { ...env, GOOGLE_PICKER_API_KEY: undefined });
     expect(res.status).toBe(501);
-    expect((await res.json()).error).toBe("Importing from Google Drive isn't turned on yet. Ask whoever set up Crewtavo to add it.");
+    expect((await res.json()).error).toBe("Importing from Google Drive isn't turned on yet. Ask whoever set up Planet Ops to add it.");
     expect(requests).toEqual([]);
     expect(db.uploads).toEqual([]);
   });

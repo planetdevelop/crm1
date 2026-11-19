@@ -177,7 +177,7 @@ export function DocumentPdf({ template, company, data, pictures, font, currency,
   const signs = estimate && signsAnything(template, data.signatures);
 
   return (
-    <Document title={data.number ? `${kind} ${data.number}` : kind} author={company.name} creator="Crewtavo" producer="Crewtavo">
+    <Document title={data.number ? `${kind} ${data.number}` : kind} author={company.name} creator="Planet Ops" producer="Planet Ops (based on Crewtavo)">
       <Page size="LETTER" style={{ paddingTop: px(top), paddingBottom: px(bottom), paddingHorizontal: px(g.box + g.pad), fontFamily: look.font, color: INK }}>
         <RunningHeader company={company} kind={kind} number={data.number} g={g} />
         <Footer template={template} own={own.footer} picture={pic(own.footer && letterheadSrc(own.footer.path))} words={words} g={g} look={look} />

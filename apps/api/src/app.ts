@@ -1,4 +1,5 @@
 /** The Hono app. server.ts serves it, with the web app and the background-task scheduler. */
+import { brandText } from "@crewtavo/core/brand";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
@@ -153,7 +154,8 @@ app.on(["GET", "POST"], "/api/cron/:task", async (c) => {
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 
 app.onError((error, c) => {
-  if (error instanceof HTTPException) return c.json({ error: error.message }, error.status);
+  // Planet Ops: server messages name the product as the app does (packages/core/src/brand.ts).
+  if (error instanceof HTTPException) return c.json({ error: brandText(error.message) }, error.status);
   console.error(error);
   reportError(error, { route: c.req.routePath, method: c.req.method });
   return c.json({ error: "Something went wrong. Try again." }, 500);

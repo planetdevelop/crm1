@@ -344,7 +344,7 @@ export function resendProblem(status: number, message: string): string {
 
 /** Development transport: Mailpit's HTTP send API. */
 async function mailpit(env: Env, message: EmailMessage & { from?: string }): Promise<SendResult> {
-  const fromMatch = (message.from || `${message.fromName ?? "Crewtavo"} <noreply@crewtavo.local>`).match(/^(.*)<(.+)>$/);
+  const fromMatch = (message.from || `${message.fromName ?? "Planet Ops"} <noreply@crewtavo.local>`).match(/^(.*)<(.+)>$/);
   const response = await fetch(`${env.MAILPIT_URL!.replace(/\/$/, "")}/api/v1/send`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

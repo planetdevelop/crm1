@@ -34,11 +34,11 @@ describe("who or what changed someone's time", () => {
     expect(changedBy(change({ source: "finished_visit" }), "ray", name)).toBe("Pat Owner completed the visit");
     expect(changedBy(change({ source: "finished_visit" }), "pat", name)).toBe("You completed the visit");
     expect(changedBy(change({ source: "next_clock", changed_by: "ray" }), "ray", name)).toBe("Another clock started");
-    expect(changedBy(change({ source: "auto_stop", changed_by: null }), "ray", name)).toBe("Crewtavo, because the clock was left running");
-    expect(changedBy(change({ source: "sub_off_clock" }), "ray", name)).toBe("Crewtavo, on being taken off the clock");
-    expect(changedBy(change({ source: "system", changed_by: null }), "ray", name)).toBe("Crewtavo");
+    expect(changedBy(change({ source: "auto_stop", changed_by: null }), "ray", name)).toBe("Planet Ops, because the clock was left running");
+    expect(changedBy(change({ source: "sub_off_clock" }), "ray", name)).toBe("Planet Ops, on being taken off the clock");
+    expect(changedBy(change({ source: "system", changed_by: null }), "ray", name)).toBe("Planet Ops");
     // Something a newer server records: still said, never blank.
-    expect(changedBy(change({ source: "something_new", changed_by: null }), "ray", name)).toBe("Crewtavo");
+    expect(changedBy(change({ source: "something_new", changed_by: null }), "ray", name)).toBe("Planet Ops");
   });
 
   it("puts one line under an edited entry", () => {
@@ -48,7 +48,7 @@ describe("who or what changed someone's time", () => {
     expect(editNote(change({ action: "deleted" }), "ray", name)).toBe("Deleted by Pat Owner");
     expect(editNote(change({ action: "deleted", changed_by: "ray" }), "ray", name)).toBe("You deleted this");
     expect(editNote(change({ source: "assistant" }), "ray", name)).toBe("Changed by Pat Owner's AI assistant");
-    expect(editNote(change({ source: "system", changed_by: null }), "ray", name)).toBe("Changed by Crewtavo");
+    expect(editNote(change({ source: "system", changed_by: null }), "ray", name)).toBe("Changed by Planet Ops");
   });
 });
 

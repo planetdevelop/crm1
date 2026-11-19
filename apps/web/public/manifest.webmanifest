@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Crewtavo",
-  "short_name": "Crewtavo",
-  "description": "Quotes, scheduling, field work and invoicing for service businesses.",
+  "name": "Planet Ops",
+  "short_name": "Planet Ops",
+  "description": "Planet Demolition's operating system: requests, estimating, quotes and proposals, jobs, field work and costs.",
   "lang": "en",
   "start_url": "/",
   "scope": "/",

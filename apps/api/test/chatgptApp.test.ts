@@ -87,7 +87,7 @@ describe("saving the company's OpenAI key", () => {
     openai({ status: 403, error: { message: "Missing scopes: api.model.read" } });
     expect(await answer(request("PUT", "/apps/chatgpt/key", { api_key: KEY }))).toEqual([400, { error: "That OpenAI key isn't allowed to list models. Give it All permissions, or Read on Models, at platform.openai.com/api-keys." }]);
     openai({ status: 503, error: {} });
-    expect(await answer(request("PUT", "/apps/chatgpt/key", { api_key: KEY }))).toEqual([400, { error: "Crewtavo couldn't reach OpenAI to check the key. Try again in a minute." }]);
+    expect(await answer(request("PUT", "/apps/chatgpt/key", { api_key: KEY }))).toEqual([400, { error: "Planet Ops couldn't reach OpenAI to check the key. Try again in a minute." }]);
     openai({ object: "list", data: [{ id: "text-embedding-9-large" }] });
     expect((await answer(request("PUT", "/apps/chatgpt/key", { api_key: KEY })))[1].error).toMatch(/can't use any of OpenAI's text models/);
     expect(row()).toBeUndefined();

@@ -19,6 +19,8 @@
     "./contracts": "./src/contracts.ts",
     "./formulas": "./src/formulas.ts",
     "./roles": "./src/roles.ts",
+    "./brand": "./src/brand.ts",
+    "./costCodes": "./src/costCodes.ts",
     "./chat": "./src/chat.ts",
     "./database": "./src/database.types.ts",
     "./time": "./src/time.ts",

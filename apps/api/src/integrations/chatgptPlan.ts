@@ -12,6 +12,7 @@
  * never leave the server: not in an answer to the web app, a log line or an address. Everything
  * here uses the server's own database client.
  */
+import { PRODUCT_NAME } from "@crewtavo/core/brand";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env";
 import { decryptJson, encryptJson, fromBase64Url, randomId, toBase64Url } from "../lib/crypto";
@@ -30,7 +31,7 @@ const SCOPE = `openid profile email offline_access resource.invoke ${PLAN_SCOPE}
 const RESOURCE = "https://api.openai.com/v1";
 /** The client every first sign-in starts from; OpenAI answers with the one it registered for the account. */
 const FIRST_CLIENT = "dynamic_agent_client";
-const APP_NAME = "Crewtavo";
+const APP_NAME = PRODUCT_NAME;
 /** Where a person sees and manages what their plan has used. */
 export const USAGE_URL = "https://chatgpt.com/settings/usage";
 /** How long a started sign-in can be finished. */

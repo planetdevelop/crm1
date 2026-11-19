@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { app } from "../src/app";
 import { TOOLS } from "../src/assistant-tools";
 import type { Env } from "../src/env";
+import { brandText } from "@crewtavo/core/brand";
 import { ASSISTANT_NO_API, ASSISTANT_READ_ONLY, assistantClient, guardAssistant } from "../src/lib/assistants";
 import { gateway } from "../src/lib/gateway";
 import { reportError } from "../src/lib/monitoring";
@@ -323,7 +324,7 @@ describe("the API", () => {
       const calls = supabase();
       const res = await rename(bearer);
       expect(res.status).toBe(403);
-      expect(await res.json()).toEqual({ error: ASSISTANT_NO_API });
+      expect(await res.json()).toEqual({ error: brandText(ASSISTANT_NO_API) });
       expect(calls.some((c) => c.path === "/rest/v1/profiles")).toBe(false);
     }
   });
@@ -505,7 +506,7 @@ describe("the company's own switch, wherever an assistant's token is taken", () 
     supabase({ held: OFF });
     const res = await me(full);
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: "AI assistants are turned off for Kilo Gardens. An owner or admin can turn them on in Crewtavo, under Settings → AI assistants." });
+    expect(await res.json()).toEqual({ error: "AI assistants are turned off for Kilo Gardens. An owner or admin can turn them on in Planet Ops, under Settings → AI assistants." });
     // Past the door (this pretend database has no profile to give, so the route itself says 404).
     const calls = supabase({ held: OFF });
     expect((await me(signedIn)).status).toBe(404);
@@ -636,7 +637,7 @@ describe("the team's connected assistants, for the owner", () => {
     calls = supabase();
     const res = await end({ user_id: TEAM[0]!.user_id, client_id: "client-full" }, full);
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: ASSISTANT_NO_API });
+    expect(await res.json()).toEqual({ error: brandText(ASSISTANT_NO_API) });
     expect(calls.some((c) => c.path === "/rest/v1/rpc/end_assistant_connection")).toBe(false);
   });
 });

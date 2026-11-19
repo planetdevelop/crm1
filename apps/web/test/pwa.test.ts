@@ -87,7 +87,7 @@ const hex = (color: string) => {
 describe("the manifest", () => {
   it("names the app once, for everything under it, and describes it to app stores and install sheets", () => {
     expect(manifest).toMatchObject({ id: "/", start_url: "/", scope: "/", display: "standalone", lang: "en" });
-    expect(manifest.description).toMatch(/service businesses/);
+    expect(manifest.description).toMatch(/Planet Demolition/);
     expect(manifest.categories).toEqual(expect.arrayContaining(["business", "productivity"]));
   });
 
@@ -167,7 +167,7 @@ describe("the first paint", () => {
   });
 
   it("names the app on an iPhone's Home Screen and draws under the notch and home indicator", () => {
-    expect(head).toContain('<meta name="apple-mobile-web-app-title" content="Crewtavo" />');
+    expect(head).toContain('<meta name="apple-mobile-web-app-title" content="Planet Ops" />');
     expect(head).toMatch(/<meta name="apple-mobile-web-app-status-bar-style" content="default" \/>/);
     expect(head).toMatch(/<meta name="viewport" content="[^"]*viewport-fit=cover/);
     // With viewport-fit=cover, the bars and the screen keep clear of the safe areas themselves.
@@ -250,7 +250,7 @@ describe("installing", () => {
   it.each([
     ["Safari on an iPhone", { userAgent: UA.iphoneSafari }, "ios"],
     ["Safari on an iPad asking for desktop sites", { userAgent: UA.macSafari, platform: "MacIntel", touch: 5 }, "ios"],
-    ["Crewtavo already on the iPhone's Home Screen", { userAgent: UA.iphoneSafari, standalone: true }, null],
+    ["Planet Ops already on the iPhone's Home Screen", { userAgent: UA.iphoneSafari, standalone: true }, null],
     ["Chrome on an iPhone (no Add to Home Screen steps to give)", { userAgent: UA.iphoneChrome }, null],
     ["Firefox on an iPhone", { userAgent: UA.iphoneFirefox }, null],
     ["Facebook's built-in browser on an iPhone", { userAgent: UA.iphoneFacebook }, null],
@@ -399,8 +399,8 @@ describe("the service worker, when the phone has signal again (Background Sync)"
     await expect(sw.dispatch("sync", { tag: SYNC_TAG })).resolves.toBe("done");
     expect(sw.showNotification).toHaveBeenCalledTimes(1);
     const [title, options] = sw.showNotification.mock.calls[0]!;
-    expect(title).toBe("Crewtavo");
-    expect(options).toMatchObject({ body: "3 updates are waiting to be sent. Open Crewtavo to send them.", tag: SYNC_TAG, data: { link: "/field" } });
+    expect(title).toBe("Planet Ops");
+    expect(options).toMatchObject({ body: "3 updates are waiting to be sent. Open Planet Ops to send them.", tag: SYNC_TAG, data: { link: "/field" } });
 
     // Tapping it opens Crewtavo on My day.
     await sw.dispatch("notificationclick", { notification: { close: () => undefined, data: options.data } });
@@ -412,7 +412,7 @@ describe("the service worker, when the phone has signal again (Background Sync)"
     await (await one.open(WAITING_CACHE)).put("/waiting/u1", new Response("1"));
     const sw = loadServiceWorker({ caches: one });
     await sw.dispatch("sync", { tag: SYNC_TAG });
-    expect(sw.showNotification.mock.calls[0]![1]).toMatchObject({ body: "1 update is waiting to be sent. Open Crewtavo to send them." });
+    expect(sw.showNotification.mock.calls[0]![1]).toMatchObject({ body: "1 update is waiting to be sent. Open Planet Ops to send them." });
   });
 
   it("with Crewtavo on the screen, leaves it to the app, and fails so the browser asks again later (unless it's the last try)", async () => {
@@ -431,7 +431,7 @@ describe("the service worker, when the phone has signal again (Background Sync)"
     const hidden = { url: "https://crew.example.com/field", visibilityState: "hidden" } as const;
     const sw = loadServiceWorker({ caches, windows: [hidden, "https://elsewhere.example.com/"] });
     await expect(sw.dispatch("sync", { tag: SYNC_TAG })).resolves.toBe("done");
-    expect(sw.showNotification.mock.calls[0]![1]).toMatchObject({ body: "3 updates are waiting to be sent. Open Crewtavo to send them.", tag: SYNC_TAG });
+    expect(sw.showNotification.mock.calls[0]![1]).toMatchObject({ body: "3 updates are waiting to be sent. Open Planet Ops to send them.", tag: SYNC_TAG });
     const last = loadServiceWorker({ caches, windows: [hidden] });
     await expect(last.dispatch("sync", { tag: SYNC_TAG, lastChance: true })).resolves.toBe("done");
     expect(last.showNotification).toHaveBeenCalledTimes(1);
@@ -545,13 +545,13 @@ describe("the service worker, offline (production builds)", () => {
 
   it("keeps the words of the \"updates waiting\" notice when a new version takes over, so it's still in Spanish for someone using Spanish", async () => {
     const caches = new FakeCaches();
-    await (await caches.open("crewtavo-words")).put("/waiting", new Response(JSON.stringify({ one: "1 novedad pendiente de enviar. Abre Crewtavo para enviarla.", other: "{count} novedades pendientes de enviar. Abre Crewtavo para enviarlas." })));
+    await (await caches.open("crewtavo-words")).put("/waiting", new Response(JSON.stringify({ one: "1 novedad pendiente de enviar. Abre Planet Ops para enviarla.", other: "{count} novedades pendientes de enviar. Abre Planet Ops para enviarlas." })));
     await (await caches.open("crewtavo-waiting")).put("/waiting/u1", new Response("2"));
     const sw = loadServiceWorker({ caches, offline: true, windows: [] });
     await sw.dispatch("activate");
     expect(await caches.keys()).toEqual(expect.arrayContaining(["crewtavo-words", "crewtavo-waiting"]));
     await sw.dispatch("sync", { tag: "crewtavo-field-sync" });
-    expect(sw.showNotification).toHaveBeenCalledWith("Crewtavo", expect.objectContaining({ body: "2 novedades pendientes de enviar. Abre Crewtavo para enviarlas." }));
+    expect(sw.showNotification).toHaveBeenCalledWith("Planet Ops", expect.objectContaining({ body: "2 novedades pendientes de enviar. Abre Planet Ops para enviarlas." }));
   });
 
   it("empties what the last version kept when this one takes over (stored pictures among it)", async () => {

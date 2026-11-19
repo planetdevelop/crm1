@@ -9,7 +9,7 @@ import { LicenseNotice, TermsSummary, TermsText } from "@/features/legal/License
 
 export function LicensePage() {
   useEffect(() => {
-    document.title = "Crewtavo Terms and License";
+    document.title = "Planet Ops: Crewtavo Terms and License";
   }, []);
   return (
     <AuthLayout>

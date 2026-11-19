@@ -296,7 +296,7 @@ const SUB_REFUSAL = "You don't have permission to do that. Ask an admin if you n
 /** Routes that refuse a sub in their own words before requireCompany is reached. */
 const OWN_REFUSALS: Record<string, string> = {
   // Setting up a business isn't a company's route: a sign-in made for a sub can't (routes/account.ts).
-  "POST /api/companies": "This sign-in is for your work with another business. To run your own business on Crewtavo, use a different email address.",
+  "POST /api/companies": "This sign-in is for your work with another business. To run your own business on Planet Ops, use a different email address.",
 };
 
 /** Every route behind a sign-in (requireUser), as method and path. Public routes have their own checks. */

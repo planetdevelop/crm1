@@ -4,6 +4,7 @@
  *   - still starting, or something kept it from starting → "Finish setting up Crewtavo" with steps;
  *   - ready but nobody has an account yet → the owner creates theirs (OwnerSetupPage).
  */
+import { brandText, PRODUCT_NAME } from "@crewtavo/core/brand";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
@@ -91,17 +92,18 @@ function steps(s: SetupStatus): { title: string; summary: string; steps: ReactNo
   const restart = railway
     ? <>In your Railway project, open the <strong>crewtavo</strong> service and choose <strong>Redeploy</strong>.</>
     : compose
-      ? <>Restart Crewtavo: in the Crewtavo folder, run <Code>docker compose --env-file .env.instance restart crewtavo</Code>.</>
-      : <>Restart Crewtavo the way you started it.</>;
+      ? <>Restart {PRODUCT_NAME}: in the {PRODUCT_NAME} folder, run <Code>docker compose --env-file .env.instance restart crewtavo</Code>.</>
+      : <>Restart {PRODUCT_NAME} the way you started it.</>;
   const services = railway
     ? <>Open your Railway project and check that every service (Postgres, auth, rest, storage) says <strong>Active</strong>. If one has crashed, open it and choose <strong>Redeploy</strong>.</>
     : compose
-      ? <>In the Crewtavo folder, run <Code>docker compose --env-file .env.instance ps</Code> and check every service is running. <Code>npm run instance</Code> starts any that stopped.</>
+      ? <>In the {PRODUCT_NAME} folder, run <Code>docker compose --env-file .env.instance ps</Code> and check every service is running. <Code>npm run instance</Code> starts any that stopped.</>
       : <>Check that the database and its helper services (auth, rest and storage) are running.</>;
-  const fail = (summary: string, list: ReactNode[]) => ({ title: "Finish setting up Crewtavo", summary, steps: list });
+  // Planet Ops: plain-text titles and summaries take the product name (brand.ts).
+  const fail = (summary: string, list: ReactNode[]) => ({ title: brandText("Finish setting up Crewtavo"), summary: brandText(summary), steps: list });
 
   if (s.database === "starting")
-    return { title: "Crewtavo is starting up", summary: "It's setting up its database. The first start takes a minute or two; this page moves on by itself.", steps: [] };
+    return { title: brandText("Crewtavo is starting up"), summary: "It's setting up its database. The first start takes a minute or two; this page moves on by itself.", steps: [] };
 
   if (s.database === "migration_failed")
     switch (s.migration?.problem) {
@@ -112,8 +114,8 @@ function steps(s: SetupStatus): { title: string; summary: string; steps: ReactNo
           ? [<>In Railway, open the <strong>Postgres</strong> service's <strong>Variables</strong> and put back the original <Code>POSTGRES_PASSWORD</Code>. The other services read it from there.</>, restart]
           : compose
             // A restart keeps the password the services were started with: only starting them again reads .env.instance.
-            ? [<>Put the original <Code>POSTGRES_PASSWORD</Code> back in the <Code>.env.instance</Code> file next to <Code>docker-compose.yml</Code>, then run <Code>npm run instance</Code> in the Crewtavo folder. It starts every service again with it.</>]
-            : [<>Give Crewtavo and its services the original <Code>POSTGRES_PASSWORD</Code> again.</>, restart]);
+            ? [<>Put the original <Code>POSTGRES_PASSWORD</Code> back in the <Code>.env.instance</Code> file next to <Code>docker-compose.yml</Code>, then run <Code>npm run instance</Code> in the {PRODUCT_NAME} folder. It starts every service again with it.</>]
+            : [<>Give {PRODUCT_NAME} and its services the original <Code>POSTGRES_PASSWORD</Code> again.</>, restart]);
       case "unreachable":
         return fail("Crewtavo can't reach its database.", [services, restart]);
       case "bad_url":
@@ -127,18 +129,18 @@ function steps(s: SetupStatus): { title: string; summary: string; steps: ReactNo
         return fail("This is an older version of Crewtavo than the one that last updated its database.", [
           railway
             ? <>In your Railway project, open the <strong>crewtavo</strong> service's <strong>Settings</strong>, and under <strong>Source</strong> set the image to <Code>ghcr.io/jviars/crewtavo:latest</Code>, the newest version. Railway then redeploys it.</>
-            : <>Get the newest Crewtavo (<Code>git pull</Code> in the Crewtavo folder) and run <Code>npm run instance</Code> again.</>,
+            : <>Get the newest {PRODUCT_NAME} (<Code>git pull</Code> in the {PRODUCT_NAME} folder) and run <Code>npm run instance</Code> again.</>,
         ]);
       default:
         return fail("Setting up the database failed. This is a problem in Crewtavo itself, not in anything you did.", [
-          <>Send this to whoever supports your Crewtavo: <Code>{s.migration?.detail ?? "unknown error"}</Code></>,
+          <>Send this to whoever supports your {PRODUCT_NAME}: <Code>{s.migration?.detail ?? "unknown error"}</Code></>,
           <>Once it's fixed, redeploy. Your data is safe: each step either finishes completely or not at all.</>,
         ]);
     }
 
   if (s.database === "not_connected")
     return fail("Crewtavo is running on its own, without its database and the services that come with it.", [
-      <>Deploy Crewtavo with its Railway template, which includes everything, or run <Code>docker compose up</Code> in the Crewtavo folder.</>,
+      <>Deploy {PRODUCT_NAME} with its database and services (on Railway: the five services in docs/planet-ops/RAILWAY_STAGING.md), or run <Code>docker compose up</Code> in the {PRODUCT_NAME} folder.</>,
     ]);
   if (s.database === "empty") return fail("The database hasn't been set up yet.", [restart]);
   if (s.database === "wrong_keys") return fail("Crewtavo's keys don't match its services. This happens when JWT_SECRET differs between services.", [<>Make sure every service uses the same <Code>JWT_SECRET</Code>, then redeploy them.</>]);
@@ -225,7 +227,7 @@ export function OwnerSetupPage({ onTaken }: { onTaken: () => void }) {
     <AuthLayout>
       <form className={`card card-pad ${styles.card}`} style={{ padding: 28 }} onSubmit={submit}>
         <div style={{ display: "grid", gap: 6 }}>
-          <h1 className={styles.title}>Welcome to Crewtavo</h1>
+          <h1 className={styles.title}>Welcome to {PRODUCT_NAME}</h1>
           <p className="muted" style={{ margin: 0 }}>Create your owner account. Next you'll set up your business, then invite your team.</p>
         </div>
         <Field label="Your name"><input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" required minLength={2} maxLength={120} autoFocus /></Field>

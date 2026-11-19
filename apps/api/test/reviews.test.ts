@@ -819,7 +819,7 @@ describe("Marketing's routes", () => {
       headers: { Authorization: `Bearer ${token}`, "X-Company-Id": CO, "Content-Type": "application/json" },
       body: JSON.stringify({ client_id: ANA_ID, channel: "sms" }),
     }, noTexting);
-    expect([res.status, await res.json()]).toEqual([400, { error: "Texting isn't set up on this Crewtavo, so review asks can't go by text." }]);
+    expect([res.status, await res.json()]).toEqual([400, { error: "Texting isn't set up on this Planet Ops, so review asks can't go by text." }]);
     expect(sendSms).not.toHaveBeenCalled();
   });
 

@@ -18,6 +18,8 @@
  * English "other" form and holds { one, other }.
  */
 
+import { brandText } from "../brand";
+
 export const LOCALES = ["en", "es"] as const;
 export type Locale = (typeof LOCALES)[number];
 
@@ -92,24 +94,30 @@ function split(text: string, context?: string): { english: string; key: string }
   return { english: text, key: context ? `${context}${CONTEXT_SEPARATOR}${text}` : text };
 }
 
+/**
+ * Planet Ops: the product name is swapped in the text itself (brand.ts), before the {placeholders}
+ * are filled, so a client's or company's own name in a value is never changed.
+ */
+const branded = (line: string) => brandText(line);
+
 function translate(locale: Locale, text: string, params?: Params): string {
   if (text == null) return text;
   const { english, key } = split(String(text), params?.context);
-  if (locale === "en") return fill(english, params);
+  if (locale === "en") return fill(branded(english), params);
   const line = catalogs[locale]?.[key];
-  const filled = fill(typeof line === "string" ? line : english, params);
+  const filled = fill(branded(typeof line === "string" ? line : english), params);
   return locale === "es" && params ? oneOClock(filled) : filled;
 }
 
 function plural(locale: Locale, count: number, forms: PluralForms, params?: Params): string {
   const values = { count: String(count), ...params };
   const english = pluralRule("en", count) === "one" ? forms.one : forms.other;
-  if (locale === "en") return fill(english, values);
+  if (locale === "en") return fill(branded(english), values);
   const key = params?.context ? `${params.context}${CONTEXT_SEPARATOR}${forms.other}` : forms.other;
   const line = catalogs[locale]?.[key];
-  if (!line || typeof line === "string") return fill(english, values);
+  if (!line || typeof line === "string") return fill(branded(english), values);
   const form = pluralRule(locale, count);
-  return oneOClock(fill(line[form as keyof PluralForms] ?? line.other, values));
+  return oneOClock(fill(branded(line[form as keyof PluralForms] ?? line.other), values));
 }
 
 /** A translator for one language, for a server answering a person in theirs. */

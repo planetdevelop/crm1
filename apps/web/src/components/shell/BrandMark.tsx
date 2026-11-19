@@ -1,20 +1,26 @@
-/** The Crewtavo mark (same shapes as public/crewtavo-mark.svg). */
+import { PRODUCT_NAME } from "@crewtavo/core/brand";
+
+/**
+ * Planet Ops brand artwork, from the approved logo (docs/brand/planet-ops-crest.png):
+ *   - the mark: the orbital planet "O" cropped from the crest's wordmark, on a dark tile, for small
+ *     sizes where the full crest isn't readable (sidebar, favicon, chat avatar, hub footer);
+ *   - the crest: the full-color shield with "Planet Ops" on one line, for the sign-in pages.
+ */
 export function BrandMark({ size = 28, className }: { size?: number; className?: string }) {
-  return (
-    <svg className={className} width={(size * 211) / 251} height={size} viewBox="0 0 211 251" aria-hidden="true" focusable="false">
-      <path fill="var(--brand-ink, #182430)" d="M115 0 156.2 23.8 41.5 90 41.5 157.1 115 199.5 115 247.4 0 181 0 66.4Z" />
-      <path fill="#F4B143" d="M156.2 56 211 87.64 211 125.64 156.2 94 70 143.77 70 105.77Z" />
-      <path fill="var(--brand-ink, #182430)" d="M156.2 124 211 155.64 211 193.14 156.2 161.5ZM156.2 181.5 211 213.14 211 250.64 156.2 219Z" />
-    </svg>
-  );
+  return <img className={className} src="/planet-ops-mark.png" width={size} height={size} alt="" aria-hidden="true" draggable={false} style={{ flex: "none" }} />;
 }
 
-/** Mark and name together, for the sidebar and sign-in pages. */
+/** The full crest. Its artwork already says "Planet Ops", so it carries the name for screen readers. */
+export function BrandCrest({ width = 220, className }: { width?: number; className?: string }) {
+  return <img className={className} src="/planet-ops-crest.webp" width={width} height={Math.round((width * 613) / 640)} alt={PRODUCT_NAME} draggable={false} style={{ display: "block", height: "auto", maxWidth: "100%" }} />;
+}
+
+/** Mark and name together, for the sidebar. */
 export function BrandLockup({ size = 28 }: { size?: number }) {
   return (
     <>
       <BrandMark size={size} />
-      <span className="brand-name">Crewtavo</span>
+      <span className="brand-name">{PRODUCT_NAME}</span>
     </>
   );
 }
