@@ -13,6 +13,7 @@ import { addressLines, contractValues, depositFor, fillIn, resolveSections, sect
 import { pickTemplate, templateSettings, type TemplateSettings } from "@crewtavo/core/documents";
 import type { ClientChecklist } from "@crewtavo/core/forms";
 import { promoRuleWords } from "@crewtavo/core/promos";
+import { isPresentation, narrativeSections, termsSections } from "@crewtavo/core/proposals";
 import { countsOn, lineTotal, optionBaseTotal, optionTierLabels, optionTotals, quoteTotals, scheduleAmounts, scheduleDueText, scheduleRows, toCents, type Amount, type OptionLine } from "@crewtavo/core/money";
 import { notIncludedText, SITE_ADJUSTMENT_NAME } from "@crewtavo/core/estimates";
 import { isPackagePicturePath, packagePictureSrc } from "@crewtavo/core/presets";
@@ -237,6 +238,29 @@ export interface DocumentQuote {
   left_out?: unknown;
   /** How it's paid (quotes.payment_schedule), left out by callers and servers from before. Signed, approval.payment_schedule has the amounts. */
   payment_schedule?: unknown;
+  /** Planet Ops: line_items (a quote with priced lines) or proposal (narrative scope and a total). Line items when left out. */
+  presentation?: string | null;
+  /** Planet Ops: the proposal's sections (core proposals.ts). */
+  narrative?: unknown;
+  /** Planet Ops: the Contract Terms and Payment Terms, two separate sections. */
+  contract_terms?: string | null;
+  payment_terms?: string | null;
+}
+
+/**
+ * Planet Ops: the layout, narrative and terms a quote prints with. Signed, the copy kept with the
+ * customer's signature (approval.document, 20261120000100), so later edits never reach a signed
+ * agreement; open, the quote as it is now.
+ */
+export function proposalParts(quote: DocumentQuote, signed: boolean): Pick<DocumentData, "presentation" | "narrative" | "terms"> {
+  const kept = signed && quote.approval && typeof quote.approval === "object" ? (quote.approval as { document?: { quote?: Record<string, unknown> } }).document?.quote : undefined;
+  const from = kept ?? (quote as unknown as Record<string, unknown>);
+  const presentation = isPresentation(from.presentation) ? from.presentation : "line_items";
+  return {
+    presentation,
+    narrative: narrativeSections(from.narrative).map(({ title, text }) => ({ title, text })),
+    terms: termsSections({ contract_terms: from.contract_terms as string | null | undefined, payment_terms: from.payment_terms as string | null | undefined }).map(({ title, text }) => ({ title, text })),
+  };
 }
 
 /**
@@ -405,6 +429,7 @@ export function quoteDocument(quote: DocumentQuote, lines: readonly DocumentQuot
     signatures: extras.signatures ?? approvalSignatures(quote.approval, quote.approved_at),
     ...(contract ? { contract: { sections: contract.sections } } : {}),
     ...(options ? { options } : {}),
+    ...proposalParts(quote, approval !== null),
   };
 }
 

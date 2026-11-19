@@ -3,6 +3,7 @@
  * Stripe webhooks. These use the admin client, so every query filters by the company in the link
  * or form, and responses include only client-facing fields (never costs or internal notes).
  */
+import { proposalSettings } from "@crewtavo/core/proposals";
 import { autopaySettings, methodLabel, tipsAllowed } from "@crewtavo/core/autopay";
 import { lateFeeCouldApply, lateFeeSettings } from "@crewtavo/core/billing";
 import { contractValues, fillIn } from "@crewtavo/core/contracts";
@@ -358,6 +359,11 @@ const signedCard = (o: FrozenOption) => ({
  */
 async function businessSignature(admin: ReturnType<typeof adminClient>, companyId: string, quote: { salesperson_id: string | null }, template: TemplateSettings) {
   if (!quote.salesperson_id || !template.company_signs) return null;
+  // Planet Ops: when the company must countersign (settings.quotes.countersign_required), that's a
+  // deliberate step after the customer signs (POST /quotes/:id/countersign), never a saved signature
+  // added as they sign.
+  const { data: co } = await admin.from("companies").select("settings").eq("id", companyId).maybeSingle();
+  if (proposalSettings(co?.settings).countersignRequired) return null;
   const [saved, profile, member] = await Promise.all([
     admin.from("user_signatures").select("image").eq("company_id", companyId).eq("user_id", quote.salesperson_id).maybeSingle(),
     admin.from("profiles").select("full_name").eq("user_id", quote.salesperson_id).maybeSingle(),
@@ -422,7 +428,7 @@ publicRoutes.get("/hub/:token", async (c) => {
       await admin
         .from("quotes")
         .select(
-          "id, number, status, title, message, subtotal, discount_amount, tax_rate, tax_amount, total, deposit_amount, deposit_percent, deposit_invoice_id, valid_until, sent_at, created_at, approved_at, approval, client_id, change_order_for, template_id, roof_package_id, work_kind, option_id, section_ids, recurrence_rule, active_months, range_low, range_high, range_sent_at, range_lines, range_accepted_at, priced_on_site_at, exact_sent_at, promo_code_id, promo_every_visit, promo:promo_codes(code, kind, value, description, min_subtotal, every_visit), client:clients(display_name, billing_address, tax_exempt, tax_exempt_note), property:properties(line1, city, region, postal_code), custom_fields, left_out, payment_schedule",
+          "id, number, status, title, message, presentation, narrative, contract_terms, payment_terms, subtotal, discount_amount, tax_rate, tax_amount, total, deposit_amount, deposit_percent, deposit_invoice_id, valid_until, sent_at, created_at, approved_at, approval, client_id, change_order_for, template_id, roof_package_id, work_kind, option_id, section_ids, recurrence_rule, active_months, range_low, range_high, range_sent_at, range_lines, range_accepted_at, priced_on_site_at, exact_sent_at, promo_code_id, promo_every_visit, promo:promo_codes(code, kind, value, description, min_subtotal, every_visit), client:clients(display_name, billing_address, tax_exempt, tax_exempt_note), property:properties(line1, city, region, postal_code), custom_fields, left_out, payment_schedule",
         )
         .eq("company_id", l.c)
         .eq("id", l.id)

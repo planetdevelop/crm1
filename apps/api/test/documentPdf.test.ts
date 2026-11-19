@@ -290,3 +290,27 @@ describe("POST /api/public/documents/<name>.pdf", () => {
     expect(stored.reported).toEqual([expect.objectContaining({ message: "Storage is down" })]);
   });
 });
+
+// Planet Ops Phase 1b: the proposal layout and the separate Contract Terms and Payment Terms.
+describe("the PDF of a Planet Ops quote or proposal", () => {
+  const estimate: DocumentData = { ...invoice, kind: "estimate", validUntil: "2026-12-05", payments: undefined, balanceDue: null };
+  const terms = [
+    { title: "Contract Terms", text: "TEST placeholder contract terms." },
+    { title: "Payment Terms", text: "TEST placeholder payment terms." },
+  ];
+
+  it("prints a proposal's sections and its total, without the priced lines", async () => {
+    const pages = await sheets({}, { ...estimate, presentation: "proposal", narrative: [{ title: "Project overview", text: "TEST overview of the demolition" }, { title: "Not included", text: "TEST asbestos abatement" }], terms });
+    const all = pages.map((p) => p.text).join(" ");
+    for (const words of ["PROJECT OVERVIEW", "TEST overview of the demolition", "NOT INCLUDED", "TEST asbestos abatement", "CONTRACT TERMS", "TEST placeholder contract terms.", "PAYMENT TERMS", "TEST placeholder payment terms."]) {
+      expect(all.replace(/\s/g, "").includes(words.replace(/\s/g, "")), words).toBe(true);
+    }
+    expect(all.includes("Asphalt driveway"), "no priced line").toBe(false);
+    expect(all.replace(/\s/g, "").includes("DESCRIPTIONQTYPRICEAMOUNT"), "no line table").toBe(false);
+  });
+
+  it("prints a line-item quote's lines, and the same terms as their own sections", async () => {
+    const all = (await sheets({}, { ...estimate, presentation: "line_items", terms })).map((p) => p.text).join(" ");
+    for (const words of ["Asphalt driveway", "CONTRACT TERMS", "PAYMENT TERMS"]) expect(all.replace(/\s/g, "").includes(words.replace(/\s/g, "")), words).toBe(true);
+  });
+});

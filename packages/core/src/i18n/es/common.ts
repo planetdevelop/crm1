@@ -21,7 +21,8 @@ export default {
   "Team chat": "Chat del equipo",
   "Clients": "Clientes",
   "Requests": "Solicitudes",
-  "Quotes": "Cotizaciones",
+  // Planet Ops: the customer-document area (line-item quotes and proposals); Estimating is separate.
+  "Quotes & Proposals": "Cotizaciones y propuestas",
   "Jobs": "Trabajos",
   "Invoices": "Facturas",
   "Drive": "Drive",

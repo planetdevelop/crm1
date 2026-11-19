@@ -12,6 +12,7 @@
  * the option records.
  */
 import { changeOrderBlocker } from "@crewtavo/core/changeOrders";
+import { proposalSettings, signatureState } from "@crewtavo/core/proposals";
 import { depositFor } from "@crewtavo/core/contracts";
 import { shownCustomFields } from "@crewtavo/core/customFields";
 import { usesDepth } from "@crewtavo/core/formulas";
@@ -94,6 +95,7 @@ import { depthLines, lineDepths, type DepthLine } from "./depths";
 import { AddOptionsDialog, QuoteOptions } from "./QuoteOptions";
 import { QuoteSections } from "./QuoteSections";
 import { DraftedCallout } from "./DraftedCallout";
+import { ProposalCard } from "./ProposalCard";
 import { PaymentScheduleCard } from "./PaymentSchedule";
 import { DiscountRows } from "./PromoRow";
 import { SendDialog } from "./SendDialog";
@@ -121,7 +123,7 @@ async function loadQuoteRow(id: string) {
   return unwrapOne(
     await supabase()
       .from("quotes")
-      .select("id, number, title, status, message, subtotal, discount_amount, tax_rate, tax_amount, total, deposit_amount, deposit_percent, valid_until, recurrence_rule, active_months, starts_on, ends_on, sent_at, approved_at, approval, lost_reason, request_id, created_at, template_id, option_id, section_ids, roof_package_id, promo_code_id, promo_every_visit, promo:promo_codes(code, kind, value, description, every_visit), request:requests(promo_code, website_form_id, rejected_promo_code, promo_problem), client:clients(id, display_name, email, phone, billing_address, sms_opt_out_at, tax_exempt, tax_exempt_note), property:properties(id, line1, city, region, postal_code, lat, lng), lines:quote_line_items(id, name, description, quantity, unit, unit_price, unit_cost, taxable, optional, selected, option_group, option_id, formula, sort, service_id), jobs!jobs_company_id_quote_id_fkey(id, number), change_order_for, change_job:jobs!quotes_change_order_fkey(id, number, title), package:roof_packages!quotes_roof_package_fkey(name, warranty, price_mode, markup_pct), range_low, range_high, range_accepted_at, priced_on_site_at, exact_sent_at, custom_fields, is_template, left_out, payment_schedule, drafted")
+      .select("id, number, title, status, message, presentation, narrative, contract_terms, payment_terms, subtotal, discount_amount, tax_rate, tax_amount, total, deposit_amount, deposit_percent, valid_until, recurrence_rule, active_months, starts_on, ends_on, sent_at, approved_at, approval, lost_reason, request_id, created_at, template_id, option_id, section_ids, roof_package_id, promo_code_id, promo_every_visit, promo:promo_codes(code, kind, value, description, every_visit), request:requests(promo_code, website_form_id, rejected_promo_code, promo_problem), client:clients(id, display_name, email, phone, billing_address, sms_opt_out_at, tax_exempt, tax_exempt_note), property:properties(id, line1, city, region, postal_code, lat, lng), lines:quote_line_items(id, name, description, quantity, unit, unit_price, unit_cost, taxable, optional, selected, option_group, option_id, formula, sort, service_id), jobs!jobs_company_id_quote_id_fkey(id, number), change_order_for, change_job:jobs!quotes_change_order_fkey(id, number, title), package:roof_packages!quotes_roof_package_fkey(name, warranty, price_mode, markup_pct), range_low, range_high, range_accepted_at, priced_on_site_at, exact_sent_at, custom_fields, is_template, left_out, payment_schedule, drafted")
       .eq("id", id)
       .order("sort", { referencedTable: "quote_line_items" })
       .maybeSingle(),
@@ -498,7 +500,21 @@ export function QuotePage() {
   });
   const copy = useMutation({
     meta: { success: "Quote copied as a new draft", tone: "quote" },
-    mutationFn: () => duplicateQuote(id),
+    mutationFn: async () => {
+      const res = await duplicateQuote(id);
+      // Planet Ops: the copy keeps this one's layout, proposal sections and terms (duplicate_quote
+      // predates them). A signed quote's are its signed ones, as the copy should start from them.
+      const from = quote.data;
+      if (from) {
+        unwrap(
+          await supabase()
+            .from("quotes")
+            .update({ presentation: from.presentation, narrative: from.narrative ?? {}, contract_terms: from.contract_terms, payment_terms: from.payment_terms })
+            .eq("id", res.id),
+        );
+      }
+      return res;
+    },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["quotes", session.company.id] });
       navigate(`/quotes/${res.id}`);
@@ -706,6 +722,16 @@ export function QuotePage() {
           </div>
         </div>
       )}
+      {/* Planet Ops: customer acceptance and the company's countersignature are separate states (core proposals.ts). */}
+      {signatureState({ status: q.status, approval: q.approval, countersignRequired: proposalSettings(session.company.settings).countersignRequired }) === "awaiting_countersign" && (
+        <div className="callout callout-warning" data-planet-ops="awaiting-countersign">
+          <Icon name="signature" size={20} />
+          <div className="grow">
+            <div>Accepted by the customer · awaiting your company's countersignature</div>
+            <div className="small" style={{ fontWeight: 400 }}>{changeJob ? "It's added to the job once someone countersigns it." : "Countersign it to complete the agreement."}</div>
+          </div>
+        </div>
+      )}
       {q.status === "draft" && <DraftedCallout quoteId={q.id} message={q.message} drafted={q.drafted} lines={q.lines} requestId={q.request_id} admin={hasRole(session, "admin")} canEdit={editable} onChanged={refresh} />}
       {q.status === "lost" && <div className="callout callout-danger"><Icon name="x" size={20} /><div className="grow">Marked lost{q.lost_reason ? `: ${q.lost_reason}` : ""}.</div></div>}
       {q.status === "sent" && q.sent_at && (
@@ -754,6 +780,7 @@ export function QuotePage() {
             </div>
           </div>
           <MessageCard value={q.message} editable={editable} onEdit={save.edited} onUnchanged={unchanged} onSave={(message) => saveField({ message })} />
+          {!isTemplate && <ProposalCard quote={q} editable={editable} onEdit={save.edited} onUnchanged={unchanged} onSave={(patch) => saveField(patch)} />}
           {canSell && !isTemplate && <PlansCard scope={{ kind: "quote", id: q.id, propertyId: q.property?.id ?? null }} />}
         </div>
         <aside className="narrow stack">

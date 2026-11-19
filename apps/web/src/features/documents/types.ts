@@ -124,6 +124,15 @@ export interface DocumentData {
   /** The contract's sections, after the template's own terms. */
   contract?: DocumentContract;
   /**
+   * Planet Ops: estimates print as a line-item quote (priced lines) or a proposal (its narrative
+   * sections and one total, no priced lines). Same total either way. Line items when left out.
+   */
+  presentation?: "line_items" | "proposal";
+  /** Planet Ops: the proposal's sections (Project overview, Scope of work, …), each with words. */
+  narrative?: Array<{ title: string; text: string }>;
+  /** Planet Ops: Contract Terms and Payment Terms, separate, each only when it has words. */
+  terms?: Array<{ title: string; text: string }>;
+  /**
    * Estimates offering 2-3 options: all of them, compared under "Your options" whenever there are
    * two or more. Only while the customer is still deciding: leave it off the copy being signed, and
    * the signed copy (its strip says which they chose).

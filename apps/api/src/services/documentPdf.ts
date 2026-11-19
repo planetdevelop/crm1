@@ -148,6 +148,10 @@ export const documentPdfInput = z.object({
     payments: z.array(z.object({ label: text(300), amount })).max(200).optional(),
     balanceDue: amount.nullish(),
     notes: text(20_000).nullish(),
+    // Planet Ops: the layout, a proposal's sections, and the Contract Terms and Payment Terms.
+    presentation: z.enum(["line_items", "proposal"]).optional(),
+    narrative: z.array(z.object({ title: text(100), text: text(8_000) })).max(6).optional(),
+    terms: z.array(z.object({ title: text(100), text: text(20_000) })).max(2).optional(),
     signatures: z.object({ customer: signature, company: signature }).optional(),
     contract: z
       .object({

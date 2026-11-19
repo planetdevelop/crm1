@@ -138,11 +138,11 @@ export function QuotesPage() {
   return (
     <>
       <PageHeader
-        title="Quotes"
+        title="Quotes & Proposals"
         actions={
           <>
             <Link to="/pipeline" className="btn"><Icon name="pipeline" size={16} />Sales board</Link>
-            {canSell && <Button variant="primary" icon="plus" onClick={() => setParams({ new: "1" }, { replace: true })}>New quote</Button>}
+            {canSell && <Button variant="primary" icon="plus" onClick={() => setParams({ new: "1" }, { replace: true })}>New Quote / Proposal</Button>}
           </>
         }
       />
@@ -169,7 +169,7 @@ export function QuotesPage() {
           ) : templates ? (
             <EmptyState icon="quote" title="No quote templates yet">On a quote, choose Save as template from its menu. New quotes can then start from it.</EmptyState>
           ) : (
-            <EmptyState icon="quote" title={filter === "open" ? "No open quotes" : "Nothing here"} action={canSell && filter === "open" && <Button icon="plus" onClick={() => setParams({ new: "1" })}>New quote</Button>}>
+            <EmptyState icon="quote" title={filter === "open" ? "No open quotes" : "Nothing here"} action={canSell && filter === "open" && <Button icon="plus" onClick={() => setParams({ new: "1" })}>New Quote / Proposal</Button>}>
               {filter === "open" ? "Quotes your clients can approve online, with optional add-ons and deposits." : "No quotes have this status."}
             </EmptyState>
           )}
