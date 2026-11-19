@@ -119,7 +119,7 @@ Delivered as small PRs into `planet-ops-staging`, in this order:
 | Slice | Scope | Status |
 | --- | --- | --- |
 | 1a | **Change orders finalize only with the customer's signature on the exact version** (database, API, UI) | PR open |
-| 1b | Quotes & Proposals: line-item quote vs proposal layout (one authoritative total), narrative sections (overview, scope in work order, inclusions, exclusions, assumptions, alternates), nav relabel | Next |
+| 1b | Quotes & Proposals: line-item quote vs proposal layout (one authoritative total), narrative sections, separate editable Contract Terms and Payment Terms, configurable drawn company countersignature, nav relabel | PR open |
 | 1c | Document revisions: a snapshot per sent version, superseded versions can't be signed; **Request changes** note tied to the revision reviewed, office notice and follow-up task, signing paused until a revision is issued | To do |
 | 1d | `send_pricing` permission (build vs approve/send customer pricing); separate states for customer accepted, company countersigned, deposit received, ready to schedule; job summary of original contract, change orders, revised total, invoiced, paid, remaining | To do |
 | 1e | Convert Quote / Proposal to Job links the exact signed revision; repeat conversion opens the existing job | To do |
@@ -175,3 +175,31 @@ placeholders; no legal text is invented.
   drawing too, and its pad says "Draw your signature with your finger, mouse or stylus". Tests cover a
   typed name only, words in place of the drawing, a non-PNG picture, and each of the three fields
   missing.
+
+### 1b: Quotes & Proposals, separate terms, configurable countersignature
+
+- Migration `20261120000200_planet_ops_quotes_and_proposals.sql`:
+  - `quotes.presentation` (`line_items` / `proposal`), `quotes.narrative` (only overview, scope,
+    inclusions, exclusions, assumptions, alternates), `quotes.contract_terms`, `quotes.payment_terms`.
+  - A new quote starts with the company's default Contract Terms and Payment Terms
+    (`settings.quotes.contract_terms` / `payment_terms`); each is edited per job.
+  - All of these are part of the signed document version; once signed they stay as signed.
+  - Company countersignature, configurable (`settings.quotes.countersign_required`, off unless set).
+    When required it must be drawn (with who signed and when); a change order the customer signed
+    waits for it before it's added to the job, and is re-checked against the signed version as it
+    joins. The hub no longer adds a saved company signature as the customer signs when a
+    countersignature is required.
+- App: quote page "Customer document" card (layout switch, proposal sections, Contract Terms, Payment
+  Terms, "Use the company's terms", a placeholder warning); "awaiting your company's countersignature"
+  state; Settings → Quotes and payments: countersignature switch and default terms; documents (office,
+  client hub, print, PDF) print a proposal's sections and one total without priced lines, and both
+  terms sections on either layout; a signed document prints from the copy kept with the signature;
+  Copy as new draft keeps layout, sections and terms; nav and page renamed "Quotes & Proposals",
+  "New Quote / Proposal". Estimating is untouched (Phase 3).
+- Tests: `supabase/tests/planet_ops_quotes_proposals_test.sql` (defaults, per-job edits, layouts with
+  one total, the version including layout/narrative/terms, an outdated page refused, signed terms
+  locked, countersignature off/on, a name or typed words refused as a required countersignature, a
+  change while awaiting countersignature refused); `packages/core/test/proposals.test.ts`;
+  `apps/web/test/planetOpsProposals.test.ts`; PDF tests for both layouts.
+- Owner input still needed: the approved Contract Terms and Payment Terms wording (enter it in
+  Settings → Quotes and payments).

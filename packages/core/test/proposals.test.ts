@@ -40,12 +40,19 @@ describe("Contract Terms and Payment Terms", () => {
 });
 
 describe("signatureState", () => {
-  const customer = { name: "Test Customer", signed_at: "2026-11-20T15:00:00Z" };
+  const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+  const customer = { name: "Test Customer", signed_at: "2026-11-20T15:00:00Z", signature: PNG };
   it("keeps customer acceptance and company countersignature separate", () => {
     expect(signatureState({ status: "sent", approval: null, countersignRequired: true })).toBe("unsigned");
     expect(signatureState({ status: "approved", approval: customer, countersignRequired: true })).toBe("awaiting_countersign");
-    expect(signatureState({ status: "approved", approval: { ...customer, company: { name: "Owner" } }, countersignRequired: true })).toBe("signed");
+    expect(signatureState({ status: "approved", approval: { ...customer, company: { name: "Owner", signature: PNG } }, countersignRequired: true })).toBe("signed");
+    // A required countersignature is drawn: a name alone doesn't complete it.
+    expect(signatureState({ status: "approved", approval: { ...customer, company: { name: "Owner" } }, countersignRequired: true })).toBe("awaiting_countersign");
     expect(signatureState({ status: "approved", approval: customer, countersignRequired: false })).toBe("signed");
+  });
+
+  it("doesn't call a typed name a customer signature", () => {
+    expect(signatureState({ status: "approved", approval: { name: "Test Customer", signed_at: "2026-11-20T15:00:00Z" }, countersignRequired: false })).toBe("unsigned");
   });
 
   it("doesn't call a staff approval a signature", () => {

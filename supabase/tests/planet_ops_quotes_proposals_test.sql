@@ -22,7 +22,7 @@ begin
 end $$;
 create function tpo_qp.customer_signs(p_company uuid, p_quote uuid) returns boolean language sql as $$
   select public.approve_hub_quote(p_company, p_quote, '{}',
-    jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'seen_fingerprint', public.quote_fingerprint(p_quote)))
+    jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'seen_fingerprint', public.quote_fingerprint(p_quote)))
 $$;
 grant execute on all functions in schema tpo_qp to authenticated, service_role;
 
@@ -78,7 +78,7 @@ select public.quote_fingerprint(:'quote') as v4 \gset
 update public.quotes set payment_terms = 'TEST placeholder payment terms, revised.' where id = :'quote';
 select tpo_qp.check(public.quote_fingerprint(:'quote') <> :'v4', 'and the Payment Terms');
 update public.quotes set status = 'sent', sent_at = now() where id = :'quote';
-select tpo_qp.expect_error(format('select public.approve_hub_quote(%L, %L, %L, jsonb_build_object(%L, %L, %L, now(), %L, %L))', :'co', :'quote', '{}', 'name', 'Test Customer', 'signed_at', 'seen_fingerprint', :'v4'),
+select tpo_qp.expect_error(format('select public.approve_hub_quote(%L, %L, %L, jsonb_build_object(%L, %L, %L, now(), %L, %L, %L, %L))', :'co', :'quote', '{}', 'name', 'Test Customer', 'signed_at', 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'seen_fingerprint', :'v4'),
   'a page that showed the old Payment Terms can''t sign', '%changed after it was opened%');
 select tpo_qp.check(tpo_qp.customer_signs(:'co', :'quote'), 'the customer signs the proposal they saw');
 select tpo_qp.check((select approval -> 'document' -> 'quote' ->> 'payment_terms' = 'TEST placeholder payment terms, revised.'
@@ -113,9 +113,13 @@ select tpo_qp.expect_error(format('select public.convert_quote_to_job(%L)', :'co
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "a0d00000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
-update public.quotes set approval = approval || '{"company": {"name": "Test Owner", "signature": "data:image/png;base64,AAAA", "signed_at": "2026-11-20T17:00:00Z"}}' where id = :'co_on';
+select tpo_qp.expect_error(format('update public.quotes set approval = approval || %L where id = %L', '{"company": {"name": "Test Owner", "signed_at": "2026-11-20T17:00:00Z"}}', :'co_on'),
+  'a required countersignature can''t be a name alone', '%needs to be drawn%');
+select tpo_qp.expect_error(format('update public.quotes set approval = approval || %L where id = %L', '{"company": {"name": "Test Owner", "signature": "Test Owner", "signed_at": "2026-11-20T17:00:00Z"}}', :'co_on'),
+  'nor typed words in place of the drawing', '%needs to be drawn%');
+update public.quotes set approval = approval || jsonb_build_object('company', jsonb_build_object('name', 'Test Owner', 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'signed_at', '2026-11-20T17:00:00Z')) where id = :'co_on';
 commit;
-select tpo_qp.check((select status from public.quotes where id = :'co_on') = 'converted', 'the company countersigns and it''s finalized');
+select tpo_qp.check((select status from public.quotes where id = :'co_on') = 'converted', 'the company countersigns, drawing it, and it''s finalized');
 select tpo_qp.check((select count(*) from public.job_line_items where source_quote_id = :'co_on') = 1, 'added to the job once');
 
 -- A change while the countersignature was awaited isn't finalized by it.
@@ -127,7 +131,7 @@ update public.quotes set starts_on = current_date + 30 where id = :'co_moved';
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "a0d00000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
-select tpo_qp.expect_error(format('update public.quotes set approval = approval || %L where id = %L', '{"company": {"name": "Test Owner"}}', :'co_moved'),
+select tpo_qp.expect_error(format('update public.quotes set approval = approval || jsonb_build_object(%L, jsonb_build_object(%L, %L, %L, %L)) where id = %L', 'company', 'name', 'Test Owner', 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', :'co_moved'),
   'its schedule changed after the customer signed, so the countersignature can''t finalize it', '%changed after the customer signed%');
 commit;
 select tpo_qp.check((select status from public.quotes where id = :'co_moved') = 'approved' and not exists (select 1 from public.job_line_items where source_quote_id = :'co_moved'),

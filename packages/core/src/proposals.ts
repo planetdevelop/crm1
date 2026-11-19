@@ -13,6 +13,8 @@
  * presentation, quotes.narrative (only these section keys), quotes.contract_terms and payment_terms.
  */
 
+import { isDrawnSignature } from "./changeOrders";
+
 export const PRESENTATIONS = ["line_items", "proposal"] as const;
 export type Presentation = (typeof PRESENTATIONS)[number];
 
@@ -79,12 +81,13 @@ export function proposalSettings(settings: unknown): { contractTerms: string; pa
 
 /**
  * Where an agreement stands on signatures. "Customer accepted" and "company countersigned" are
- * separate: one never implies the other.
+ * separate: one never implies the other. Both are drawn signatures: the customer's (with their printed
+ * name and the signing time), and the company's when a countersignature is required.
  */
 export function signatureState(input: { status: string; approval: unknown; countersignRequired: boolean }): "unsigned" | "awaiting_countersign" | "signed" {
   if (input.status !== "approved" && input.status !== "converted") return "unsigned";
   const a = input.approval && typeof input.approval === "object" && !Array.isArray(input.approval) ? (input.approval as Record<string, unknown>) : null;
-  if (!a || a.method === "manual") return input.status === "converted" ? "signed" : "unsigned";
-  const company = a.company && typeof a.company === "object" && !Array.isArray(a.company);
-  return input.countersignRequired && !company ? "awaiting_countersign" : "signed";
+  if (!a || a.method === "manual" || !isDrawnSignature(a.signature)) return input.status === "converted" ? "signed" : "unsigned";
+  const company = a.company && typeof a.company === "object" && !Array.isArray(a.company) ? (a.company as Record<string, unknown>) : null;
+  return input.countersignRequired && !isDrawnSignature(company?.signature) ? "awaiting_countersign" : "signed";
 }

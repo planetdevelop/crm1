@@ -8,7 +8,8 @@
 --    job, filled from the company's defaults (settings.quotes.contract_terms / payment_terms) when a
 --    quote is made. The business supplies the approved wording; nothing here writes legal terms.
 -- 3. Company countersignature, configurable (settings.quotes.countersign_required, off unless set).
---    When it's on, a change order the customer signed waits for the company's countersignature
+--    When it's on, the countersignature must be drawn (a PNG from the signature pad, as the
+--    customer's is: private.is_drawn_signature), and a change order the customer signed waits for it
 --    before it's added to the job, so "customer accepted" and "company countersigned" stay separate.
 --
 -- All of these are part of the signed document version (private.quote_version, from
@@ -130,8 +131,8 @@ create or replace function private.change_order_approved() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
   if new.change_order_for is not null and new.status = 'approved' and old.status is distinct from 'approved' then
-    if private.countersign_required(new.company_id) and jsonb_typeof(new.approval -> 'company') is distinct from 'object' then
-      -- Customer accepted; waiting for the company's countersignature (change_order_countersigned).
+    if private.countersign_required(new.company_id) and not private.is_company_countersignature(new.approval) then
+      -- Customer accepted; waiting for the company's drawn countersignature (change_order_countersigned).
       return null;
     end if;
     perform private.apply_change_order(new.id);
@@ -139,11 +140,35 @@ begin
   return null;
 end $$;
 
+-- A company countersignature that's required is a drawn one, with who signed and when.
+create function private.is_company_countersignature(p_approval jsonb) returns boolean
+language sql immutable set search_path = '' as $$
+  select coalesce(
+    jsonb_typeof(p_approval -> 'company') = 'object'
+    and length(trim(coalesce(p_approval -> 'company' ->> 'name', ''))) > 0
+    and private.is_drawn_signature(p_approval -> 'company' ->> 'signature'),
+    false)
+$$;
+
+-- When the company must countersign, the countersignature added to a signed agreement is drawn.
+create function private.countersignature_drawn() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if jsonb_typeof(new.approval -> 'company') = 'object' and jsonb_typeof(old.approval -> 'company') is distinct from 'object'
+     and private.countersign_required(new.company_id) and not private.is_company_countersignature(new.approval) then
+    raise exception 'Your company''s countersignature needs to be drawn, with a finger, mouse or stylus.'
+      using errcode = '22023';
+  end if;
+  return new;
+end $$;
+create trigger countersignature_drawn before update of approval on public.quotes
+  for each row execute function private.countersignature_drawn();
+
 create function private.change_order_countersigned() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
-  if new.change_order_for is not null and new.status = 'approved'
-     and jsonb_typeof(new.approval -> 'company') = 'object' and jsonb_typeof(old.approval -> 'company') is distinct from 'object' then
+  if new.change_order_for is not null and new.status = 'approved' and private.is_company_countersignature(new.approval)
+     and jsonb_typeof(old.approval -> 'company') is distinct from 'object' then
     perform private.apply_change_order(new.id);
   end if;
   return null;
@@ -160,7 +185,7 @@ begin
     raise exception 'This change order changed after the customer signed it, so it needs their signature again before it''s added to the job.'
       using errcode = '22023';
   end if;
-  if private.countersign_required(new.company_id) and jsonb_typeof(new.approval -> 'company') is distinct from 'object' then
+  if private.countersign_required(new.company_id) and not private.is_company_countersignature(new.approval) then
     raise exception 'The customer signed this change order. It''s added to the job once your company countersigns it.'
       using errcode = '22023';
   end if;
@@ -172,4 +197,5 @@ create trigger change_order_awaits_countersign before update of status on public
 
 -- narrative_ok stays callable: the table's check runs it as whoever writes the quote.
 revoke execute on function private.quote_default_terms(), private.signed_terms_stay(),
-  private.countersign_required(uuid), private.change_order_countersigned(), private.change_order_awaits_countersign() from public;
+  private.countersign_required(uuid), private.change_order_countersigned(), private.change_order_awaits_countersign(),
+  private.is_company_countersignature(jsonb), private.countersignature_drawn() from public;
