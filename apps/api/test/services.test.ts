@@ -18,6 +18,7 @@ import { processCampaigns } from "../src/services/campaigns";
 import { sendReviewRequest } from "../src/services/reviews";
 import { suggestPlaces } from "../src/services/external";
 import { runTask } from "../src/tasks";
+import { drawnPng } from "./fixtures/drawn";
 
 const env: Env = {
   SUPABASE_URL: "https://example.supabase.co",
@@ -786,7 +787,7 @@ describe("quote approval", () => {
   // they came to, in one step (approve_hub_quote; supabase/tests/hub_approval_test.sql).
   const company = [{ name: "Acme", phone: null, timezone: "America/Chicago" }];
   const addOn = (id: string, values: Record<string, unknown> = {}) => ({ id, option_id: null, quantity: 1, unit_price: 0, taxable: true, optional: true, selected: false, option_group: null, ...values });
-  const approve = async (approved: boolean, headers: Record<string, string> = {}, bindings = connectedFrom("203.0.113.9")) => {
+  const approve = async (approved: boolean, headers: Record<string, string> = {}, bindings = connectedFrom("203.0.113.9"), drawn = true) => {
     const option = crypto.randomUUID();
     const calls = serve((call) => {
       if (call.method === "GET" && call.path === "quotes") return [{ id: "quote-1", status: "sent" }];
@@ -798,7 +799,7 @@ describe("quote approval", () => {
     const quote = (await clientLink(env, "https://ops.example.com", { c: "co-1", t: "quote", id: "quote-1" })).split("/hub/")[1];
     const res = await app.request(
       `/api/hub/${quote}/approve`,
-      { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ name: "Ana Smith", selected_line_ids: [option] }) },
+      { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ name: "Ana Smith", selected_line_ids: [option], ...(drawn ? { signature: drawnPng() } : {}) }) },
       bindings,
     );
     return { option, calls, res };
@@ -816,11 +817,17 @@ describe("quote approval", () => {
       // The business has no template saved, so the built-in one is kept with the approval, with its
       // terms as the contract (no options, no sections and nothing to initial).
       p_approval: {
-        name: "Ana Smith", selected_line_ids: [option], signature: null, signed_at: expect.any(String), ip: "203.0.113.9", template: DEFAULT_TEMPLATE,
+        name: "Ana Smith", selected_line_ids: [option], signature: drawnPng(), signed_at: expect.any(String), ip: "203.0.113.9", template: DEFAULT_TEMPLATE,
         option: null, contract: { terms: DEFAULT_TEMPLATE.terms, sections: [] }, initials: null,
       },
     });
     expect(writes(calls)).toEqual([]);
+  });
+
+  it("refuses a typed name without a drawn signature (Planet Ops: a typed name alone never signs)", async () => {
+    const { calls, res } = await approve(true, {}, connectedFrom("203.0.113.9"), false);
+    expect(res.status).toBe(400);
+    expect(calls.some((c) => c.path === "rpc/approve_hub_quote")).toBe(false);
   });
 
   it("records the address the deployment's own proxy gives, not one the client sent", async () => {
@@ -851,7 +858,7 @@ describe("quote approval", () => {
         return [];
       });
       const quote = (await clientLink(env, "https://ops.example.com", { c: "co-1", t: "quote", id: "quote-1" })).split("/hub/")[1];
-      const res = await app.request(`/api/hub/${quote}/approve`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Ana Smith", selected_line_ids: selected }) }, connectedFrom("203.0.113.9"));
+      const res = await app.request(`/api/hub/${quote}/approve`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Ana Smith", selected_line_ids: selected, signature: drawnPng() }) }, connectedFrom("203.0.113.9"));
       return { res, calls };
     };
     for (const wrong of [[], [good, best], [gutters]]) {

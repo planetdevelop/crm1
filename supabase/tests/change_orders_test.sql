@@ -42,7 +42,7 @@ update public.quotes set status = 'sent', sent_at = now() where id = :'co_quote'
 commit;
 
 -- The client approves it in the Client Hub (the server does that as the service role).
-update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'co_quote';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'co_quote';
 select t14.check((select status from public.quotes where id = :'co_quote') = 'converted', 'an approved change order is added to its job');
 select t14.check((select contract_total from public.job_financials where job_id = :'job') = 15350, 'and the job''s total includes it');
 select t14.check((select count(*) from public.job_line_items where job_id = :'job' and source_quote_id = :'co_quote') = 1, 'its lines say where they came from');

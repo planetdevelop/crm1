@@ -66,7 +66,7 @@ insert into public.quote_line_items (company_id, quote_id, name, quantity, unit,
 values (:'co', :'change', 'Tar and chip', 1, 'job', 4000, 2500, 1, '[{"id": "stone8", "name": "#8 stone", "unit": "ton", "quantity": 9, "unit_cost": 30, "material": true, "work": "tar_chip"}]');
 commit;
 -- The customer signs it (the server records the signature: 20261120000100).
-update public.quotes set status = 'approved', approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'change';
+update public.quotes set status = 'approved', approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'change';
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "ca1c0000-0000-0000-0000-000000000001", "role": "authenticated"}', true);

@@ -14,8 +14,11 @@
 --    approved, the database compares it with the version now: a page opened before a change can't
 --    sign. A change order can only be signed with one. The approval then keeps the fingerprint and a
 --    copy of that version (approval.document), so the signed agreement is preserved as signed.
--- 3. Only the customer signs. A customer signature (an approval that isn't the office's "manual"
---    one) is written only by the server: approve_hub_quote (the customer's own link) and sign_quote
+-- 3. Only the customer signs, and only by drawing. A customer signature has three separate parts:
+--    the printed name, the signing time, and a signature drawn with a finger, mouse or stylus (a PNG
+--    from the signature pad). A typed name alone is never a signature: an acceptance without the
+--    drawing is refused, for quotes, proposals and change orders alike. A customer signature (an
+--    approval that isn't the office's "manual" one) is written only by the server: approve_hub_quote (the customer's own link) and sign_quote
 --    (in-person signing through the API, which checks the drawn signature). Nobody signed in can
 --    write or alter one through the API, and sign_quote is no longer callable from the browser.
 -- 4. Finalizing a change order (approved or converted, which adds its lines to the job) needs that
@@ -103,14 +106,24 @@ grant execute on function public.quote_fingerprint(uuid) to authenticated, servi
 -- 2 and 3. Customer signatures: what one is, who may write one, and what it's tied to
 -- ---------------------------------------------------------------------------------------------
 
--- An approval the customer made: anything but the office's "manual" one, with a signer and a time.
+-- A signature drawn on the signature pad: a PNG (its file signature, iVBORw0KGgo, at the start of the
+-- data), of a size a signature pad makes. The API checks the image itself (logo.ts isDrawnPng); this is
+-- the database's own check that it's a drawing, never typed words.
+create function private.is_drawn_signature(p text) returns boolean
+language sql immutable set search_path = '' as $$
+  select coalesce(p ~ '^data:image/png;base64,iVBORw0KGgo[A-Za-z0-9+/=]+$' and length(p) <= 300100, false)
+$$;
+
+-- An approval the customer made: anything but the office's "manual" one, with the printed name, the
+-- signing time and the drawn signature, each its own field.
 create function private.is_customer_signature(p_approval jsonb) returns boolean
 language sql immutable set search_path = '' as $$
   select coalesce(
     jsonb_typeof(p_approval) = 'object'
     and coalesce(p_approval ->> 'method', '') <> 'manual'
     and length(trim(coalesce(p_approval ->> 'name', ''))) > 0
-    and coalesce(p_approval ->> 'signed_at', '') <> '',
+    and coalesce(p_approval ->> 'signed_at', '') <> ''
+    and private.is_drawn_signature(p_approval ->> 'signature'),
     false)
 $$;
 
@@ -144,6 +157,13 @@ create function private.signed_version() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare v_version jsonb; v_fingerprint text; v_seen text;
 begin
+  -- An acceptance in the customer's name (it has a signing time) without the drawn signature: a typed
+  -- name alone doesn't sign anything.
+  if jsonb_typeof(new.approval) = 'object' and coalesce(new.approval ->> 'method', '') <> 'manual'
+     and coalesce(new.approval ->> 'signed_at', '') <> '' and not private.is_customer_signature(new.approval) then
+    raise exception 'A drawn signature is needed to sign: draw it with a finger, mouse or stylus. A typed name alone doesn''t sign.'
+      using errcode = '22023';
+  end if;
   if not private.is_customer_signature(new.approval) then
     return new;
   end if;
@@ -272,7 +292,7 @@ end $$;
 create trigger signed_change_order_lines_stay before insert or update or delete on public.quote_line_items
   for each row execute function private.signed_change_order_lines_stay();
 
-revoke execute on function private.quote_version(uuid), private.quote_fingerprint(uuid), private.is_customer_signature(jsonb),
+revoke execute on function private.quote_version(uuid), private.quote_fingerprint(uuid), private.is_customer_signature(jsonb), private.is_drawn_signature(text),
   private.customer_part(jsonb), private.customer_signs_only_through_the_server(), private.signed_version(),
   private.change_order_customer_signed(uuid, jsonb, numeric), private.change_order_needs_signature(),
   private.signed_change_order_stays(), private.signed_change_order_lines_stay() from public;
