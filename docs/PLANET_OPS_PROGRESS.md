@@ -33,7 +33,7 @@ phase's acceptance evidence here.
   - API error responses (`app.onError`), MCP server title/instructions, ChatGPT agent name, PDF
     creator/producer, default email sender name, service-worker notifications, page title, iPhone
     Home Screen name, installed-app manifest name/description, client hub "Powered by", time-change
-    labels.
+    labels, first-run setup screen.
   - Fixed an issue that branding exposed: Spanish error translation (`translateError`) took a renamed
     but untranslated English line for a translation and skipped its pattern fallback.
   - **Interim mark**: a plain planet-and-orbit placeholder in the brand colors
@@ -69,12 +69,13 @@ Baseline = untouched `planet-ops-staging` (`bd6eae6`), run in a clean worktree. 
 | Check | Baseline | After Phase 0 |
 | --- | --- | --- |
 | `npm run typecheck` | pass | pass |
-| `npm test`: api | 116 files, 2574 tests, pass | see PR |
-| `npm test`: web | 151 files, 1983 tests, pass | see PR |
-| `npm test`: core | 65 files, 1208 tests, pass | see PR (adds `planetOps.test.ts`) |
+| `npm test`: api | 116 files, 2574 tests, pass | 116 files, 2574 tests, pass |
+| `npm test`: web | 151 files, 1983 tests, pass | 151 files, 1983 tests, pass |
+| `npm test`: core | 65 files, 1208 tests, pass | 66 files, 1215 tests, pass (adds `planetOps.test.ts`) |
 | `npm run test:db` (throwaway Postgres 17 in Docker) | 203 test files, all passed | unchanged: no migration or SQL change |
-| `npm run build:server` | — | see PR |
-| `npm run test:upgrade`, `test:e2e`, `test:browser` | not run: need a release-tag history / local Supabase CLI stack | not run (no schema change; UI change is text and icons) |
+| `npm run build:server` | — | pass; built server answers `/api/health` `{"ok":true,"version":"dev"}`, page title, manifest and setup screen show Planet Ops (desktop and phone screenshots) |
+| `npm run instance` (full five-service Docker stack) | — | **blocked in the session**: the image's `apk add postgresql17-client` step can't reach `dl-cdn.alpinelinux.org` (session network policy). The app build stage inside Docker completed. Railway builds on its own network |
+| `npm run test:upgrade`, `test:e2e`, `test:browser` | not run: need the fork's release tags / a local Supabase CLI stack | not run (no schema change; UI change is text and icons) |
 
 No baseline failures existed. Every test change in this branch is an expected product-name text
 update: an assertion now expects "Planet Ops" where the code path is branded, and stays "Crewtavo"
