@@ -222,9 +222,13 @@ step("4. The quote goes to the customer, who approves it online");
       const booking = await publicApi("POST", `/public/forms/${slug}/${form.slug}/promo`, { code });
       check(booking.status === 200 && booking.body.offer === "10% off: E2E test", "a booking form checks the code and describes the offer", booking.body);
     }
-    const approve = await publicApi("POST", `/hub/${mail.token}/approve`, { name: "Pat Customer" });
-    check(approve.status === 200 && approve.body.status === "approved", "the customer approves with their name", approve.body);
-    const again = await publicApi("POST", `/hub/${mail.token}/approve`, { name: "Pat Customer" });
+    // Planet Ops: a typed name alone never signs; the customer draws their signature too.
+    const typed = await publicApi("POST", `/hub/${mail.token}/approve`, { name: "Pat Customer" });
+    check(typed.status === 400, "a typed name alone doesn't approve it", typed.body);
+    const drawn = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    const approve = await publicApi("POST", `/hub/${mail.token}/approve`, { name: "Pat Customer", signature: drawn });
+    check(approve.status === 200 && approve.body.status === "approved", "the customer approves with their name and drawn signature", approve.body);
+    const again = await publicApi("POST", `/hub/${mail.token}/approve`, { name: "Pat Customer", signature: drawn });
     check(again.status === 409, "an approved quote can't be approved twice", again.status);
   }
   const notified = await eventually(async () => {
