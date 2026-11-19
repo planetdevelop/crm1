@@ -265,6 +265,8 @@ export interface SignBody {
   option_id?: string;
   /** The total on the paper: it's only signed while the quote still comes to it. */
   expected_total?: number;
+  /** The version the screen showed as it opened (public.quote_fingerprint): only that one is signed. */
+  fingerprint?: string;
   /** The fingerprint of the terms on the paper (build.ts QuoteContract hash). */
   sections_hash?: string;
   /** Their initials, for the sections that ask (a small PNG data URL). */

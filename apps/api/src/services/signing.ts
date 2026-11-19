@@ -54,8 +54,10 @@ export const signSchema = z.object({
   to: z.string().trim().max(200).optional(),
   /** The option they chose (the one shown on the visit page): required when the quote offers options. */
   option_id: postedId.optional(),
-  /** The total on the paper they signed: it's only signed while the quote still comes to it. */
-  expected_total: z.number().min(0).max(100_000_000).optional(),
+  /** The total on the paper they signed: it's only signed while the quote still comes to it. A credit change order comes to less than nothing. */
+  expected_total: z.number().min(-100_000_000).max(100_000_000).optional(),
+  /** The version the signing screen showed (public.quote_fingerprint): the database signs only that one. Required for a change order. */
+  fingerprint: z.string().regex(/^[0-9a-f]{32}$/).optional(),
   /** The terms on the paper (core sectionsHash), and the homeowner's initials for the sections that ask. */
   sections_hash: sectionsHashSchema.optional(),
   initials: initialsImage.optional(),
@@ -190,6 +192,7 @@ export async function signQuote(s: SigningScope, id: string, body: SignBody) {
     signature: body.signature,
     signed_at: now,
     method: "in_person" as const,
+    ...(body.fingerprint ? { seen_fingerprint: body.fingerprint } : {}),
     selected_line_ids: lines.filter((l) => l.optional && countsOn(l, quote.option_id)).map((l) => l.id),
     company: companySignature ? { name: signer || company.name, user_id: s.userId, signature: companySignature, signed_at: now } : null,
     // The template as it was signed, so later changes to it (or another default) don't change the terms above the signatures.
@@ -200,7 +203,9 @@ export async function signQuote(s: SigningScope, id: string, body: SignBody) {
   // the option they chose and still comes to the total on the paper, then approves it with the
   // amounts. So two people signing at once can't both win, and an office change in between isn't
   // signed by mistake.
-  const { data: amounts, error } = await s.db.rpc("sign_quote", {
+  // Planet Ops: only the server records a customer's signature (20261120000100): this person's access
+  // and the drawn signature are checked above, and loadQuote found the quote in their company.
+  const { data: amounts, error } = await adminClient(s.env).rpc("sign_quote", {
     p_quote: id,
     p_approval: asJson(approval),
     ...(option ? { p_option: option.id } : {}),
@@ -211,6 +216,8 @@ export async function signQuote(s: SigningScope, id: string, body: SignBody) {
     const current = must(await s.db.from("quotes").select("status").eq("id", id).eq("company_id", s.companyId).maybeSingle(), "We couldn't find that estimate. It may have been deleted.");
     throw OPEN.includes(current.status) ? new HttpError(409, CHANGED) : notOpen(current.status);
   }
+  // The person who had it signed becomes its salesperson if it had none (sign_quote did, as them, before).
+  await s.db.from("quotes").update({ salesperson_id: s.userId }).eq("id", id).eq("company_id", s.companyId).is("salesperson_id", null);
   if (body.save_signature && body.company_signature) await keepSignature(s, body.company_signature);
 
   // The person signed in gets the office's copy of the link; only a copy that goes out to the client's own email is theirs.

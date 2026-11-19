@@ -7,7 +7,7 @@
  * approves the estimate, only while it's still the option and the price on the paper.
  */
 import { shownCustomFields } from "@crewtavo/core/customFields";
-import { useIsMutating, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useBlocker, useNavigate, useParams } from "react-router-dom";
 import { Spinner } from "@/components/ui/Button";
@@ -16,7 +16,7 @@ import { FormError } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/States";
-import { ApiError } from "@/lib/api";
+import { ApiError, supabase, unwrap } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { useCustomFields } from "../../customFields/CustomFields";
 import {
@@ -91,6 +91,17 @@ function SignScreen({ quote, takeoff }: { quote: EstimateQuote; takeoff: Takeoff
   const letterhead = useLetterhead();
   const mine = useMySignature();
   const sign = useSignEstimate(quote.id);
+  // Planet Ops: the version on the screen as it opened (lines, options, schedule, payment and
+  // contract terms). It's sent with the signature, so a change made meanwhile isn't signed by mistake
+  // (20261120000100). Read once, never refreshed while the screen is open.
+  const version = useQuery({
+    queryKey: ["quote-fingerprint", quote.id],
+    queryFn: async () => unwrap(await supabase().rpc("quote_fingerprint", { p_quote: quote.id })),
+    staleTime: Infinity,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
   const panel = useRef<HTMLElement>(null);
   const id = useId();
 
@@ -259,6 +270,7 @@ function SignScreen({ quote, takeoff }: { quote: EstimateQuote; takeoff: Takeoff
         email_copy: canEmail && emailCopy,
         ...(option ? { option_id: option.id } : {}),
         expected_total: totals.total,
+        ...(version.data ? { fingerprint: version.data } : {}),
         ...(contract.hash ? { sections_hash: contract.hash } : {}),
         ...(initials && asking.length ? { initials } : {}),
       },

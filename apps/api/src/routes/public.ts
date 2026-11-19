@@ -553,8 +553,12 @@ publicRoutes.get("/hub/:token", async (c) => {
     // that reads no `deposit` and says an invoice is coming).
     const depositPayable = !depositInvoice || depositInvoice.balance_due <= 0 || Boolean(await stripeAccess(c.env, admin, l.c));
     const deposit = depositPayable ? depositInvoice : null;
+    // Planet Ops: the version this page shows (lines, options, schedule, payment and contract terms),
+    // sent back with the approval so a page opened before a change can't sign (20261120000100).
+    const { data: fingerprint } = signed ? { data: null } : await admin.rpc("quote_fingerprint", { p_quote: quote.id });
     return c.json({
       kind: "quote",
+      fingerprint: typeof fingerprint === "string" ? fingerprint : null,
       company,
       template,
       contract,
@@ -690,7 +694,10 @@ publicRoutes.post("/hub/:token/approve", async (c) => {
       // The option they picked: required when the quote offers options.
       option_id: postedId.optional(),
       // The total they saw (core chosenTotals): the database turns the approval down if it's changed.
-      expected_total: z.number().min(0).max(100_000_000).optional(),
+      // A credit change order comes to less than nothing.
+      expected_total: z.number().min(-100_000_000).max(100_000_000).optional(),
+      // The version the page showed (GET /hub/:token's fingerprint): the database signs only that one.
+      fingerprint: z.string().regex(/^[0-9a-f]{32}$/).optional(),
       // The terms they read (core sectionsHash), and their initials for the sections that ask.
       sections_hash: sectionsHashSchema.optional(),
       initials: initialsImage.optional(),
@@ -766,6 +773,7 @@ publicRoutes.post("/hub/:token/approve", async (c) => {
     p_selected: picked,
     p_approval: {
       name: body.name, selected_line_ids: picked, signature: body.signature ?? null, signed_at: signedAt, ip: clientIp(c),
+      ...(body.fingerprint ? { seen_fingerprint: body.fingerprint } : {}),
       template: asJson(template),
       ...(company ? { company } : {}),
       option: asJson(kept.option),

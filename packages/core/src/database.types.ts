@@ -5214,6 +5214,9 @@ isOneToOne: false
 "quote_exact_sent":
 { Args: { "p_quote": string }; Returns: undefined
                            },
+"quote_fingerprint":
+{ Args: { "p_quote": string }; Returns: string
+                           },
 "quote_send_problem":
 { Args: { "p_quote": string }; Returns: string
                            },

@@ -148,6 +148,8 @@ export type HubContract =
   | { kind: "signed"; terms: string; sections: ApprovalContract["sections"]; initials: { image: string; signed_at: string | null } | null };
 export interface QuoteView {
   kind: "quote";
+  /** Planet Ops: the version this page shows, sent back as it's signed so a page opened before a change can't sign. Null once signed. */
+  fingerprint?: string | null;
   drawings?: HubDrawing[];
   preview?: boolean;
   home: string | null;

@@ -10,7 +10,15 @@
  *
  * A customer signature is an approval the customer made themselves: on the client hub (their own
  * link, recorded with their name, the time and their address) or signed in person on the business's
- * device (method "in_person"). An approval the office kept without one has method "manual".
+ * device (method "in_person"). An approval the office kept without one has method "manual". Only the
+ * server records a customer signature.
+ *
+ * "Exact version" is the whole document, not just its total: the database fingerprints its lines,
+ * options, schedule, payment and contract terms (private.quote_version), refuses a signature from a
+ * page that showed an older version, keeps the signed version with the approval, and refuses to
+ * finalize a change order whose version moved on. The total check here is the part the interface can
+ * see without asking the database. A finalized change order stays as signed: it can't be reopened,
+ * edited or deleted; a revised agreement is a new change order, signed again.
  */
 
 export interface ChangeOrderLike {

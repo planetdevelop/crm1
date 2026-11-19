@@ -128,25 +128,45 @@ Owner inputs still needed: contract terms wording, payment terms, and whether th
 countersign. Until then, documents use the existing contract-section library and clearly marked
 placeholders; no legal text is invented.
 
-### 1a: change-order signature gate
+### 1a: customer acceptance tied to the complete document version; change-order signature gate
 
 - Before: staff "Mark approved" on a change order (a trigger then added its lines to the job), and
   "Convert / Add to job" on an unsigned one (it saved a "manual" approval first), both finalized it
-  without the customer.
-- Now: migration `20261120000100_planet_ops_change_order_signature.sql` refuses any move of a change
-  order to approved/converted, by anyone (signed-in staff, assistants, the server, automations), unless
-  its approval is the customer's own (client hub, or signed in person). The approval must have the
-  signer's name, the time, and a signed total equal to the current total. A finalized change order's
-  signed scope and price can't change. Added charges, credits and $0 changes are all covered. Change
-  orders finalized before the migration keep their state.
-- Same rule in `packages/core/src/changeOrders.ts` for the interface: the quote page hides "Mark
-  approved" and "Add to job" on an unsigned change order and explains why; the job's change-order
-  list shows "Awaiting customer signature".
-- Tests: `supabase/tests/planet_ops_change_order_signature_test.sql` (28 checks, every bypass attempt
-  plus positive, credit and $0 change orders, retried signatures applying once);
-  `packages/core/test/changeOrders.test.ts`. Existing database tests that finalized change orders
-  without a customer now give them a customer signature, since that is the rule they encode now.
+  without the customer. A signature was tied to the total only. Any signed-in person could call the
+  in-person signing step directly with made-up signer details, or write a customer-looking approval.
+  A finalized change order could be reopened and approved again.
+- Now (migration `20261120000100_planet_ops_change_order_signature.sql`):
+  - **Document version.** `private.quote_version()` covers everything the document offers: lines
+    (names, descriptions, quantities, units, prices, tax, optional/grouped), options, schedule,
+    payment terms (deposit, payment schedule), discount, tax, promo, contract sections' wording, and
+    the template's terms and signature settings. It leaves out the customer's own choices (option,
+    add-ons), which are recorded with the approval and its amounts. The fingerprint changes at the same
+    price too.
+  - **Signing.** The client hub and the in-person screen send the fingerprint of the version they
+    showed. The database refuses a signature from an outdated page, and a change order can't be
+    signed without one. The approval keeps the fingerprint and a copy of the signed version
+    (`approval.document`), so the original signed document is preserved.
+  - **Only the customer signs.** Only the server writes a customer signature (the hub approval; in-person
+    signing through the API, which checks the person and the drawn signature). Signed-in users can't
+    write or alter one, and `sign_quote` is no longer callable from the browser.
+  - **Finalizing a change order** needs that customer signature on the version it is now, for added
+    charges, credits and $0 changes.
+  - **A finalized change order stays as signed.** It can't be reopened, archived, moved, deleted or
+    re-signed, and its signed lines can't change. A revised agreement is a new change order, signed
+    again.
+  - Change orders finalized before the migration keep their state.
+- Interface: the quote page hides "Mark approved" and "Add to job" on an unsigned change order and says
+  why; the job's change-order list shows "Awaiting customer signature".
+- Tests: `supabase/tests/planet_ops_change_order_signature_test.sql` (43 checks): every staff bypass;
+  fabricated signatures (direct write, approval with forged metadata, direct `sign_quote`, rewriting
+  the signer or the fingerprint); outdated pages after a same-price scope change, a schedule change,
+  a deposit change, payment-terms wording, contract-terms wording, and a section removed; signing the
+  version shown; the signed version kept; retries applied once; reopen, draft, archive, delete and edits
+  of a signed change order refused; credits and $0 changes; the office's manual approval and
+  countersignature on ordinary quotes still working; deleting a job or company still working. Also
+  `packages/core/test/changeOrders.test.ts`. Existing database tests now sign change orders as the
+  customer would, and expect reopening a signed one to be refused.
 - Checks: typecheck pass; unit tests api 2574, web 1983, core 1221 pass; `test:db` all pass;
   `test:upgrade` from `v0.5.3` passes with this migration applied to a database with rows.
-- Open question for the owner: today a client-hub signature can be a typed name (recorded with the
-  time and address) instead of a drawn signature. Say if change orders must require a drawn one.
+- Open question for the owner: a client-hub signature can be a typed name (recorded with the time and
+  address) instead of a drawn one. Say if change orders must require a drawn signature.

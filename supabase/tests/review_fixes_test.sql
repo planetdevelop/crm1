@@ -202,7 +202,9 @@ select t41.expect_error(format('update public.quote_line_items set unit_price = 
 select t41.expect_error(format('update public.invoice_line_items set name = %L where id = %L', 'Free mulch', :'invoice_line'), 'nor can the sent invoice''s');
 commit;
 
--- ===== A change order approved again ===========================================================
+-- ===== A signed change order on its job =========================================================
+-- Planet Ops: a change order the customer signed stays as signed (20261120000100). Re-opening it to
+-- change and approve it again, or deleting it, is refused; a revised scope is a new change order.
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "f4100000-0000-0000-0000-000000000009", "role": "authenticated"}', true);
@@ -210,25 +212,20 @@ insert into public.quotes (company_id, client_id, title, change_order_for, disco
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price, sort) values (:'co', :'change', 'Edging', 2, 'ea', 150, 0) returning id as edging \gset
 commit;
 update public.quotes set status = 'sent', sent_at = now() where id = :'change';
-update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total) where id = :'change';
-select t41.check((select contract_total from public.job_financials where job_id = :'job') = 1470, 'an approved change order joins its job, less its discount (1200 + 300 - 30)');
--- Re-opened, changed (one more length of edging, lights, a bigger discount) and approved again.
-update public.quotes set status = 'sent' where id = :'change';
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'change';
+select t41.check((select contract_total from public.job_financials where job_id = :'job') = 1470, 'a signed change order joins its job, less its discount (1200 + 300 - 30)');
+select t41.expect_error(format('update public.quotes set status = ''sent'' where id = %L', :'change'), 'it can''t be re-opened to change it');
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "f4100000-0000-0000-0000-000000000009", "role": "authenticated"}', true);
-update public.quote_line_items set quantity = 3 where id = :'edging';
-insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price, sort) values (:'co', :'change', 'Lights', 1, 'ea', 200, 1);
-update public.quotes set discount_amount = 50 where id = :'change';
+select t41.expect_error(format('update public.quote_line_items set quantity = 3 where id = %L', :'edging'), 'nor its signed lines changed');
+select t41.expect_error(format('delete from public.quotes where id = %L', :'change'), 'nor deleted');
 commit;
-update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total) where id = :'change';
-select t41.check((select status from public.quotes where id = :'change') = 'converted', 'approved again, it''s added to the job');
-select t41.check((select contract_total from public.job_financials where job_id = :'job') = 1800, 'and the job''s total is what was approved last (1200 + 450 + 200 - 50)');
-select t41.check((select string_agg(name || ' x' || quantity::integer, ', ' order by sort) from public.job_line_items where source_quote_id = :'change' and name <> 'Change order discount') = 'Edging x3, Lights x1', 'its lines on the job are its current ones, once');
-select t41.check((select count(*) = 1 and sum(unit_price) = -50 from public.job_line_items where source_quote_id = :'change' and name = 'Change order discount'), 'with one discount, the current one');
+select t41.check((select status from public.quotes where id = :'change') = 'converted', 'it stays added to the job');
+select t41.check((select string_agg(name || ' x' || quantity::integer, ', ' order by sort) from public.job_line_items where source_quote_id = :'change' and name <> 'Change order discount') = 'Edging x2', 'its lines on the job are the signed ones, once');
+select t41.check((select count(*) = 1 and sum(unit_price) = -30 from public.job_line_items where source_quote_id = :'change' and name = 'Change order discount'), 'with its one discount');
 select t41.check((select count(*) from public.job_line_items where job_id = :'job' and source_quote_id is null and name = 'Planting') = 1, 'and the job''s own lines stay');
--- A discount left on the job by a change order that was deleted, and one typed in by hand with the
--- same name, aren't a later change order's to take off when it's approved again.
+-- A discount typed in by hand with the same name isn't a later change order's to take off when it joins.
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "f4100000-0000-0000-0000-000000000009", "role": "authenticated"}', true);
@@ -236,23 +233,14 @@ insert into public.quotes (company_id, client_id, title, change_order_for, disco
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'gate', 'Gate', 1, 'ea', 300);
 insert into public.quotes (company_id, client_id, title, change_order_for) values (:'co', :'client', 'Add a bench', :'job') returning id as bench \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'bench', 'Bench', 1, 'ea', 100);
-commit;
-update public.quotes set status = 'sent', sent_at = now() where id = :'gate';
-update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total) where id = :'gate';
-update public.quotes set status = 'sent' where id = :'gate';
-begin;
-set local role authenticated;
-select set_config('request.jwt.claims', '{"sub": "f4100000-0000-0000-0000-000000000009", "role": "authenticated"}', true);
-delete from public.quotes where id = :'gate';
 insert into public.job_line_items (company_id, job_id, name, quantity, unit, unit_price) values (:'co', :'job', 'Change order discount', 1, 'ea', -10);
 commit;
-select t41.check((select contract_total from public.job_financials where job_id = :'job') = 2050, 'a deleted change order''s lines stay on the job (1800 + 300 - 40, and 10 off typed in)');
-update public.quotes set status = 'sent', sent_at = now() where id = :'bench';
-update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total) where id = :'bench';
-update public.quotes set status = 'sent' where id = :'bench';
-update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total) where id = :'bench';
-select t41.check((select contract_total from public.job_financials where job_id = :'job') = 2150, 'a later change order approved twice adds only its own lines (2050 + 100)');
-select t41.check((select count(*) from public.job_line_items where job_id = :'job' and name = 'Change order discount' and source_quote_id is null) = 2, 'and leaves the other discounts as they were');
+update public.quotes set status = 'sent', sent_at = now() where id in (:'gate', :'bench');
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'gate';
+select t41.check((select contract_total from public.job_financials where job_id = :'job') = 1720, 'another signed change order joins too (1470 + 300 - 40, and 10 off typed in)');
+update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'bench';
+select t41.check((select contract_total from public.job_financials where job_id = :'job') = 1820, 'a later one adds only its own lines (1720 + 100)');
+select t41.check((select count(*) from public.job_line_items where job_id = :'job' and name = 'Change order discount' and source_quote_id is null) = 1, 'and leaves the typed discount as it was');
 
 -- ===== Number sequences behind hand-picked numbers =============================================
 -- Documents numbered by hand ahead of the sequence (as the app allowed before), and a sequence

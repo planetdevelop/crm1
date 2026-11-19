@@ -19,6 +19,18 @@
 
 create schema t_options;
 grant usage on schema t_options to anon, authenticated, service_role;
+-- Planet Ops: in-person signing goes through the API, which calls sign_quote as the server
+-- (20261120000100_planet_ops_change_order_signature.sql). This does the same from a test.
+create function t_options.server_sign(p_quote uuid, p_approval jsonb, p_option uuid default null, p_expected_total numeric default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_claims text := current_setting('request.jwt.claims', true); v jsonb;
+begin
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  v := public.sign_quote(p_quote, p_approval, p_option, p_expected_total);
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  return v;
+end $$;
+grant execute on function t_options.server_sign(uuid, jsonb, uuid, numeric) to authenticated, service_role;
 create function t_options.check(p_ok boolean, p_what text) returns void language plpgsql as $$
 begin
   if not coalesce(p_ok, false) then raise exception 'FAIL: %', p_what; end if;
@@ -828,27 +840,27 @@ commit;
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "c0de0000-0000-0000-0000-000000000004", "role": "authenticated"}', true);
-select t_options.check(public.sign_quote(:'qg', '{"name": "Dana Homeowner"}', :'og1', 2000) is null, 'field crew can''t sign an estimate');
+select t_options.expect_error(format('select public.sign_quote(%L, %L, %L, 2000)', :'qg', '{"name": "Dana Homeowner", "method": "in_person"}', :'og1'), 'nobody signed in calls sign_quote directly: in-person signing goes through the API, which checks the person and the drawn signature');
 commit;
 
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "c0de0000-0000-0000-0000-000000000003", "role": "authenticated"}', true);
-select t_options.check(public.sign_quote(:'qg', '{"name": "Dana Homeowner"}', :'og2', 4000) is null, 'signing for an option that isn''t the one shown signs nothing');
-select t_options.check(public.sign_quote(:'qg', '{"name": "Dana Homeowner"}', null, 2000) is null, 'nor does signing with no option on a quote that offers them');
-select t_options.check(public.sign_quote(:'qg', '{"name": "Dana Homeowner"}', :'og1', 2001) is null, 'nor at a total other than the one they saw');
+select t_options.check(t_options.server_sign(:'qg', '{"name": "Dana Homeowner"}', :'og2', 4000) is null, 'signing for an option that isn''t the one shown signs nothing');
+select t_options.check(t_options.server_sign(:'qg', '{"name": "Dana Homeowner"}', null, 2000) is null, 'nor does signing with no option on a quote that offers them');
+select t_options.check(t_options.server_sign(:'qg', '{"name": "Dana Homeowner"}', :'og1', 2001) is null, 'nor at a total other than the one they saw');
 select t_options.check((select status = 'sent' and approval is null from public.quotes where id = :'qg'), 'so it''s still waiting');
-select public.sign_quote(:'qg', '{"name": "Dana Homeowner", "method": "in_person"}', :'og1', 2000) as signed \gset
+select t_options.server_sign(:'qg', '{"name": "Dana Homeowner", "method": "in_person"}', :'og1', 2000) as signed \gset
 select t_options.check((:'signed'::jsonb ->> 'total')::numeric = 2000 and (:'signed'::jsonb ->> 'subtotal')::numeric = 2000
                    and (:'signed'::jsonb ->> 'discount_amount')::numeric = 0 and (:'signed'::jsonb ->> 'tax_amount')::numeric = 0,
   'Dana signs the shingle option on the iPad, and gets the amounts back');
 select t_options.check((select status = 'approved' and approved_at is not null and option_id = :'og1' and approval ->> 'name' = 'Dana Homeowner' and approval ->> 'method' = 'in_person'
-                               and (approval ->> 'total')::numeric = 2000 and salesperson_id = 'c0de0000-0000-0000-0000-000000000003'
-                          from public.quotes where id = :'qg'), 'it''s approved with the amounts, and the estimator is its salesperson');
-select t_options.check(public.sign_quote(:'qg', '{"name": "Second Tab"}', :'og1', 2000) is null and (select approval ->> 'name' = 'Dana Homeowner' from public.quotes where id = :'qg'),
+                               and (approval ->> 'total')::numeric = 2000
+                          from public.quotes where id = :'qg'), 'it''s approved with the amounts (the API makes the estimator its salesperson)');
+select t_options.check(t_options.server_sign(:'qg', '{"name": "Second Tab"}', :'og1', 2000) is null and (select approval ->> 'name' = 'Dana Homeowner' from public.quotes where id = :'qg'),
   'signing again changes nothing');
-select t_options.check(public.sign_quote(:'qh', '{"name": "Dana Homeowner"}', :'og1') is null, 'a quote without options isn''t signed for an option');
-select t_options.check((public.sign_quote(:'qh', '{"name": "Dana Homeowner"}') ->> 'total')::numeric = 900, 'and is signed as before, without one');
+select t_options.check(t_options.server_sign(:'qh', '{"name": "Dana Homeowner"}', :'og1') is null, 'a quote without options isn''t signed for an option');
+select t_options.check((t_options.server_sign(:'qh', '{"name": "Dana Homeowner"}') ->> 'total')::numeric = 900, 'and is signed as before, without one');
 select t_options.check((select status = 'approved' and (approval ->> 'total')::numeric = 900 from public.quotes where id = :'qh'), 'at its price');
 commit;
 
@@ -939,7 +951,7 @@ insert into public.quote_line_items (company_id, quote_id, name, unit_price) val
 update public.quotes set status = 'sent', sent_at = now() where id = :'qco';
 commit;
 set role service_role;
-select t_options.check(public.approve_hub_quote(:'co', :'qco', '{}', '{"name": "Dana Homeowner", "signed_at": "2026-05-01T12:00:00Z"}', :'oco2', 2600), 'Dana approves the change order''s copper gutters online');
+select t_options.check(public.approve_hub_quote(:'co', :'qco', '{}', jsonb_build_object('name', 'Dana Homeowner', 'signed_at', '2026-05-01T12:00:00Z', 'seen_fingerprint', public.quote_fingerprint(:'qco')), :'oco2', 2600), 'Dana approves the change order''s copper gutters online');
 reset role;
 select t_options.check((select status = 'converted' and (approval ->> 'total')::numeric = 2600 from public.quotes where id = :'qco')
                    and (select array_agg(name order by name) = array['Copper gutters', 'Downspout'] from public.job_line_items where job_id = :'qm_job' and source_quote_id = :'qco'),
@@ -1067,7 +1079,7 @@ select t_options.check((select approval -> 'company' ->> 'name' = 'Sam Summit' a
 select t_options.expect_error(format('update public.quotes set approval = approval || %L where id = %L', '{"company": {"name": "Olive Office"}}', :'qi'), 'once');
 insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'Deck roof') returning id as qds \gset
 insert into public.quote_line_items (company_id, quote_id, name, unit_price) values (:'co', :'qds', 'Deck roof', 2500);
-select public.sign_quote(:'qds', '{"name": "Dana Homeowner", "method": "in_person", "company": null}');
+select t_options.server_sign(:'qds', '{"name": "Dana Homeowner", "method": "in_person", "company": null}');
 update public.quotes set approval = approval || '{"company": {"name": "Sam Summit", "signature": "data:image/png;base64,AAAA"}}' where id = :'qds';
 select t_options.check((select approval -> 'company' ->> 'name' = 'Sam Summit' and approval ->> 'method' = 'in_person' from public.quotes where id = :'qds'),
   'and on one signed on the iPad without the business''s signature');
@@ -1172,9 +1184,14 @@ select t_options.check(not has_function_privilege('anon', 'public.accept_hub_ran
 -- what it can reach.)
 select t_options.check((select bool_and(not has_function_privilege('anon', f, 'execute') and has_function_privilege('authenticated', f, 'execute'))
                           from unnest(array['public.apply_quote_options(uuid, jsonb, text, uuid[], jsonb)', 'public.remove_quote_option(uuid, uuid)',
-                                            'public.duplicate_quote(uuid, text, uuid, uuid, text, jsonb)', 'public.put_quote_package(uuid, uuid, jsonb, boolean)',
-                                            'public.sign_quote(uuid, jsonb, uuid, numeric)']) f),
-  'the options functions, pricing from a package and signing are for people signed in, not for anyone without an account');
+                                            'public.duplicate_quote(uuid, text, uuid, uuid, text, jsonb)', 'public.put_quote_package(uuid, uuid, jsonb, boolean)']) f),
+  'the options functions and pricing from a package are for people signed in, not for anyone without an account');
+-- Planet Ops: in-person signing goes through the API, which checks the person and the drawn
+-- signature, then signs as the server (20261120000100_planet_ops_change_order_signature).
+select t_options.check(not has_function_privilege('anon', 'public.sign_quote(uuid, jsonb, uuid, numeric)', 'execute')
+                   and not has_function_privilege('authenticated', 'public.sign_quote(uuid, jsonb, uuid, numeric)', 'execute')
+                   and has_function_privilege('service_role', 'public.sign_quote(uuid, jsonb, uuid, numeric)', 'execute'),
+  'signing in person is the server''s step, not one anyone signed in calls directly');
 select t_options.check((select count(*) = 1 from pg_proc where proname = 'apply_promo_code') and (select count(*) = 1 from pg_proc where proname = 'put_quote_package')
                    and not has_function_privilege('anon', 'public.apply_promo_code(text, uuid, text, uuid, uuid[])', 'execute')
                    and has_function_privilege('authenticated', 'public.apply_promo_code(text, uuid, text, uuid, uuid[])', 'execute')

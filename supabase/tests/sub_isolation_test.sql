@@ -669,6 +669,8 @@ select t1070.check(array(
   'promo_code_jobs(uuid, boolean)', 'promo_code_usage(uuid)', 'put_quote_package(uuid, uuid, jsonb, boolean)',
   -- The quote follow-up after an exact price goes out: the office and estimators with Sales only, never a sub.
   'quote_exact_sent(uuid)',
+  -- A quote's version fingerprint, for the in-person signing screen (20261120000100): members of its company only; a sub gets none.
+  'quote_fingerprint(uuid)',
   -- Why a quote can't be sent as it is (a payment's date to set, or past): runs as the caller, who reads only the quotes they can see. A sub sees none.
   'quote_send_problem(uuid)',
   'record_photos(uuid, uuid, uuid)', 'referral_auto_apply(uuid, boolean)', 'referral_credits_for(uuid, uuid)', 'referral_give_credit(uuid)', 'referral_no_reward(uuid)',
@@ -701,7 +703,6 @@ select t1070.check(array(
   'set_weather_rules(uuid, jsonb)',
   -- Where forecasts come from: the same people as the weather rules, never a sub.
   'set_weather_source(uuid, text)',
-  'sign_quote(uuid, jsonb, uuid, numeric)',
   -- Whether I can go out for snow on a day I was asked about: anyone asked, a sub too, and only their own answer.
   'snow_answer(uuid, date, boolean)',
   -- Scheduling the snow jobs that reach their trigger: the owner and the office with the schedule area only, never a sub.
@@ -814,7 +815,8 @@ select t1070.expect_error(format('select public.apply_quote_options(%L, %L, %L)'
 select t1070.expect_error(format('select public.remove_quote_option(%L, %L)', :'q1', gen_random_uuid()), 'remove_quote_option finds no quote');
 select t1070.expect_error(format('select public.duplicate_quote(%L)', :'q1'), 'duplicate_quote finds no quote');
 select t1070.expect_error(format('select public.put_quote_package(%L, %L, %L)', :'q1', gen_random_uuid(), '[]'), 'put_quote_package finds no quote');
-select t1070.check(public.sign_quote(:'q1', '{"name": "Al"}') is null, 'sign_quote finds no quote to sign');
+select t1070.expect_error(format('select public.sign_quote(%L, %L)', :'q1', '{"name": "Al"}'), 'sign_quote isn''t theirs to call (only the server signs in person: 20261120000100)');
+select t1070.check(public.quote_fingerprint(:'q1') is null, 'quote_fingerprint tells a sub nothing');
 select public.remove_promo_code('quote', :'q1');
 select t1070.check(not exists (select 1 from public.global_search(:'co', 'Ann')) and not exists (select 1 from public.global_search(:'co', 'roof'))
   and not exists (select 1 from public.search_sops(:'co', 'ladder')) and not exists (select 1 from public.campaign_audience(:'co', '{}'))
