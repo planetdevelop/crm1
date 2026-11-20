@@ -180,4 +180,20 @@ stands in for the customer.
   refusals (`NOT_SIGNED_YET`) for staff and the assistant.
 - Checks (this round): typecheck pass; unit tests api 2582, web 1976, core 1222 pass; `test:db` all
   pass; `build:server` pass.
+- **Price set on site in the version; total required** (pre-merge review). The "Price adjustment"
+  lines a price set on site writes were left out of the version, and `expected_total` was optional,
+  so an office change to that price didn't make an open page outdated when no total was sent. Now:
+  - the adjustment lines are in the version like any other line, so changing, adding or removing a
+    price set on site is a new version, refused on the customer link and in person, with or without
+    a total;
+  - the customer's own choice of another option as they sign (which takes the shown option's price
+    set on site off) still signs: the version they're held to is the one just before that choice
+    in their own signing step (`private.offered_version`); an office switch of the shown option is
+    a change like any other;
+  - the API requires `expected_total` on both paths (400 without it); credits and $0 still sign.
+  - Tests: `planet_ops_change_order_signature_test.sql` (price changed or removed, stale page on
+    both paths with and without the total, choosing the other option, the shown option at the site
+    price on both paths, an office switch); API hub and in-person tests for a missing or non-number
+    total, a stale total, and credit/$0 totals. Run against the earlier rule, the new database tests
+    fail at "a change to the price set on site is a new version".
 - Countersignature (configurable) is in 1b.

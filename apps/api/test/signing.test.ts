@@ -134,8 +134,13 @@ const SAVED = drawnPng(840, 280, "Mike, saved");
 // Planet Ops: in-person signing sends the version the screen showed (its fingerprint); a test that
 // wants it missing says fingerprint: null.
 const SCREEN_FINGERPRINT = "fedcba9876543210fedcba9876543210";
+// It also sends the total on the paper (required): a test that leaves it out gets the quote's total
+// as the database has it, and one that wants it missing says expected_total: null.
+const screenTotal = () => Number(state.tables.quotes?.find((q) => q.id === QUOTE)?.total ?? 0);
 const withFingerprint = (path: string, body: unknown) =>
-  path.endsWith("/sign") && body && typeof body === "object" && !("fingerprint" in body) ? { ...body, fingerprint: SCREEN_FINGERPRINT } : body;
+  path.endsWith("/sign") && body && typeof body === "object"
+    ? { ...("fingerprint" in body ? {} : { fingerprint: SCREEN_FINGERPRINT }), ...("expected_total" in body ? {} : { expected_total: screenTotal() }), ...body }
+    : body;
 const call = (path: string, body?: unknown, method = body === undefined ? "GET" : "POST") =>
   app.request(`/api${path}`, { method, headers: { Authorization: "Bearer token", "X-Company-Id": ROOFER, "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(withFingerprint(path, body)) }, env);
 
@@ -251,7 +256,7 @@ describe("signing on site", () => {
       total: 18304,
     });
     // Signed in the database, as the signed-in salesperson.
-    expect(state.calls.filter((c) => c.name === "sign_quote")).toEqual([{ name: "sign_quote", args: { p_quote: QUOTE, p_approval: expect.objectContaining({ name: "Alex Morgan" }) } }]);
+    expect(state.calls.filter((c) => c.name === "sign_quote")).toEqual([{ name: "sign_quote", args: { p_quote: QUOTE, p_expected_total: 18304, p_approval: expect.objectContaining({ name: "Alex Morgan" }) } }]);
     // It's never the IP: that's only for online approvals.
     expect(q.approval).not.toHaveProperty("ip");
 
@@ -346,6 +351,29 @@ describe("signing on site", () => {
     expect((await call(`/quotes/${QUOTE}/sign`, { name: "A", signature: HOMEOWNER, company_signature: MIKES })).status).toBe(400);
     expect((await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", company_signature: MIKES })).status).toBe(400);
     expect(quote().status).toBe("sent");
+  });
+
+  it("needs the total on the paper (Planet Ops): a request without it isn't signed", async () => {
+    roofer();
+    for (const missing of [{ expected_total: null }, { expected_total: undefined }, { expected_total: "18304" }]) {
+      const res = await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER, company_signature: MIKES, ...missing });
+      expect(res.status, JSON.stringify(missing)).toBe(400);
+    }
+    expect(state.calls.some((c) => c.name === "sign_quote")).toBe(false);
+    expect(quote().status).toBe("sent");
+    // A total that isn't the quote's any more: not signed.
+    expect((await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER, company_signature: MIKES, expected_total: 18000 })).status).toBe(409);
+    expect(quote().status).toBe("sent");
+  });
+
+  it("signs a credit and a $0 change with their totals (Planet Ops)", async () => {
+    for (const total of [-450, 0]) {
+      roofer();
+      quote().total = total;
+      const res = await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER, company_signature: MIKES, expected_total: total });
+      expect(res.status, String(total)).toBe(200);
+      expect(state.calls.filter((c) => c.name === "sign_quote").at(-1)?.args.p_expected_total).toBe(total);
+    }
   });
 
   it("needs a real drawing and the exact version on the screen (Planet Ops)", async () => {

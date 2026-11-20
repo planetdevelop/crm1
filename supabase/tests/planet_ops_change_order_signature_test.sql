@@ -41,6 +41,25 @@ begin
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   return v;
 end $$;
+-- With options: the customer signs on their link for p_option, from a page that showed version
+-- p_seen, with or without the total they saw (p_total), as the server calls approve_hub_quote.
+create function tpo_co.hub_signs_for(p_company uuid, p_quote uuid, p_option uuid, p_seen text, p_total numeric default null) returns boolean
+language sql as $$
+  select public.approve_hub_quote(p_company, p_quote, '{}',
+    jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'signature', planet_test.drawn(), 'seen_fingerprint', p_seen),
+    p_option, p_total)
+$$;
+-- And in person, for the option shown (sign_quote, as the API calls it), with or without the total.
+create function tpo_co.in_person_signs_for(p_quote uuid, p_option uuid, p_seen text, p_total numeric default null) returns jsonb
+language plpgsql security definer as $fn$
+declare v_claims text := current_setting('request.jwt.claims', true); v jsonb;
+begin
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  v := public.sign_quote(p_quote, jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'method', 'in_person',
+                                                     'signature', planet_test.drawn(), 'seen_fingerprint', p_seen), p_option, p_total);
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  return v;
+end $fn$;
 grant execute on all functions in schema tpo_co to authenticated, service_role;
 
 \set one_pixel 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
@@ -236,6 +255,86 @@ select tpo_co.check(tpo_co.hub_signs(:'co', :'credit', public.quote_fingerprint(
 select tpo_co.check((tpo_co.in_person_signs(:'zero', public.quote_fingerprint(:'zero')) ->> 'total')::numeric = 0, 'and the $0 change in person');
 select tpo_co.check((select coalesce(sum(round(quantity * unit_price, 2)), 0) from public.job_line_items where job_id = :'job') = 18950 + 2500 - 800,
   'the job is the original signed agreement plus the signed changes, credit included, each once');
+
+-- ===== A price set on site is part of the offer: both paths, with or without the total ======
+-- An estimate with two options, priced on site for the one shown ("Price adjustment" lines on it).
+create function tpo_co.site_priced(p_company uuid, p_client uuid, p_title text) returns uuid
+language plpgsql security definer as $fn$
+declare v_quote uuid; v_shown uuid;
+begin
+  insert into public.quotes (company_id, client_id, title) values (p_company, p_client, p_title) returning id into v_quote;
+  perform public.apply_quote_options(v_quote, jsonb_build_array(
+    jsonb_build_object('name', 'Shingles', 'sort', 0, 'lines', jsonb_build_array(jsonb_build_object('name', 'Shingle roof', 'unit_price', 2000))),
+    jsonb_build_object('name', 'Metal', 'sort', 1, 'lines', jsonb_build_array(jsonb_build_object('name', 'Metal roof', 'unit_price', 4000)))), 'replace');
+  select id into v_shown from public.quote_options where quote_id = v_quote and sort = 0;
+  insert into public.quote_line_items (company_id, quote_id, option_id, name, unit_price) values (p_company, v_quote, v_shown, 'Price adjustment', -150);
+  update public.quotes set status = 'sent', sent_at = now(), priced_on_site_at = now() where id = v_quote;
+  return v_quote;
+end $fn$;
+grant execute on function tpo_co.site_priced(uuid, uuid, text) to authenticated, service_role;
+
+select tpo_co.site_priced(:'co', :'client', 'Garage roof') as site \gset
+select id as shingles from public.quote_options where quote_id = :'site' and sort = 0 \gset
+select id as metal from public.quote_options where quote_id = :'site' and sort = 1 \gset
+select tpo_co.check((select option_id = :'shingles' and total = 1850 from public.quotes where id = :'site'), 'an estimate priced on site at $1,850 for the shingles, the option shown');
+select public.quote_fingerprint(:'site') as site_v1 \gset
+-- The office changes the price set on site after the customer's page opened ($1,850 to $1,750).
+update public.quote_line_items set unit_price = -250 where quote_id = :'site' and name = 'Price adjustment';
+select tpo_co.check(public.quote_fingerprint(:'site') <> :'site_v1', 'a change to the price set on site is a new version');
+select tpo_co.expect_error(format('select tpo_co.hub_signs_for(%L, %L, %L, %L)', :'co', :'site', :'shingles', :'site_v1'),
+  'the customer''s link that showed the old price set on site can''t sign it, without the total it saw', '%changed after it was opened%');
+select tpo_co.expect_error(format('select tpo_co.hub_signs_for(%L, %L, %L, %L, %s)', :'co', :'site', :'shingles', :'site_v1', 1750),
+  'nor with the new total typed in', '%changed after it was opened%');
+select tpo_co.expect_error(format('select tpo_co.hub_signs_for(%L, %L, %L, %L)', :'co', :'site', :'metal', :'site_v1'),
+  'nor by choosing the other option, without the total', '%changed after it was opened%');
+select tpo_co.expect_error(format('select tpo_co.in_person_signs_for(%L, %L, %L)', :'site', :'shingles', :'site_v1'),
+  'the in-person screen that showed the old price can''t sign it either, without the total', '%changed after it was opened%');
+select tpo_co.expect_error(format('select tpo_co.in_person_signs_for(%L, %L, %L, %s)', :'site', :'shingles', :'site_v1', 1750),
+  'nor with the new total', '%changed after it was opened%');
+-- Taken off (back to the estimate's price): a new version too.
+select public.quote_fingerprint(:'site') as site_v2 \gset
+update public.quotes set priced_on_site_at = null where id = :'site';
+delete from public.quote_line_items where quote_id = :'site' and name = 'Price adjustment';
+select tpo_co.check(public.quote_fingerprint(:'site') <> :'site_v2' and (select total from public.quotes where id = :'site') = 2000, 'taking the price set on site off is a new version');
+select tpo_co.expect_error(format('select tpo_co.hub_signs_for(%L, %L, %L, %L)', :'co', :'site', :'shingles', :'site_v2'),
+  'a page that showed the price set on site can''t sign the estimate''s price', '%changed after it was opened%');
+select tpo_co.expect_error(format('select tpo_co.in_person_signs_for(%L, %L, %L)', :'site', :'shingles', :'site_v2'),
+  'on either path', '%changed after it was opened%');
+select tpo_co.check((select status = 'sent' and approval is null from public.quotes where id = :'site'), 'none of them signed it');
+-- The page that shows it now signs, the customer choosing the other option: that choice takes the
+-- price set on site off as they sign, and it's still the version they saw.
+select tpo_co.site_priced(:'co', :'client', 'Carport roof') as site2 \gset
+select id as site2_metal from public.quote_options where quote_id = :'site2' and sort = 1 \gset
+select public.quote_fingerprint(:'site2') as site2_v \gset
+select tpo_co.check(tpo_co.hub_signs_for(:'co', :'site2', :'site2_metal', :'site2_v'), 'a customer signs for the other option from the current page, without the total');
+select tpo_co.check((select status = 'approved' and option_id = :'site2_metal' and total = 4000
+                       and approval ->> 'seen_fingerprint' = :'site2_v' and approval ->> 'fingerprint' = public.quote_fingerprint(id)
+                       and approval -> 'choices' ->> 'option_id' = :'site2_metal' and (approval -> 'choices' ->> 'total')::numeric = 4000
+                       and not exists (select 1 from public.quote_line_items l where l.quote_id = :'site2' and l.name = 'Price adjustment')
+                     from public.quotes where id = :'site2'),
+  'signed for the option they chose at its price, the price set on site for the other gone, the version kept as signed');
+select public.convert_quote_to_job(:'site2') as site2_job \gset
+select tpo_co.check((select status from public.quotes where id = :'site2') = 'converted', 'and it becomes a job');
+-- For the option shown, at the price set on site: on their link, and in person, without the total.
+select tpo_co.site_priced(:'co', :'client', 'Porch roof') as site3 \gset
+select id as site3_shingles from public.quote_options where quote_id = :'site3' and sort = 0 \gset
+select tpo_co.check(tpo_co.hub_signs_for(:'co', :'site3', :'site3_shingles', public.quote_fingerprint(:'site3')), 'a customer signs for the option shown at the price set on site, on their link');
+select tpo_co.check((select status = 'approved' and total = 1850 and (approval ->> 'total')::numeric = 1850 from public.quotes where id = :'site3'), 'at $1,850');
+select tpo_co.site_priced(:'co', :'client', 'Deck roof') as site4 \gset
+select id as site4_shingles from public.quote_options where quote_id = :'site4' and sort = 0 \gset
+select tpo_co.in_person_signs_for(:'site4', :'site4_shingles', public.quote_fingerprint(:'site4')) is not null as signed \gset
+select tpo_co.check((select status = 'approved' and total = 1850 and approval ->> 'fingerprint' = public.quote_fingerprint(id) from public.quotes where id = :'site4'),
+  'and in person, without the total');
+-- A choice the office makes isn't the customer's: switching the shown option takes the price set on
+-- site off, and a page from before can't sign.
+select tpo_co.site_priced(:'co', :'client', 'Shed roof') as site5 \gset
+select id as site5_metal from public.quote_options where quote_id = :'site5' and sort = 1 \gset
+select public.quote_fingerprint(:'site5') as site5_v \gset
+update public.quotes set option_id = :'site5_metal' where id = :'site5';
+select tpo_co.expect_error(format('select tpo_co.hub_signs_for(%L, %L, %L, %L)', :'co', :'site5', :'site5_metal', :'site5_v'),
+  'the office showing the other option (which takes the price set on site off) makes an open page outdated', '%changed after it was opened%');
+select tpo_co.expect_error(format('select tpo_co.in_person_signs_for(%L, %L, %L)', :'site5', :'site5_metal', :'site5_v'),
+  'in person too', '%changed after it was opened%');
 
 -- ===== Deleting the job or the company still works =============================================
 insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'Other job quote') returning id as q2 \gset

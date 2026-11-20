@@ -697,7 +697,8 @@ publicRoutes.post("/hub/:token/approve", async (c) => {
       option_id: postedId.optional(),
       // The total they saw (core chosenTotals): the database turns the approval down if it's changed.
       // A credit change order comes to less than nothing.
-      expected_total: z.number().min(-100_000_000).max(100_000_000).optional(),
+      // Planet Ops: required. The total the page showed (a credit comes to less than nothing, a $0 change to 0).
+      expected_total: z.number({ error: "This page is out of date. Reload it to see the latest price, then sign." }).min(-100_000_000).max(100_000_000),
       // The version the page showed (GET /hub/:token's fingerprint): required, and the database signs
       // only that one (20261120000100). A page without it is from before; it asks to be reloaded.
       fingerprint: z.string({ error: "This page is out of date. Reload it to see the latest version, then sign." }).regex(/^[0-9a-f]{32}$/),
@@ -753,7 +754,7 @@ publicRoutes.post("/hub/:token/approve", async (c) => {
   const contract = await resolveContract(admin, l.c, { template, option, quoteSectionIds: quote.section_ids });
   const money = { taxRate: quote.tax_rate, discountAmount: quote.discount_amount, promo: quote.promo };
   // {Total} says the price they agreed to: the total they saw, else what their choices come to.
-  const total = body.expected_total ?? chosenTotals(lines, option?.id ?? null, quote.option_id, picked, money).total;
+  const total = body.expected_total;
   // Without options, {Option} and {Warranty} say the package it was priced from, as the page showed them.
   const fill = option ?? (options.length ? null : await packageFill(admin, l.c, quote.roof_package_id));
   const facts = contractInput({ ...quote, total }, quote.client, quote.property, must(business, "Company not found."), template, fill);
@@ -784,7 +785,7 @@ publicRoutes.post("/hub/:token/approve", async (c) => {
       initials: asJson(kept.initials),
     },
     ...(option ? { p_option: option.id } : {}),
-    ...(body.expected_total !== undefined ? { p_expected_total: body.expected_total } : {}),
+    p_expected_total: body.expected_total,
   });
   // A promo code whose minimum order their choices don't reach: nothing changed, and the message says what to do.
   if (error) throw error.code === "CX412" ? new HttpError(409, error.message) : dbError(error);
@@ -792,7 +793,7 @@ publicRoutes.post("/hub/:token/approve", async (c) => {
     // Another approval got there first or the office closed it, else the total isn't the one they saw.
     const now = must(await admin.from("quotes").select("status").eq("company_id", l.c).eq("id", l.id).maybeSingle(), "Quote not found.");
     const waiting = ["sent", "changes_requested"].includes(now.status);
-    throw new HttpError(409, waiting && body.expected_total !== undefined ? "The price changed. Please look it over again." : "This quote can't be approved anymore.");
+    throw new HttpError(409, waiting ? "The price changed. Please look it over again." : "This quote can't be approved anymore.");
   }
   // Before the automations run, so a job one makes from the quote finds its deposit invoice.
   const deposit = await collectDeposit(c, admin, l);

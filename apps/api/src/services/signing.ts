@@ -62,7 +62,7 @@ export const signSchema = z.object({
   /** The option they chose (the one shown on the visit page): required when the quote offers options. */
   option_id: postedId.optional(),
   /** The total on the paper they signed: it's only signed while the quote still comes to it. A credit change order comes to less than nothing. */
-  expected_total: z.number().min(-100_000_000).max(100_000_000).optional(),
+  expected_total: z.number({ error: "This screen is out of date. Open the estimate again to see the latest price, then sign." }).min(-100_000_000).max(100_000_000),
   /** The version the signing screen showed (public.quote_fingerprint): required, and the database signs only that one. */
   fingerprint: z.string({ error: "This screen is out of date. Open the estimate again to see the latest version, then sign." }).regex(/^[0-9a-f]{32}$/),
   /** The terms on the paper (core sectionsHash), and the homeowner's initials for the sections that ask. */
@@ -188,7 +188,7 @@ export async function signQuote(s: SigningScope, id: string, body: SignBody) {
   const money = { taxRate: quote.tax_rate, discountAmount: quote.discount_amount, promo: quote.promo };
   // Without options, {Option} and {Warranty} say the package it was priced from.
   const fill = option ?? (options.length ? null : await packageFill(s.db, s.companyId, quote.roof_package_id));
-  const facts = contractInput({ ...quote, total: body.expected_total ?? quote.total }, quote.client, quote.property, company, template, fill);
+  const facts = contractInput({ ...quote, total: body.expected_total }, quote.client, quote.property, company, template, fill);
   const tier = option ? optionTiers(options, lines, money).get(option.id) : null;
   checkContract(contract, body, { facts, option: option && freezeOption(option, tier) });
   const now = new Date().toISOString();
@@ -216,7 +216,7 @@ export async function signQuote(s: SigningScope, id: string, body: SignBody) {
     p_quote: id,
     p_approval: asJson(approval),
     ...(option ? { p_option: option.id } : {}),
-    ...(body.expected_total !== undefined ? { p_expected_total: body.expected_total } : {}),
+    p_expected_total: body.expected_total,
   });
   if (error) throw dbError(error);
   if (!amounts) {

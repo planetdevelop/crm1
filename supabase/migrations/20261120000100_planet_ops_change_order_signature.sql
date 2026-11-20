@@ -6,13 +6,16 @@
 --    its lines (names, descriptions, quantities, units, prices, tax, which are optional and grouped),
 --    options, schedule (how often, start and end, months), payment terms (deposit and payment
 --    schedule), discount, tax rate, promo code, contract sections and the template's terms and
---    signature settings. It leaves out what the customer chooses as they sign (the option and the
---    add-ons, recorded with the approval and its amounts) and what's derived (totals). Its
---    fingerprint (md5) changes with any of those, at the same price too.
+--    signature settings, and a price set on site (its "Price adjustment" lines). It leaves out what
+--    the customer chooses as they sign (the option and the add-ons, recorded with the approval and
+--    its amounts) and what's derived (totals). Its fingerprint (md5) changes with any of those, at
+--    the same price too.
 -- 2. Signing. The page the customer signs from (the client hub, or the in-person signing screen)
 --    sends the fingerprint of the version it showed (approval.seen_fingerprint). As the quote is
 --    approved, the database compares it with the version now: a page opened before a change can't
---    sign. A change order can only be signed with one. The approval then keeps the fingerprint and a
+--    sign. The customer's own choice of another option, made as they sign, takes a price set on site
+--    for the option shown off the quote; that choice is theirs, so the version they're held to is the
+--    one as it was just before it (private.offered_version). A change order can only be signed with one. The approval then keeps the fingerprint and a
 --    copy of that version (approval.document), so the signed agreement is preserved as signed.
 -- 3. Only the customer signs, and only by drawing. A customer signature has three separate parts:
 --    the printed name, the signing time, and a signature drawn with a finger, mouse or stylus (a PNG
@@ -72,11 +75,11 @@ language sql stable security definer set search_path = '' as $$
         -- sign (recorded with the approval and its amounts), not the document.
         'selected', case when l.optional or l.option_id is not null then null else l.selected end,
         'option_id', l.option_id, 'option_group', l.option_group, 'sort', l.sort) order by l.sort, l.id), '[]')
-      -- A price set on site (estimates.ts SITE_ADJUSTMENT_NAME) goes when the customer picks another
-      -- option (quote_option_switch): it's part of the price they saw and signed for (the signed amounts),
-      -- not of the document offered.
-      from public.quote_line_items l
-     where l.quote_id = p_quote and not (l.name = 'Price adjustment' and l.service_id is null and l.formula is null)),
+      -- A price set on site (estimates.ts SITE_ADJUSTMENT_NAME, "Price adjustment" lines) is part
+      -- of the price offered, so it's in the version like any other line: changing it makes an open
+      -- page outdated. The customer picking another option as they sign takes it off; see
+      -- private.offered_version for how that choice is kept theirs.
+      from public.quote_line_items l where l.quote_id = p_quote),
     'options', (select coalesce(jsonb_agg(to_jsonb(o) - 'created_at' - 'updated_at' order by o.sort, o.id), '[]')
       from public.quote_options o where o.quote_id = p_quote),
     'sections', (select coalesce(jsonb_agg(jsonb_build_object('id', s.id, 'title', s.title, 'body', s.body, 'place', s.place, 'initials', s.initials) order by s.id), '[]')
@@ -91,6 +94,31 @@ create function private.quote_fingerprint(p_quote uuid) returns text
 language sql stable security definer set search_path = '' as $$
   select md5(private.quote_version(p_quote)::text)
 $$;
+
+-- The version as it was offered, before the customer's own choice of option. A customer signing on
+-- their link for another option than the one shown (approve_hub_quote shows it first, in the same
+-- step) takes off a price set on site for the shown one, so the version they saw is the one just
+-- before that switch. This keeps, for the rest of the transaction only, the fingerprint of each quote
+-- as it was before its first switch in it; b_signed_version accepts a signature for that version.
+-- Only the server signs for a customer (customer_signs_only_through_the_server), and a change made
+-- in an earlier transaction (an office edit) is already in it, so an outdated page still can't sign.
+create function private.offered_version(p_quote uuid) returns text
+language sql stable set search_path = '' as $$
+  select nullif(current_setting('planet_ops.offered_versions', true), '')::jsonb ->> p_quote::text
+$$;
+create function private.keep_offered_version() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare v_kept jsonb := coalesce(nullif(current_setting('planet_ops.offered_versions', true), '')::jsonb, '{}');
+begin
+  if not v_kept ? new.id::text then
+    -- Read from the table, where the lines and the price set on site are still as they were.
+    perform set_config('planet_ops.offered_versions', (v_kept || jsonb_build_object(new.id::text, private.quote_fingerprint(new.id)))::text, true);
+  end if;
+  return new;
+end $$;
+create trigger keep_offered_version before update of option_id on public.quotes
+  for each row when (old.option_id is distinct from new.option_id and old.status in ('draft', 'sent', 'changes_requested'))
+  execute function private.keep_offered_version();
 
 -- For the pages a customer signs from: the server (the client hub) and a member of the quote's
 -- company (the in-person signing screen). Nothing else about the quote is revealed.
@@ -215,7 +243,9 @@ begin
     raise exception 'A document is signed only from a page showing its exact version. Open it again and sign there.'
       using errcode = 'CX410';
   end if;
-  if v_seen <> v_fingerprint then
+  -- The version now, or (when the customer chose another option as they signed) the version just
+  -- before that choice (private.offered_version). Any other change since the page opened refuses it.
+  if v_seen <> v_fingerprint and v_seen is distinct from private.offered_version(new.id) then
     raise exception 'This document changed after it was opened, so it wasn''t signed. Look over the latest version and sign that.'
       using errcode = 'CX410';
   end if;
@@ -382,5 +412,5 @@ create trigger signed_change_order_lines_stay before insert or update or delete 
 revoke execute on function private.quote_version(uuid), private.quote_fingerprint(uuid),
   private.customer_part(jsonb), private.customer_signs_only_through_the_server(), private.signed_version(),
   private.customer_signed_this_version(uuid, jsonb, numeric), private.customer_signature_to_accept(), private.job_quote_signed(),
-  private.jobber_approved_comes_in_sent(),
+  private.jobber_approved_comes_in_sent(), private.offered_version(uuid), private.keep_offered_version(),
   private.signed_change_order_stays(), private.signed_change_order_lines_stay() from public;
