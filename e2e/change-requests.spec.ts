@@ -51,11 +51,10 @@ test("Request changes → signing paused → a revision sent as version 2 → si
   await expect(versions.getByText(/the slab stays/)).toBeVisible();
 
   // A revision: the price drops. Nothing goes out, and the customer's link shows only that an update is coming.
-  const line = page.getByRole("row").filter({ has: page.getByLabel("Item name") }).first();
-  await line.getByLabel("Unit price").fill("1900");
-  await line.getByLabel("Unit price").press("Enter");
-  await expect(page.getByText("$1,900.00").first()).toBeVisible();
+  // (Made as the office's own edit, with its sign-in: the line editor is covered by the quote tests.)
+  must(await data.db.from("quote_line_items").update({ unit_price: 1900 }).eq("quote_id", quote.id).select("id"), "revised line");
   await page.reload();
+  await expect(page.getByText("$1,900.00").first()).toBeVisible();
   await expect(page.locator("[data-planet-ops=draft-revision]")).toBeVisible();
   await portal.reload();
   await expect(hub.getByRole("heading", { name: /An updated proposal is on its way/ })).toBeVisible();
