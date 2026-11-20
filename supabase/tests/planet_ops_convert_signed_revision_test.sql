@@ -67,6 +67,9 @@ select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_i
 select exists (select 1 from pg_available_extensions where name = 'dblink') as has_dblink \gset
 \if :has_dblink
 create extension if not exists dblink;
+-- Wherever it's installed (public here, extensions on a Supabase-style database).
+select n.nspname as dblink_schema from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'dblink' \gset
+set search_path = public, :"dblink_schema";
 insert into public.quotes (company_id, client_id, property_id, title) values (:'co', :'client', :'property', 'Garage demolition') returning id as race \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'race', 'Demolish garage', 1, 'ea', 6000);
 update public.quotes set status = 'sent', sent_at = now() where id = :'race';
@@ -83,6 +86,7 @@ select dblink_disconnect('first') is not null as d1 \gset
 select dblink_disconnect('second') is not null as d2 \gset
 select tpo_cv.check(:'first_job' = :'second_job' and (select count(*) from public.jobs where quote_id = :'race') = 1,
   'two conversions at once make one job: the second gets the first''s');
+reset search_path;
 \endif
 
 -- ===== Change orders: finalized once, converting again returns the job ========================
