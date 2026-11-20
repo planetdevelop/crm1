@@ -31,6 +31,8 @@ import { LineItems } from "../quotes/LineItems";
 import { VisitDialog, type VisitInput } from "../schedule/VisitDialog";
 import { useSchedulingRights } from "../schedule/myCrews";
 import { handlesSubPay, useJobPays } from "../subs/payData";
+import { ContractSummary } from "./ContractSummary";
+import { JobAgreementFacts } from "../quotes/JobAgreementFacts";
 import { ChangeOrders, useStartChangeOrder } from "./ChangeOrders";
 import { closeQuestion } from "./closing";
 import { ExpensesCard, useJobExpenses } from "./ExpensesCard";
@@ -512,6 +514,9 @@ export function JobPage() {
             </section>
           )}
 
+          {/* Planet Ops 1d: the contract, and where its agreement stands, kept apart from billing. */}
+          {canSell && <ContractSummary jobId={j.id} />}
+          {canSell && j.quote && <JobAgreementFacts quoteId={j.quote.id} />}
           {canSell && <ChangeOrders jobId={j.id} onStart={() => changeOrder.mutate()} starting={changeOrder.isPending} />}
 
           <PhotosCard jobId={j.id} />

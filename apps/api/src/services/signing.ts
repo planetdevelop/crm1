@@ -16,6 +16,7 @@ import { z } from "zod";
 import type { Env } from "../env";
 import { firstName, isEmail, renderEmail } from "../lib/email";
 import { asJson, dbError, HttpError, must } from "../lib/http";
+import { requireSendPricing } from "../lib/sendPricing";
 import { clientLinks, sentToClient } from "../lib/links";
 import { reportError } from "../lib/monitoring";
 import { sendEmail, sendSms } from "../lib/notify";
@@ -163,6 +164,8 @@ function notOpen(status: string): HttpError {
  * the client can be emailed a copy.
  */
 export async function signQuote(s: SigningScope, id: string, body: SignBody) {
+  // Planet Ops 1d: presenting a document to sign in person is sending its pricing to the customer.
+  await requireSendPricing(s.db, s.companyId);
   const quote = await loadQuote(s, id);
   if (!OPEN.includes(quote.status)) throw notOpen(quote.status);
   const [company, templates, saved, signer, options] = await Promise.all([

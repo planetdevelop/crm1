@@ -28,6 +28,7 @@ import { copyText } from "@/lib/clipboard";
 import { formatMoneyCents } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { formatPhoneTyping } from "@/lib/validate";
+import { NoSendPricing, useCanSendPricing } from "../../quotes/NoSendPricing";
 import { useQuoteOptions } from "../../quotes/options";
 import type { EstimateQuote } from "../estimate";
 import { capital, estimateSubject, homeownerName, OPEN, rangeWords, sendWords, type RangeEstimate } from "./model";
@@ -64,7 +65,14 @@ interface SendProps {
 
 const titleFor = (mode: SendProps["mode"], who: string) => (mode === "range" ? `Send the range to ${who}` : `Send ${who} the exact price`);
 
+/** Planet Ops 1d: a range or exact price goes to the customer only from someone who can send pricing. */
 export function SendEstimateDialog(props: SendProps) {
+  const canSend = useCanSendPricing();
+  if (!canSend) return <NoSendPricing onClose={props.onClose} />;
+  return <SendEstimateForm {...props} />;
+}
+
+function SendEstimateForm(props: SendProps) {
   const { quote, mode, onClose } = props;
   const { company } = useSession();
   // From the quote page the options aren't on the quote: the words wait for them, so an estimate

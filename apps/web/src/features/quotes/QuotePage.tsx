@@ -91,6 +91,7 @@ import { QuoteSections } from "./QuoteSections";
 import { DraftedCallout } from "./DraftedCallout";
 import { DocumentTypeChoice, ProposalCard } from "./ProposalCard";
 import { VersionsCard, versionsKey } from "./VersionsCard";
+import { AgreementFacts } from "./AgreementFacts";
 import { PaymentScheduleCard } from "./PaymentSchedule";
 import { DiscountRows } from "./PromoRow";
 import { SendDialog } from "./SendDialog";
@@ -648,6 +649,7 @@ export function QuotePage() {
           </div>
           <MessageCard value={q.message} editable={editable} onEdit={save.edited} onUnchanged={unchanged} onSave={(message) => saveField({ message })} />
           {!isTemplate && <ProposalCard quote={q} editable={editable} onEdit={save.edited} onUnchanged={unchanged} onSave={(patch) => saveField(patch)} />}
+          {!isTemplate && ["approved", "converted"].includes(q.status) && <AgreementFacts quote={q} />}
           {!isTemplate && <VersionsCard quoteId={q.id} status={q.status} canSell={canSell} onResend={() => setDialog("send")} />}
           {canSell && !isTemplate && <PlansCard scope={{ kind: "quote", id: q.id, propertyId: q.property?.id ?? null }} />}
         </div>

@@ -5250,6 +5250,15 @@ isOneToOne: false
 "quote_exact_sent":
 { Args: { "p_quote": string }; Returns: undefined
                            },
+"can_send_pricing":
+{ Args: { "p_company": string }; Returns: boolean
+                           },
+"quote_deposit_status":
+{ Args: { "p_quote": string }; Returns: Json
+                           },
+"job_contract_summary":
+{ Args: { "p_job": string }; Returns: Json
+                           },
 "issue_quote_version":
 { Args: { "p_quote": string,"p_via"?: string }; Returns: string
                            },

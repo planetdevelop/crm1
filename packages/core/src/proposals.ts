@@ -85,9 +85,11 @@ export const PAYMENT_TERMS_PLACEHOLDER = "[PLACEHOLDER] Payment Terms: Planet De
 export const isPlaceholderTerms = (text: string | null | undefined) => typeof text === "string" && text.includes("[PLACEHOLDER]");
 
 /** The company's defaults and its countersignature rule, from companies.settings.quotes. */
-export function proposalSettings(settings: unknown): { contractTerms: string; paymentTerms: string; countersignRequired: boolean } {
+export function proposalSettings(settings: unknown): { contractTerms: string; paymentTerms: string; countersignRequired: boolean; depositBeforeScheduling: boolean } {
   const q = ((settings ?? {}) as Record<string, unknown>).quotes as Record<string, unknown> | undefined;
   return {
+    // Planet Ops 1d: whether "Ready to schedule" waits for a deposit that was asked for. Off unless the business turns it on.
+    depositBeforeScheduling: q?.deposit_before_scheduling === true,
     contractTerms: typeof q?.contract_terms === "string" ? q.contract_terms : CONTRACT_TERMS_PLACEHOLDER,
     paymentTerms: typeof q?.payment_terms === "string" ? q.payment_terms : PAYMENT_TERMS_PLACEHOLDER,
     countersignRequired: q?.countersign_required === true,
@@ -125,3 +127,41 @@ export function signatureState(input: { status: string; approval: unknown; count
   if (!a || a.method === "manual" || !isDrawnSignature(a.signature)) return input.status === "converted" ? "signed" : "unsigned";
   return input.countersignRequired && !isCompanyCountersignature(a) ? "awaiting_countersign" : "signed";
 }
+
+/**
+ * Planet Ops Phase 1d: the facts about an agreement, each from its own record and never implied by
+ * another. Signing isn't a deposit; a countersignature is the company's own (when required); the
+ * deposit comes from its invoice's payments; ready to schedule follows what the business requires.
+ */
+export interface AgreementFacts {
+  customerAccepted: boolean;
+  countersign: "not_required" | "waiting" | "done";
+  deposit: "none" | "owed" | "partly_paid" | "received";
+  readyToSchedule: boolean;
+  /** What it's still waiting for, in order, when it isn't ready to schedule. */
+  waitingFor: Array<"customer" | "countersign" | "deposit">;
+}
+
+export function agreementFacts(input: {
+  status: string;
+  approval: unknown;
+  countersignRequired: boolean;
+  depositBeforeScheduling: boolean;
+  /** The deposit the customer was asked to pay as they signed (0 or less: none). */
+  depositAsked: number;
+  /** Paid on its invoice so far, from the payments (null: none recorded). */
+  depositPaid: number | null;
+}): AgreementFacts {
+  const state = signatureState({ status: input.status, approval: input.approval, countersignRequired: input.countersignRequired });
+  const customerAccepted = state !== "unsigned" && isDrawnSignature((input.approval as Record<string, unknown> | null)?.signature) && (input.approval as Record<string, unknown> | null)?.method !== "manual";
+  const countersign = !input.countersignRequired ? (isCompanyCountersignature(input.approval) ? "done" : "not_required") : isCompanyCountersignature(input.approval) ? "done" : "waiting";
+  const asked = Math.max(0, Number(input.depositAsked) || 0);
+  const paid = Math.max(0, Number(input.depositPaid) || 0);
+  const deposit = asked <= 0 ? "none" : paid <= 0 ? "owed" : paid + 0.005 < asked ? "partly_paid" : "received";
+  const waitingFor: AgreementFacts["waitingFor"] = [];
+  if (!customerAccepted) waitingFor.push("customer");
+  if (input.countersignRequired && countersign !== "done") waitingFor.push("countersign");
+  if (input.depositBeforeScheduling && (deposit === "owed" || deposit === "partly_paid")) waitingFor.push("deposit");
+  return { customerAccepted, countersign, deposit, readyToSchedule: waitingFor.length === 0, waitingFor };
+}
+

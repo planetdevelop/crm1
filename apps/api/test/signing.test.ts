@@ -25,6 +25,8 @@ const state = vi.hoisted(() => ({
   beforeSign: null as null | (() => void),
   /** What convert_quote_to_job refuses with, when it does. */
   convertError: null as null | { message: string; code: string },
+  /** Planet Ops 1d: the person can prepare pricing but not send it. */
+  cannotSend: false,
 }));
 vi.mock("../src/lib/supabase", () => {
   const signQuote = (args: Record<string, unknown>) => {
@@ -43,6 +45,7 @@ vi.mock("../src/lib/supabase", () => {
     rpc: async (name: string, args: Record<string, unknown> = {}) => {
       state.calls.push({ name, args });
       if (name === "sign_quote") return { data: signQuote(args), error: null };
+      if (name === "can_send_pricing") return { data: !state.cannotSend, error: null };
       if (name === "convert_quote_to_job") return state.convertError ? { data: null, error: state.convertError } : { data: "job-1", error: null };
       return { data: true, error: null };
     },
@@ -365,6 +368,19 @@ describe("signing on site", () => {
     expect(quote().status).toBe("sent");
   });
 
+  it("is for people who can send pricing: presenting it in person is sending it (Planet Ops 1d)", async () => {
+    roofer();
+    state.cannotSend = true;
+    try {
+      const res = await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER, company_signature: MIKES });
+      expect(res.status).toBe(403);
+      expect(state.calls.some((c) => c.name === "sign_quote")).toBe(false);
+      expect(quote().status).toBe("sent");
+    } finally {
+      state.cannotSend = false;
+    }
+  });
+
   it("needs the total on the paper (Planet Ops): a request without it isn't signed", async () => {
     roofer();
     for (const missing of [{ expected_total: null }, { expected_total: undefined }, { expected_total: "18304" }]) {
@@ -561,7 +577,7 @@ describe("signing an estimate with options on site", () => {
     const res = await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER, company_signature: MIKES });
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("This estimate was already signed.");
-    expect(state.calls.map((c) => c.name)).toEqual(["sign_quote"]);
+    expect(state.calls.map((c) => c.name).filter((n) => n !== "can_send_pricing")).toEqual(["sign_quote"]);
   });
 });
 

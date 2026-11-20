@@ -6,7 +6,7 @@
  * do and what it must be refused:
  *
  *   owner (Dana)                 everything
- *   Operations manager (Tasha)   sales, schedule, timesheets, job costs, reports; no invoices
+ *   Operations manager (Tasha)   sales (and sending pricing), schedule, timesheets, job costs, reports; no invoices
  *   Foreman (Marcus)             crew lead level: runs his own crew (schedule, people, time), no prices
  *   Employee (Luis)              field crew level, nothing switched on
  *
@@ -122,7 +122,7 @@ step("Setup: give the team their roles");
   const roles = must(await owner.db.from("company_roles").select("id, name").eq("company_id", companyId), "roles");
   const id = (name) => roles.find((r) => r.name === name)?.id;
   check(id("Operations manager") && id("Foreman") && id("Employee"), "starter roles exist");
-  must(await owner.db.from("company_roles").update({ permissions: ["sales", "job_costs", "reports", "schedule", "timesheets", "kb_edit"] }).eq("id", id("Operations manager")), "ops role");
+  must(await owner.db.from("company_roles").update({ permissions: ["sales", "send_pricing", "job_costs", "reports", "schedule", "timesheets", "kb_edit"] }).eq("id", id("Operations manager")), "ops role");
   for (const [who, role] of [[ops, "Operations manager"], [foreman, "Foreman"], [employee, "Employee"]]) {
     must(await owner.db.from("memberships").update({ role_id: id(role) }).eq("company_id", companyId).eq("user_id", who.userId), "assign role");
   }
@@ -185,6 +185,12 @@ step("3. Prices stay away from the crew");
 
 step("4. The quote goes to the customer, who approves it online");
 {
+  // Preparing pricing is the sales area; sending it to the customer is send_pricing.
+  const opsRole = ["sales", "send_pricing", "job_costs", "reports", "schedule", "timesheets", "kb_edit"];
+  must(await owner.db.from("company_roles").update({ permissions: opsRole.filter((p) => p !== "send_pricing") }).eq("name", "Operations manager").eq("company_id", companyId).select("id"), "ops without send_pricing");
+  const prepOnly = await api(ops, "POST", `/quotes/${quoteId}/send`, { channel: "email" });
+  check(prepOnly.status === 403, "an operations manager who can prepare but not send pricing is refused", prepOnly.body);
+  must(await owner.db.from("company_roles").update({ permissions: opsRole }).eq("name", "Operations manager").eq("company_id", companyId).select("id"), "ops with send_pricing");
   const send = await api(ops, "POST", `/quotes/${quoteId}/send`, { channel: "email", subject: `Your quote #${quote.number}`, message: "Thanks for having us out." });
   check(send.status === 200 && send.body.sent, "the quote is emailed", send.body);
   const sent = must(await ops.db.from("quotes").select("status").eq("id", quoteId).single(), "status");

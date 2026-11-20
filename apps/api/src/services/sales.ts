@@ -15,6 +15,7 @@ import type { Env } from "../env";
 import { stripeAccess, syncStripeInvoice } from "../integrations/stripe";
 import { firstName, isEmail, renderEmail } from "../lib/email";
 import { dbError, HttpError, must } from "../lib/http";
+import { requireSendPricing } from "../lib/sendPricing";
 import { clientLinks, sentToClient } from "../lib/links";
 import { sendEmail, sendSms } from "../lib/notify";
 import { adminClient, type Db } from "../lib/supabase";
@@ -332,6 +333,8 @@ export async function quoteFromRequest(s: SalesScope, requestId: string, options
  * of whichever option is shown.
  */
 export async function sendQuote(s: SalesScope, id: string, body: SendBody) {
+  // Planet Ops 1d: only someone who can send pricing sends it (the office's screens and assistants alike).
+  await requireSendPricing(s.db, s.companyId);
   const quote = must(
     await s.db
       .from("quotes")

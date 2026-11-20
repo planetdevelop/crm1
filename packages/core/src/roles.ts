@@ -39,6 +39,8 @@ export const isStaff = (role: unknown): role is Role => typeof role === "string"
  */
 export const PERMISSIONS = [
   { key: "sales", label: "Quotes and sales" },
+  // Planet Ops: preparing pricing (sales) is apart from sending it to the customer.
+  { key: "send_pricing", label: "Send pricing to customers (quotes, proposals, change orders)" },
   { key: "invoices", label: "Invoices and payments" },
   { key: "job_costs", label: "Job costs and profit" },
   { key: "reports", label: "Finance and metrics" },
@@ -61,7 +63,7 @@ export const LEVEL_PERMISSIONS: Record<Role, readonly Permission[]> = {
   owner: ALL,
   admin: ALL,
   office: ALL.filter((p) => p !== "team" && p !== "apps"),
-  estimator: ["sales", "schedule", "equipment"],
+  estimator: ["sales", "send_pricing", "schedule", "equipment"],
   // A crew lead always runs their own crew; "schedule" extends that to every crew.
   crew_lead: ["schedule", "timesheets", "equipment"],
   field_crew: [],

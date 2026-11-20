@@ -13,6 +13,7 @@ import { Icon } from "@/components/ui/Icon";
 import { api } from "@/lib/api";
 import { copyText } from "@/lib/clipboard";
 import { useSession } from "@/lib/session";
+import { NoSendPricing, useCanSendPricing } from "./NoSendPricing";
 import { formatPhoneTyping } from "@/lib/validate";
 import { listWords, ownChoices, sendList, sendListProblem, sendPayload, type SendChannel, type SendChoices } from "./sendRecipients";
 import { translateError } from "@crewtavo/core/i18n/patterns";
@@ -29,7 +30,14 @@ interface Sent {
   not_sent?: Array<{ to: string; reason: string }>;
 }
 
-export function SendDialog({
+/** Planet Ops 1d: a quote's pricing goes to the customer only from someone who can send it. */
+export function SendDialog(props: Parameters<typeof SendForm>[0]) {
+  const canSend = useCanSendPricing();
+  if (props.kind === "quote" && !canSend) return <NoSendPricing onClose={props.onClose} />;
+  return <SendForm {...props} />;
+}
+
+function SendForm({
   kind,
   id,
   number,

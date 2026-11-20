@@ -22,6 +22,7 @@ import type { Env } from "../env";
 import { abcConnection, AbcProblem } from "../integrations/abcSupply";
 import { isEmail } from "../lib/email";
 import { asJson, dbError, HttpError, must } from "../lib/http";
+import { canSendPricing, requireSendPricing } from "../lib/sendPricing";
 import { adminClient, type Db } from "../lib/supabase";
 import { formulaValue, MEASUREMENT_VALUE_FIELDS, measurementVariables, type MeasurementValues, type MeasurementVariables } from "./measurements";
 import { addMissingCustomFields, addMissingServices } from "./presetServices";
@@ -496,6 +497,8 @@ async function markSent(db: Db, companyId: string, quoteId: string) {
 
 /** Send the homeowner a price range instead of the exact price (rangeOf), by email or text, or just make their link. */
 export async function sendRange(s: SalesScope, quoteId: string, body: SendBody) {
+  // Planet Ops 1d: a range is pricing for the customer too.
+  await requireSendPricing(s.db, s.companyId);
   const [quote, company] = await Promise.all([
     rangeQuote(s.db, s.companyId, quoteId),
     s.db.from("companies").select("name, currency, settings").eq("id", s.companyId).maybeSingle().then((r) => must(r)),
@@ -654,7 +657,8 @@ export async function setSitePrice(db: Db, companyId: string, quoteId: string, b
   }
   // Planet Ops 1c: a price set on site is agreed with the homeowner there, so on an estimate that's
   // with them it's issued as the version their link shows and signs (not a draft revision).
-  if (quote.status === "sent") {
+  // Someone who can't send pricing leaves it a draft revision, for someone who can to send.
+  if (quote.status === "sent" && (await canSendPricing(db, companyId))) {
     const { error: issueError } = await db.rpc("issue_quote_version", { p_quote: quoteId, p_via: "site_price" });
     if (issueError) throw dbError(issueError);
   }
