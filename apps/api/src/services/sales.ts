@@ -387,6 +387,12 @@ export const NOT_SIGNED_YET = "The customer hasn't signed this yet. Send it to t
 export async function convertQuote(s: Pick<SalesScope, "db" | "companyId" | "env">, quoteId: string, _by: string): Promise<string> {
   const quote = must(await s.db.from("quotes").select("id, status, approval, recurrence_rule, change_order_for, is_template").eq("id", quoteId).eq("company_id", s.companyId).maybeSingle(), "Quote not found.");
   if (quote.is_template) throw new HttpError(400, "A quote template can't be made a job. Make a quote from it first.");
+  // Planet Ops 1e: made already (a second click, a retried request): the job it made, once.
+  if (quote.status === "converted") {
+    const { data: existing, error: existingError } = await s.db.rpc("convert_quote_to_job", { p_quote: quoteId });
+    if (existingError) throw dbError(existingError);
+    return existing;
+  }
   if (quote.status !== "approved" || !isCustomerSignature(quote.approval)) throw new HttpError(409, NOT_SIGNED_YET);
   const { data, error } = await s.db.rpc("convert_quote_to_job", { p_quote: quoteId });
   if (error) throw dbError(error);

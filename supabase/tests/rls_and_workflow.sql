@@ -73,7 +73,9 @@ select public.convert_quote_to_job(planet_test.sign(:'quote_a')) as job_a \gset
 select test.check((select contract_total from public.job_financials where job_id = :'job_a') = 1750.00, 'job copies selected lines');
 select test.check((select status from public.quotes where id = :'quote_a') = 'converted', 'quote marked converted');
 select test.check((select status from public.clients where id = :'client_a') = 'active', 'lead becomes active client');
-select test.expect_error(format('select public.convert_quote_to_job(%L)', :'quote_a'), 'cannot convert twice');
+-- Planet Ops 1e: converting again opens the job it made, and makes no second one.
+select test.check(public.convert_quote_to_job(:'quote_a') = (select id from public.jobs where quote_id = :'quote_a') and (select count(*) from public.jobs where quote_id = :'quote_a') = 1,
+  'converting twice opens the same job, never a second');
 
 select public.create_invoice_for_job(:'job_a') as invoice_a \gset
 update public.invoices set status = 'sent', tax_rate = 0.05 where id = :'invoice_a';
