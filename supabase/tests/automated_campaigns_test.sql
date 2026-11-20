@@ -356,7 +356,8 @@ insert into public.quotes (company_id, client_id, title, status) values (:'past'
 update public.quotes set sent_at = now() - interval '10 days', valid_until = null where id = :'p_changes_q';
 select tac.client(:'past', 'Approved Abe') as p_approved \gset
 select tac.visited(:'past', :'p_approved', :'at11'::timestamptz - interval '400 days');
-insert into public.quotes (company_id, client_id, title, status) values (:'past', :'p_approved', 'Retaining wall', 'approved');
+insert into public.quotes (company_id, client_id, title, status) values (:'past', :'p_approved', 'Retaining wall', 'sent') returning id as planet_signed_1 \gset
+select planet_test.sign(:'planet_signed_1');
 select tac.client(:'past', 'Assessed Open') as p_assessing \gset
 select tac.visited(:'past', :'p_assessing', :'at11'::timestamptz - interval '400 days');
 insert into public.requests (company_id, client_id, title, status) values (:'past', :'p_assessing', 'Drainage', 'assessment_complete');
@@ -650,18 +651,20 @@ select tac.check((select recipient_id = :'k_two_wb' from public.campaign_booking
 insert into public.quotes (company_id, client_id, title, request_id) values (:'book', :'k_bea', 'Fall cleanup', :'k_bea_req') returning id as k_bea_quote \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'book', :'k_bea_quote', 'Cleanup', 1, 'ea', 1000);
 update public.quotes set status = 'sent' where id = :'k_bea_quote';
-update public.quotes set status = 'approved', approved_at = now() where id = :'k_bea_quote';
+select planet_test.sign(:'k_bea_quote');
 select tac.check((select campaign_id = :'fall' and recipient_id = :'k_bea_r' and chain_id = :'k_bea_req' from public.campaign_bookings where record_id = :'k_bea_quote'),
   'an approved quote from a booked request goes with that booking');
 select tac.client(:'book', 'Straight Through') as k_st \gset
 select tac.clicked(:'fall', :'k_st', interval '3 days') as k_st_r \gset
 insert into public.quotes (company_id, client_id, title) values (:'book', :'k_st', 'Gutters') returning id as k_st_quote \gset
 update public.quotes set status = 'sent' where id = :'k_st_quote';
+select planet_test.sign(:'k_st_quote');
 update public.quotes set status = 'converted', converted_at = now() where id = :'k_st_quote';
 select tac.check((select recipient_id = :'k_st_r' and kind = 'quote' and chain_id = :'k_st_quote' from public.campaign_bookings where record_id = :'k_st_quote'),
   'a quote converted to a job straight from sent is a booking');
 -- 45 days after the click, the work is done and paid: its revenue, before tax, through the quote.
 update public.campaign_recipients set last_clicked_at = now() - interval '45 days', clicked_at = now() - interval '45 days' where id = :'k_bea_r';
+select planet_test.sign(:'k_bea_quote');
 insert into public.jobs (company_id, client_id, title, quote_id) values (:'book', :'k_bea', 'Fall cleanup', :'k_bea_quote') returning id as k_bea_job \gset
 select tac.invoice(:'book', :'k_bea', 1000, 0.10, :'k_bea_job') as k_bea_inv \gset
 select tac.pay(:'k_bea_inv');
@@ -737,7 +740,8 @@ select tac.clicked(:'winter', :'k_rita', interval '5 days') as k_rita_r \gset
 insert into public.quotes (company_id, client_id, title) values (:'book', :'k_rita', 'Re-roof') returning id as k_rita_quote \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'book', :'k_rita_quote', 'Re-roof', 1, 'ea', 10000);
 update public.quotes set status = 'sent' where id = :'k_rita_quote';
-update public.quotes set status = 'approved', approved_at = now() where id = :'k_rita_quote';
+select planet_test.sign(:'k_rita_quote');
+select planet_test.sign(:'k_rita_quote');
 insert into public.jobs (company_id, client_id, title, quote_id, retainage_pct) values (:'book', :'k_rita', 'Re-roof', :'k_rita_quote', 10) returning id as k_rita_job \gset
 insert into public.job_line_items (company_id, job_id, name, unit_price, taxable) values (:'book', :'k_rita_job', 'Re-roof', 10000, false);
 select public.create_invoice_for_job(:'k_rita_job') as k_rita_inv \gset
@@ -767,7 +771,7 @@ select tac.clicked(:'winter', :'k_gil', interval '2 days');
 insert into public.requests (company_id, client_id, title) values (:'book', :'k_gil', 'Plowing') returning id as k_gil_req \gset
 insert into public.quotes (company_id, client_id, title) values (:'book', :'k_gil', 'Plowing') returning id as k_gil_quote \gset
 update public.quotes set status = 'sent' where id = :'k_gil_quote';
-update public.quotes set status = 'approved', approved_at = now() where id = :'k_gil_quote';
+select planet_test.sign(:'k_gil_quote');
 select tac.check((select count(*) = 2 from public.campaign_bookings where record_id in (:'k_gil_req', :'k_gil_quote')), 'a request and an approved quote are booked');
 delete from public.clients where id = :'k_gil';
 select tac.check(not exists (select 1 from public.campaign_bookings where record_id in (:'k_gil_req', :'k_gil_quote')),

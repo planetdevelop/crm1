@@ -69,7 +69,7 @@ select test.check((select total from public.quotes where id = :'quote_a') = 1825
 insert into public.quotes (company_id, client_id, title) values (:'company_a', :'client_a', 'Second') returning number as quote_no2 \gset
 select test.check(:'quote_no2'::int = 2, 'numbers increase per company');
 
-select public.convert_quote_to_job(:'quote_a') as job_a \gset
+select public.convert_quote_to_job(planet_test.sign(:'quote_a')) as job_a \gset
 select test.check((select contract_total from public.job_financials where job_id = :'job_a') = 1750.00, 'job copies selected lines');
 select test.check((select status from public.quotes where id = :'quote_a') = 'converted', 'quote marked converted');
 select test.check((select status from public.clients where id = :'client_a') = 'active', 'lead becomes active client');

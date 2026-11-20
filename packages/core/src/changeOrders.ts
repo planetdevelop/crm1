@@ -47,6 +47,16 @@ const cents = (value: unknown): number | null => {
 export const isDrawnSignature = (value: unknown): value is string =>
   typeof value === "string" && value.length <= 300_100 && /^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/=]+$/.test(value);
 
+/**
+ * An approval that is the customer's own signature: not the office's "manual" one, with the printed
+ * name, the signing time and the drawing, each its own field (the database's private.is_customer_signature).
+ */
+export function isCustomerSignature(approval: unknown): boolean {
+  if (!approval || typeof approval !== "object" || Array.isArray(approval)) return false;
+  const a = approval as Record<string, unknown>;
+  return a.method !== "manual" && typeof a.name === "string" && a.name.trim().length > 0 && typeof a.signed_at === "string" && a.signed_at.length > 0 && isDrawnSignature(a.signature);
+}
+
 /** Whether this change order carries the customer's own signature on the version it is now. */
 export function changeOrderSignature(quote: ChangeOrderLike): ChangeOrderSignature {
   if (!quote.change_order_for) return { signed: false, reason: "not_a_change_order" };

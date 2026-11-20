@@ -202,6 +202,9 @@ const requests = await must(
   "requests",
 );
 
+// A short signature drawn on the app's own signature pad (the API's test fixture), for the demo's signed quote.
+const DRAWN = readFileSync(new URL("../apps/api/test/fixtures/signaturePad.ts", import.meta.url), "utf8").match(/PAD_SHORT =\s*"([^"]+)"/)[1];
+
 async function quote(client, title, status, lines, extra = {}) {
   // An approved quote's lines are locked, so they go in while it's still sent.
   const approved = status === "approved";
@@ -210,7 +213,13 @@ async function quote(client, title, status, lines, extra = {}) {
     `quote ${title}`,
   );
   await must(db.from("quote_line_items").insert(lines.map((l, i) => c({ ...l, quote_id: q.id, sort: i })), DEFAULTS), `lines ${title}`);
-  if (approved) await must(db.from("quotes").update({ status, ...extra }).eq("id", q.id), `approve ${title}`);
+  // Planet Ops: only the customer's drawn signature on this exact version approves a quote, and it's
+  // written by the server (the database refuses one from a signed-in user), as the Client Hub does.
+  if (approved) {
+    const seen = await must(db.rpc("quote_fingerprint", { p_quote: q.id }), `version ${title}`);
+    const approval = { name: client, signed_at: new Date().toISOString(), signature: DRAWN, seen_fingerprint: seen, method: "in_person" };
+    await must(admin.from("quotes").update({ status, approval, ...extra }).eq("id", q.id), `sign ${title}`);
+  }
   return q.id;
 }
 const daysAgo = (n) => new Date(Date.now() - n * 86_400_000).toISOString();

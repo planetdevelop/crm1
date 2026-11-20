@@ -1,6 +1,7 @@
--- Planet Ops Phase 1: customer acceptance is tied to the complete document version, only the customer
--- signs, and a change order is finalized only with the customer's signature on its exact current
--- version; once signed it stays as signed (20261120000100_planet_ops_change_order_signature.sql).
+-- Planet Ops Phase 1: customer acceptance needs the customer's drawn signature on the exact document
+-- version, for quotes and change orders, on the client hub and in person; internal approval never
+-- stands in for it; a signed agreement stays as signed (20261120000100_planet_ops_change_order_signature.sql).
+-- The drawing used is one made on the app's own signature pad (planet_test.drawn(), prelude.sql).
 -- Run with scripts/test-db.sh.
 \set ON_ERROR_STOP on
 \set QUIET on
@@ -21,12 +22,28 @@ begin
   end;
   raise exception 'FAIL (expected an error): %', p_what;
 end $$;
--- The customer signs on their link, from a page that showed the version with this fingerprint.
-create function tpo_co.customer_signs(p_company uuid, p_quote uuid, p_seen text) returns boolean language sql as $$
+-- The customer signs on their link (approve_hub_quote, as the server calls it), from a page that
+-- showed the version with fingerprint p_seen, with the given drawing.
+create function tpo_co.hub_signs(p_company uuid, p_quote uuid, p_seen text, p_signature text default planet_test.drawn(), p_name text default 'Test Customer') returns boolean
+language sql as $$
   select public.approve_hub_quote(p_company, p_quote, '{}',
-    jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'ip', '203.0.113.5', 'seen_fingerprint', p_seen))
+    jsonb_build_object('name', p_name, 'signed_at', '2000-01-01T00:00:00Z', 'signature', p_signature, 'ip', '203.0.113.5')
+      || case when p_seen is null then '{}' else jsonb_build_object('seen_fingerprint', p_seen) end)
 $$;
+-- The customer signs in person (sign_quote, which the API calls as the server after checking them).
+create function tpo_co.in_person_signs(p_quote uuid, p_seen text, p_signature text default planet_test.drawn()) returns jsonb
+language plpgsql security definer as $$
+declare v_claims text := current_setting('request.jwt.claims', true); v jsonb;
+begin
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  v := public.sign_quote(p_quote, jsonb_build_object('name', 'Test Customer', 'signed_at', '2000-01-01T00:00:00Z', 'method', 'in_person', 'signature', p_signature)
+                          || case when p_seen is null then '{}' else jsonb_build_object('seen_fingerprint', p_seen) end);
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  return v;
+end $$;
 grant execute on all functions in schema tpo_co to authenticated, service_role;
+
+\set one_pixel 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
 
 insert into auth.users (id, email, raw_user_meta_data) values
   ('a0c00000-0000-0000-0000-000000000001', 'owner@planet.test', '{"full_name": "Test Owner"}');
@@ -38,177 +55,198 @@ select public.create_company('TEST Planet Demolition', 'general') as co \gset
 insert into public.clients (company_id, display_name) values (:'co', 'TEST – Sample Customer') returning id as client \gset
 insert into public.contract_sections (company_id, title, body) values (:'co', 'Contract Terms', 'TEST placeholder contract terms.') returning id as terms \gset
 insert into public.contract_sections (company_id, title, body) values (:'co', 'Payment Terms', 'TEST placeholder payment terms.') returning id as payment \gset
-insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'House demolition') returning id as quote \gset
-insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'quote', 'Demolish house', 1, 'ea', 18000);
-select public.convert_quote_to_job(:'quote') as job \gset
-
--- An added charge, sent to the customer.
-insert into public.quotes (company_id, client_id, title, change_order_for, section_ids) values (:'co', :'client', 'Change order: remove garage slab', :'job', array[:'terms', :'payment']::uuid[]) returning id as add \gset
-insert into public.quote_line_items (company_id, quote_id, name, description, quantity, unit, unit_price) values (:'co', :'add', 'Remove garage slab', 'Break out and haul the 20x20 slab', 1, 'ea', 2500) returning id as add_line \gset
-update public.quotes set status = 'sent', sent_at = now() where id = :'add';
+-- A quote, sent to the customer.
+insert into public.quotes (company_id, client_id, title, section_ids) values (:'co', :'client', 'House demolition', array[:'terms', :'payment']::uuid[]) returning id as quote \gset
+insert into public.quote_line_items (company_id, quote_id, name, description, quantity, unit, unit_price) values (:'co', :'quote', 'Demolish house', 'Down to the slab', 1, 'ea', 18000) returning id as quote_line \gset
+insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price, optional, selected) values (:'co', :'quote', 'Remove the shed too', 1, 'ea', 900, true, false) returning id as addon \gset
+update public.quotes set status = 'sent', sent_at = now() where id = :'quote';
 commit;
 
--- ===== The office can't finalize it, nor fake the customer's signature ==========================
+-- ===== Staff, the API and the database can't accept or convert without the customer ==========
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "a0c00000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
-select tpo_co.expect_error(format('update public.quotes set status = ''approved'', approved_at = now() where id = %L', :'add'),
-  'the office can''t mark an unsigned change order approved', '%customer signs this exact version%');
-select tpo_co.expect_error(format('update public.quotes set status = ''approved'', approved_at = now(), approval = ''{"name": "Test Owner", "method": "manual"}'' where id = %L', :'add'),
-  'nor with a manual approval in its own name', '%customer signs this exact version%');
-select tpo_co.expect_error(format('select public.convert_quote_to_job(%L)', :'add'),
-  'converting an unsigned change order is refused too', '%customer signs this exact version%');
-select tpo_co.expect_error(format('update public.quotes set status = ''converted'', converted_at = now() where id = %L', :'add'),
-  'and so is marking it added to the job', '%customer signs this exact version%');
-select tpo_co.expect_error(format('insert into public.quotes (company_id, client_id, title, status, change_order_for) values (%L, %L, ''Sneaky'', ''converted'', %L)', :'co', :'client', :'job'),
-  'a change order can''t be inserted already finalized', '%customer signs this exact version%');
--- Fabricated signature metadata: a customer-looking approval, with or without the right total and
--- fingerprint, written by someone signed in, is refused whether or not it finalizes anything.
-select tpo_co.expect_error(format('update public.quotes set approval = jsonb_build_object(''name'', ''Test Customer'', ''signed_at'', now(), ''signature'', ''data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='', ''total'', total, ''method'', ''in_person'', ''seen_fingerprint'', public.quote_fingerprint(id)) where id = %L', :'add'),
+select tpo_co.expect_error(format('update public.quotes set status = ''approved'', approved_at = now() where id = %L', :'quote'),
+  'the office can''t mark a quote approved', '%customer signs this exact version%');
+select tpo_co.expect_error(format('update public.quotes set status = ''approved'', approved_at = now(), approval = ''{"name": "Test Owner", "method": "manual"}'' where id = %L', :'quote'),
+  'nor with a manual approval in its own name: internal approval isn''t the customer''s', '%customer signs this exact version%');
+select tpo_co.expect_error(format('select public.convert_quote_to_job(%L)', :'quote'),
+  'converting an unsigned quote to a job is refused', '%once the customer signs%');
+select tpo_co.expect_error(format('update public.quotes set status = ''converted'', converted_at = now() where id = %L', :'quote'),
+  'and so is marking it converted', '%customer signs this exact version%');
+select tpo_co.expect_error(format('insert into public.quotes (company_id, client_id, title, status) values (%L, %L, ''Sneaky'', ''approved'')', :'co', :'client'),
+  'a quote can''t be inserted already accepted', '%customer signs this exact version%');
+select tpo_co.expect_error(format('insert into public.jobs (company_id, client_id, title, quote_id) values (%L, %L, ''Job'', %L)', :'co', :'client', :'quote'),
+  'nor a job linked to an unsigned quote', '%only once the customer signs it%');
+-- Fabricated signature metadata: a complete-looking customer signature with a real drawing and the
+-- right fingerprint, written by someone signed in, is refused whether or not it accepts anything.
+select tpo_co.expect_error(format('update public.quotes set approval = jsonb_build_object(''name'', ''Test Customer'', ''signed_at'', now(), ''signature'', planet_test.drawn(), ''method'', ''in_person'', ''seen_fingerprint'', public.quote_fingerprint(id)) where id = %L', :'quote'),
   'staff can''t write a customer signature into the quote', '%Only the customer can sign%');
-select tpo_co.expect_error(format('update public.quotes set status = ''approved'', approved_at = now(), approval = jsonb_build_object(''name'', ''Test Customer'', ''signed_at'', now(), ''signature'', ''data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='', ''total'', total, ''seen_fingerprint'', public.quote_fingerprint(id)) where id = %L', :'add'),
-  'nor approve it with one', '%Only the customer can sign%');
-select tpo_co.expect_error(format('select public.sign_quote(%L, ''{"name": "Test Customer", "method": "in_person", "signed_at": "2026-11-20T15:00:00Z"}'')', :'add'),
+select tpo_co.expect_error(format('update public.quotes set status = ''approved'', approved_at = now(), approval = jsonb_build_object(''name'', ''Test Customer'', ''signed_at'', now(), ''signature'', planet_test.drawn(), ''seen_fingerprint'', public.quote_fingerprint(id)) where id = %L', :'quote'),
+  'nor accept the quote with one', '%Only the customer can sign%');
+select tpo_co.expect_error(format('select public.sign_quote(%L, ''{"name": "Test Customer", "method": "in_person"}'')', :'quote'),
   'nor call the in-person signing step directly', '%permission denied%');
-select tpo_co.check((select status from public.quotes where id = :'add') = 'sent', 'it''s still waiting for the customer');
-select tpo_co.check((select approval from public.quotes where id = :'add') is null, 'with no approval on it');
-select tpo_co.check(not exists (select 1 from public.job_line_items where source_quote_id = :'add'), 'and nothing was added to the job');
--- Members get the fingerprint for their own quotes only, the signing screen's.
-select tpo_co.check(public.quote_fingerprint(:'add') ~ '^[0-9a-f]{32}$', 'a member can read the version fingerprint of their own change order (the signing screen''s)');
+select tpo_co.check((select status = 'sent' and approval is null from public.quotes where id = :'quote'), 'the quote is still waiting for the customer, with no approval on it');
+select tpo_co.check(public.quote_fingerprint(:'quote') ~ '^[0-9a-f]{32}$', 'a member can read the version fingerprint of their own quote (the signing screen''s)');
 commit;
 
--- ===== Only a drawn signature signs: a typed name alone never does ============================
-select tpo_co.expect_error(format('select public.approve_hub_quote(%L, %L, %L, jsonb_build_object(%L, %L, %L, now(), %L, public.quote_fingerprint(%L)))', :'co', :'add', '{}', 'name', 'Test Customer', 'signed_at', 'seen_fingerprint', :'add'),
-  'a change order can''t be signed with a typed name alone', '%drawn signature is needed%');
-select tpo_co.expect_error(format('select public.approve_hub_quote(%L, %L, %L, jsonb_build_object(%L, %L, %L, now(), %L, %L, %L, public.quote_fingerprint(%L)))', :'co', :'add', '{}', 'name', 'Test Customer', 'signed_at', 'signature', 'Test Customer', 'seen_fingerprint', :'add'),
-  'nor with words where the drawing goes', '%drawn signature is needed%');
-select tpo_co.expect_error(format('select public.approve_hub_quote(%L, %L, %L, jsonb_build_object(%L, %L, %L, now(), %L, %L, %L, public.quote_fingerprint(%L)))', :'co', :'add', '{}', 'name', 'Test Customer', 'signed_at', 'signature', 'data:image/jpeg;base64,/9j/4AAQ', 'seen_fingerprint', :'add'),
-  'nor with a picture that isn''t a drawn signature', '%drawn signature is needed%');
-select tpo_co.check(private.is_customer_signature(jsonb_build_object('name', 'A', 'signed_at', '2026-11-20T15:00:00Z', 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='))
-                and not private.is_customer_signature('{"name": "A", "signed_at": "2026-11-20T15:00:00Z"}')
-                and not private.is_customer_signature(jsonb_build_object('signed_at', '2026-11-20T15:00:00Z', 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='))
-                and not private.is_customer_signature(jsonb_build_object('name', 'A', 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=')),
-  'a customer signature is the printed name, the signing time and the drawing, each needed');
-select tpo_co.check((select status from public.quotes where id = :'add') = 'sent', 'the change order is still unsigned');
+-- ===== Only a drawn signature signs: missing, typed or invalid drawings, on both paths ========
+select public.quote_fingerprint(:'quote') as qv1 \gset
+select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, %L, null)', :'co', :'quote', :'qv1'),
+  'on the link: no drawing is refused', '%drawn signature is needed%');
+select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, %L, %L)', :'co', :'quote', :'qv1', 'Test Customer'),
+  'a typed name where the drawing goes is refused', '%drawn signature is needed%');
+select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, %L, %L)', :'co', :'quote', :'qv1', :'one_pixel'),
+  'a one-pixel image is refused', '%drawn signature is needed%');
+select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, %L, %L)', :'co', :'quote', :'qv1', 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ'),
+  'another kind of picture is refused', '%drawn signature is needed%');
+select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, %L, %L)', :'co', :'quote', :'qv1', substr(planet_test.drawn(), 1, 60)),
+  'a truncated drawing is refused', '%drawn signature is needed%');
+select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, %L, planet_test.drawn(), %L)', :'co', :'quote', :'qv1', '  '),
+  'a drawing without the printed name is refused', '%drawn signature is needed%');
+select tpo_co.expect_error(format('select tpo_co.in_person_signs(%L, %L, null)', :'quote', :'qv1'),
+  'in person: no drawing is refused', '%drawn signature is needed%');
+select tpo_co.expect_error(format('select tpo_co.in_person_signs(%L, %L, %L)', :'quote', :'qv1', 'Test Customer'),
+  'in person: a typed name is refused', '%drawn signature is needed%');
+-- A blank pad, a tap and a malformed image are refused by the API, which decodes the whole drawing
+-- (apps/api/test/drawnSignature.test.ts); only the server writes signatures here.
 
--- ===== Acceptance is tied to the whole document version, not just its total ===================
-select public.quote_fingerprint(:'add') as v1 \gset
-select tpo_co.expect_error(format('select tpo_co.customer_signs(%L, %L, null)', :'co', :'add'),
-  'a change order can''t be signed without saying which version the page showed', '%page showing its exact version%');
-
+-- ===== Every acceptance is from a page showing this exact version ============================
+select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, null)', :'co', :'quote'),
+  'on the link: a signature without the version fingerprint is refused', '%page showing its exact version%');
+select tpo_co.expect_error(format('select tpo_co.in_person_signs(%L, null)', :'quote'),
+  'in person: also refused without it', '%page showing its exact version%');
 -- Same price, different scope.
-update public.quote_line_items set description = 'Break out and haul the 20x20 slab and the walkway' where id = :'add_line';
-select tpo_co.check((select total from public.quotes where id = :'add') = 2500, 'a scope change at the same price');
-select tpo_co.check(public.quote_fingerprint(:'add') <> :'v1', 'is a new version');
-select tpo_co.expect_error(format('select tpo_co.customer_signs(%L, %L, %L)', :'co', :'add', :'v1'),
-  'so a page opened before it can''t sign', '%changed after it was opened%');
-select public.quote_fingerprint(:'add') as v2 \gset
-
--- A schedule change.
-update public.quotes set starts_on = current_date + 14 where id = :'add';
-select tpo_co.expect_error(format('select tpo_co.customer_signs(%L, %L, %L)', :'co', :'add', :'v2'),
-  'a schedule change makes an open page outdated too', '%changed after it was opened%');
-select public.quote_fingerprint(:'add') as v3 \gset
-
--- Payment terms: the deposit, and the payment terms' wording.
-update public.quotes set deposit_amount = 500 where id = :'add';
-select tpo_co.expect_error(format('select tpo_co.customer_signs(%L, %L, %L)', :'co', :'add', :'v3'),
-  'so does a payment-term change (the deposit)', '%changed after it was opened%');
-select public.quote_fingerprint(:'add') as v4 \gset
-update public.contract_sections set body = 'TEST placeholder payment terms, revised.' where id = :'payment';
-select tpo_co.expect_error(format('select tpo_co.customer_signs(%L, %L, %L)', :'co', :'add', :'v4'),
-  'and the payment terms'' wording', '%changed after it was opened%');
-select public.quote_fingerprint(:'add') as v5 \gset
-
--- Contract terms: their wording, and which sections apply.
+update public.quote_line_items set description = 'Down to the slab, and the driveway' where id = :'quote_line';
+select tpo_co.check(public.quote_fingerprint(:'quote') <> :'qv1' and (select total from public.quotes where id = :'quote') = 18000, 'a scope change at the same price is a new version');
+select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, %L)', :'co', :'quote', :'qv1'),
+  'so a link page opened before it can''t sign', '%changed after it was opened%');
+select tpo_co.expect_error(format('select tpo_co.in_person_signs(%L, %L)', :'quote', :'qv1'),
+  'nor an in-person screen opened before it', '%changed after it was opened%');
+select public.quote_fingerprint(:'quote') as qv2 \gset
+update public.quotes set starts_on = current_date + 14 where id = :'quote';
+select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, %L)', :'co', :'quote', :'qv2'), 'a schedule change makes an open page outdated', '%changed after it was opened%');
+select public.quote_fingerprint(:'quote') as qv3 \gset
 update public.contract_sections set body = 'TEST placeholder contract terms, revised.' where id = :'terms';
-select tpo_co.expect_error(format('select tpo_co.customer_signs(%L, %L, %L)', :'co', :'add', :'v5'),
-  'a contract-term change makes it outdated', '%changed after it was opened%');
-select public.quote_fingerprint(:'add') as v6 \gset
-update public.quotes set section_ids = array[:'terms']::uuid[] where id = :'add';
-select tpo_co.expect_error(format('select tpo_co.customer_signs(%L, %L, %L)', :'co', :'add', :'v6'),
-  'so does taking a section off', '%changed after it was opened%');
-update public.quotes set section_ids = array[:'terms', :'payment']::uuid[] where id = :'add';
-select tpo_co.check(public.quote_fingerprint(:'add') = :'v6', 'putting it back is that version again');
-select tpo_co.check((select status from public.quotes where id = :'add') = 'sent' and not exists (select 1 from public.job_line_items where source_quote_id = :'add'),
-  'none of the outdated pages signed or added anything');
+select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, %L)', :'co', :'quote', :'qv3'), 'so does a Contract Terms change', '%changed after it was opened%');
+select public.quote_fingerprint(:'quote') as qv4 \gset
+update public.contract_sections set body = 'TEST placeholder payment terms, revised.' where id = :'payment';
+select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, %L)', :'co', :'quote', :'qv4'), 'and a Payment Terms change', '%changed after it was opened%');
+select public.quote_fingerprint(:'quote') as qv5 \gset
+update public.quotes set deposit_amount = 500 where id = :'quote';
+select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, %L)', :'co', :'quote', :'qv5'), 'and a deposit change', '%changed after it was opened%');
+update public.quote_line_items set unit_price = 950 where id = :'addon';
+select tpo_co.check(public.quote_fingerprint(:'quote') <> :'qv5', 'an offered option''s price is part of the version too');
+select tpo_co.check((select status = 'sent' and approval is null from public.quotes where id = :'quote'), 'no outdated page signed anything');
 
--- ===== The customer signs the version they saw: finalized once, kept as signed ================
-select tpo_co.check(tpo_co.customer_signs(:'co', :'add', :'v6'), 'the customer signs from a page showing this version');
+-- ===== The customer signs the version they saw: the original signed document is kept =========
+select public.quote_fingerprint(:'quote') as qv6 \gset
+update public.quote_line_items set selected = true where id = :'addon';
+select tpo_co.check(public.quote_fingerprint(:'quote') = :'qv6', 'ticking an add-on is the customer''s choice, not a new version');
+select tpo_co.check(public.approve_hub_quote(:'co', :'quote', array[:'addon']::uuid[],
+  jsonb_build_object('name', 'Test Customer', 'signed_at', '2000-01-01T00:00:00Z', 'signature', planet_test.drawn(), 'seen_fingerprint', :'qv6')),
+  'the customer signs on their link, with the shed added');
+select tpo_co.check((select status from public.quotes where id = :'quote') = 'approved', 'the quote is accepted');
+select tpo_co.check((select approval ->> 'name' = 'Test Customer' and approval ->> 'signature' = planet_test.drawn()
+                       and (approval ->> 'signed_at')::timestamptz > now() - interval '1 hour'
+                     from public.quotes where id = :'quote'),
+  'the printed name, the drawing and the signing time are kept separately, the time from the database''s clock (not the caller''s)');
+select tpo_co.check((select approval ->> 'fingerprint' = :'qv6'
+                       and approval -> 'document' -> 'lines' @> jsonb_build_array(jsonb_build_object('description', 'Down to the slab, and the driveway'))
+                       and approval -> 'document' -> 'sections' @> '[{"body": "TEST placeholder payment terms, revised."}]'
+                       and approval -> 'document' -> 'quote' ->> 'starts_on' is not null
+                     from public.quotes where id = :'quote'), 'the signed version is kept: scope, terms and schedule as signed');
+select tpo_co.check((select approval -> 'choices' -> 'selected_line_ids' = jsonb_build_array(:'addon'::text)
+                       and (approval -> 'choices' ->> 'total')::numeric = 18950 and (approval ->> 'total')::numeric = 18950
+                     from public.quotes where id = :'quote'), 'with the customer''s choices (the add-on) and the amounts they signed for');
+select tpo_co.check(not public.approve_hub_quote(:'co', :'quote', '{}', planet_test.approval(:'quote')), 'a second signature does nothing');
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub": "a0c00000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
+select tpo_co.expect_error(format('update public.quotes set status = ''sent'' where id = %L', :'quote'), 'a signed quote can''t be reopened', '%stays as signed%');
+select tpo_co.expect_error(format('update public.quotes set status = ''lost'' where id = %L', :'quote'), 'nor marked lost', '%stays as signed%');
+select tpo_co.expect_error(format('delete from public.quotes where id = %L', :'quote'), 'nor deleted');
+select tpo_co.expect_error(format('update public.quote_line_items set unit_price = 1 where id = %L', :'quote_line'), 'its signed lines can''t change');
+select tpo_co.expect_error(format('update public.quotes set approval = approval || ''{"name": "Someone Else"}'' where id = %L', :'quote'), 'its signature can''t be rewritten');
+commit;
+select public.convert_quote_to_job(:'quote') as job \gset
+select tpo_co.check((select status from public.quotes where id = :'quote') = 'converted' and (select quote_id from public.jobs where id = :'job') = :'quote',
+  'the signed quote becomes a job, linked to it');
+select tpo_co.check((select approval ->> 'fingerprint' from public.quotes where id = :'quote') = :'qv6', 'and keeps the signed document');
+
+-- In person: the same, on another quote.
+insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'Garage demolition') returning id as garage \gset
+insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'garage', 'Demolish garage', 1, 'ea', 6000);
+update public.quotes set status = 'sent', sent_at = now() where id = :'garage';
+select tpo_co.check((tpo_co.in_person_signs(:'garage', public.quote_fingerprint(:'garage')) ->> 'total')::numeric = 6000, 'the customer signs in person, drawing on the screen');
+select tpo_co.check((select status = 'approved' and approval ->> 'method' = 'in_person' and approval ->> 'fingerprint' = private.quote_fingerprint(id) from public.quotes where id = :'garage'),
+  'accepted, tied to the version on the screen');
+select tpo_co.check(not public.approve_hub_quote(:'co', :'garage', '{}', planet_test.approval(:'garage')), 'nobody signs over a signature already given');
+-- An office approval from before the rule: it needs the customer's signature before it's a job.
+alter table public.quotes disable trigger c_customer_signature_to_accept_update;
+insert into public.quotes (company_id, client_id, title, status) values (:'co', :'client', 'Old office-approved', 'sent') returning id as legacy \gset
+update public.quotes set status = 'approved', approval = '{"name": "Test Owner", "method": "manual"}' where id = :'legacy';
+alter table public.quotes enable trigger c_customer_signature_to_accept_update;
+select tpo_co.expect_error(format('select public.convert_quote_to_job(%L)', :'legacy'), 'a quote the office approved itself isn''t made a job', '%once the customer signs%');
+
+-- ===== Change orders: the same, and a signed one stays as signed =============================
+insert into public.quotes (company_id, client_id, title, change_order_for) values (:'co', :'client', 'Change order: remove garage slab', :'job') returning id as add \gset
+insert into public.quote_line_items (company_id, quote_id, name, description, quantity, unit, unit_price) values (:'co', :'add', 'Remove garage slab', 'Break out and haul the slab', 1, 'ea', 2500) returning id as add_line \gset
+update public.quotes set status = 'sent', sent_at = now() where id = :'add';
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub": "a0c00000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
+select tpo_co.expect_error(format('update public.quotes set status = ''approved'', approved_at = now() where id = %L', :'add'), 'the office can''t finalize an unsigned change order', '%customer signs this exact version%');
+select tpo_co.expect_error(format('select public.convert_quote_to_job(%L)', :'add'), 'nor add it to the job by converting it', '%customer signs this exact version%');
+select tpo_co.expect_error(format('insert into public.quotes (company_id, client_id, title, status, change_order_for) values (%L, %L, ''Sneaky'', ''converted'', %L)', :'co', :'client', :'job'),
+  'nor insert one already finalized', '%customer signs this exact version%');
+commit;
+select public.quote_fingerprint(:'add') as cv1 \gset
+select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, null)', :'co', :'add'), 'a change order isn''t signed without its version fingerprint', '%page showing its exact version%');
+update public.quote_line_items set description = 'Break out and haul the slab and the walkway' where id = :'add_line';
+select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, %L)', :'co', :'add', :'cv1'), 'nor from a page showing an older version (same price)', '%changed after it was opened%');
+select tpo_co.check(not exists (select 1 from public.job_line_items where source_quote_id = :'add'), 'nothing was added to the job');
+select tpo_co.check(tpo_co.hub_signs(:'co', :'add', public.quote_fingerprint(:'add')), 'the customer signs the change order they saw');
 select tpo_co.check((select status from public.quotes where id = :'add') = 'converted', 'it''s finalized and added to the job');
 select tpo_co.check((select count(*) from public.job_line_items where source_quote_id = :'add' and unit_price = 2500) = 1, 'its line is on the job once');
-select tpo_co.check((select approval ->> 'fingerprint' = :'v6' and approval -> 'document' -> 'lines' -> 0 ->> 'description' = 'Break out and haul the 20x20 slab and the walkway'
-                       and approval -> 'document' -> 'sections' @> '[{"body": "TEST placeholder contract terms, revised."}]'
-                     from public.quotes where id = :'add'), 'the approval keeps the signed version: its fingerprint, lines and terms');
-select tpo_co.check(not tpo_co.customer_signs(:'co', :'add', :'v6'), 'a repeated signature does nothing');
+select tpo_co.check(not tpo_co.hub_signs(:'co', :'add', public.quote_fingerprint(:'add')), 'a repeated signature does nothing');
 select tpo_co.check((select count(*) from public.job_line_items where source_quote_id = :'add') = 1, 'and adds nothing twice');
-
--- The signed agreement is preserved: not re-opened, moved, deleted, re-signed or edited.
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "a0c00000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
-select tpo_co.expect_error(format('update public.quotes set status = ''sent'' where id = %L', :'add'), 'a signed change order can''t be re-opened', '%stays as signed%');
-select tpo_co.expect_error(format('update public.quotes set status = ''draft'' where id = %L', :'add'), 'nor put back to a draft', '%stays as signed%');
+select tpo_co.expect_error(format('update public.quotes set status = ''sent'' where id = %L', :'add'), 'a signed change order can''t be reopened', '%stays as signed%');
 select tpo_co.expect_error(format('update public.quotes set status = ''archived'' where id = %L', :'add'), 'nor archived', '%stays as signed%');
 select tpo_co.expect_error(format('delete from public.quotes where id = %L', :'add'), 'nor deleted');
 select tpo_co.expect_error(format('update public.quote_line_items set unit_price = 1 where id = %L', :'add_line'), 'its signed price can''t change');
 select tpo_co.expect_error(format('update public.quote_line_items set description = ''something else'' where id = %L', :'add_line'), 'nor its signed scope');
-select tpo_co.expect_error(format('insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (%L, %L, ''Extra'', 1, ''ea'', 10)', :'co', :'add'), 'nor can lines be added to it');
-select tpo_co.expect_error(format('update public.quotes set approval = approval || ''{"name": "Someone Else"}'' where id = %L', :'add'), 'its signature can''t be rewritten');
+select tpo_co.expect_error(format('insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (%L, %L, ''Extra'', 1, ''ea'', 10)', :'co', :'add'), 'nor can lines be added');
 select tpo_co.expect_error(format('update public.quotes set approval = approval || jsonb_build_object(''fingerprint'', ''0'') where id = %L', :'add'), 'nor the version it was signed for');
 commit;
 select tpo_co.expect_error(format('update public.quotes set status = ''sent'' where id = %L', :'add'), 'not even by the server', '%stays as signed%');
-select tpo_co.check((select status = 'converted' and approval ->> 'name' = 'Test Customer' from public.quotes where id = :'add'), 'it''s still the agreement the customer signed');
 
--- ===== Credits and $0 changes need the signature too ===========================================
-insert into public.quotes (company_id, client_id, title, change_order_for) values (:'co', :'client', 'Change order: leave the shed', :'job') returning id as credit \gset
-insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'credit', 'Leave the shed standing (credit)', 1, 'ea', -800);
+-- Credits and $0 changes need the signature too, and count once.
+insert into public.quotes (company_id, client_id, title, change_order_for) values (:'co', :'client', 'Change order: leave the fence', :'job') returning id as credit \gset
+insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'credit', 'Leave the fence standing (credit)', 1, 'ea', -800);
 insert into public.quotes (company_id, client_id, title, change_order_for) values (:'co', :'client', 'Change order: start a week later', :'job') returning id as zero \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'zero', 'Start date moves one week later', 1, 'ea', 0);
 update public.quotes set status = 'sent', sent_at = now() where id in (:'credit', :'zero');
-begin;
-set local role authenticated;
-select set_config('request.jwt.claims', '{"sub": "a0c00000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
-select tpo_co.expect_error(format('update public.quotes set status = ''approved'', approved_at = now() where id = %L', :'credit'), 'an unsigned credit isn''t finalized', '%customer signs this exact version%');
-select tpo_co.expect_error(format('update public.quotes set status = ''approved'', approved_at = now() where id = %L', :'zero'), 'nor an unsigned $0 change', '%customer signs this exact version%');
-commit;
-select tpo_co.check(tpo_co.customer_signs(:'co', :'credit', public.quote_fingerprint(:'credit')), 'the customer signs the credit');
-select tpo_co.check(tpo_co.customer_signs(:'co', :'zero', public.quote_fingerprint(:'zero')), 'and the $0 change');
-select tpo_co.check((select coalesce(sum(round(quantity * unit_price, 2)), 0) from public.job_line_items where job_id = :'job') = 18000 + 2500 - 800,
-  'the job is the original agreement plus the signed changes, credit included, each once');
-
--- ===== An ordinary quote: the office's manual approval and countersignature still work =========
-begin;
-set local role authenticated;
-select set_config('request.jwt.claims', '{"sub": "a0c00000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
-insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'Shed demolition') returning id as shed \gset
-insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'shed', 'Demolish shed', 1, 'ea', 1500);
-update public.quotes set status = 'approved', approved_at = now(), approval = '{"name": "Test Owner", "method": "manual"}' where id = :'shed';
-select tpo_co.check((select status from public.quotes where id = :'shed') = 'approved', 'a quote (not a change order) can still be marked approved by the office');
-insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'Fence removal') returning id as fence \gset
-insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'fence', 'Remove fence', 1, 'ea', 900);
-update public.quotes set status = 'sent', sent_at = now() where id = :'fence';
-commit;
-select tpo_co.expect_error(format('select public.approve_hub_quote(%L, %L, %L, jsonb_build_object(%L, %L, %L, now()))', :'co', :'fence', '{}', 'name', 'Test Customer', 'signed_at'),
-  'an ordinary quote can''t be accepted with a typed name alone either', '%drawn signature is needed%');
-select tpo_co.check(tpo_co.customer_signs(:'co', :'fence', public.quote_fingerprint(:'fence')), 'the customer signs a quote on their link, drawing their signature');
-begin;
-set local role authenticated;
-select set_config('request.jwt.claims', '{"sub": "a0c00000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
-update public.quotes set approval = approval || '{"company": {"name": "Test Owner", "signature": "data:image/png;base64,AAAA"}}' where id = :'fence';
-select tpo_co.check((select approval -> 'company' ->> 'name' = 'Test Owner' and approval ->> 'name' = 'Test Customer' from public.quotes where id = :'fence'), 'and the business countersigns under it');
-commit;
+select tpo_co.expect_error(format('update public.quotes set status = ''approved'' where id = %L', :'credit'), 'an unsigned credit isn''t finalized', '%customer signs this exact version%');
+select tpo_co.expect_error(format('update public.quotes set status = ''approved'' where id = %L', :'zero'), 'nor an unsigned $0 change', '%customer signs this exact version%');
+select tpo_co.check(tpo_co.hub_signs(:'co', :'credit', public.quote_fingerprint(:'credit')), 'the customer signs the credit on their link');
+select tpo_co.check((tpo_co.in_person_signs(:'zero', public.quote_fingerprint(:'zero')) ->> 'total')::numeric = 0, 'and the $0 change in person');
+select tpo_co.check((select coalesce(sum(round(quantity * unit_price, 2)), 0) from public.job_line_items where job_id = :'job') = 18950 + 2500 - 800,
+  'the job is the original signed agreement plus the signed changes, credit included, each once');
 
 -- ===== Deleting the job or the company still works =============================================
-insert into public.jobs (company_id, client_id, title) values (:'co', :'client', 'Other job') returning id as job2 \gset
+insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'Other job quote') returning id as q2 \gset
+insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'q2', 'Other', 1, 'ea', 100);
+select public.convert_quote_to_job(planet_test.sign(:'q2')) as job2 \gset
 insert into public.quotes (company_id, client_id, title, change_order_for) values (:'co', :'client', 'Change order: other', :'job2') returning id as co2 \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'co2', 'Extra', 1, 'ea', 100);
-update public.quotes set status = 'sent', sent_at = now() where id = :'co2';
-select tpo_co.check(tpo_co.customer_signs(:'co', :'co2', public.quote_fingerprint(:'co2')), 'a change order on another job is signed');
+select planet_test.sign(:'co2');
 delete from public.jobs where id = :'job2';
 select tpo_co.check((select change_order_for is null and status = 'converted' from public.quotes where id = :'co2'), 'deleting its job leaves the signed change order, unlinked');
-
 delete from public.companies where id = :'co';
-select tpo_co.check(not exists (select 1 from public.quotes where company_id = :'co'), 'deleting the company removes its signed change orders too');
+select tpo_co.check(not exists (select 1 from public.quotes where company_id = :'co'), 'deleting the company removes its signed agreements too');
 \o
-\echo 'All Planet Ops change-order signature tests passed.'
+\echo 'All Planet Ops signature tests passed.'

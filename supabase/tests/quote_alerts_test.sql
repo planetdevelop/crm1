@@ -87,14 +87,14 @@ commit;
 select tqa.check(tqa.count(:'big') = 6, 'sending it again after the changes tells nobody again');
 set role service_role;
 update public.quotes set status = 'changes_requested' where id = :'big';
-select tqa.check(public.approve_hub_quote(:'co', :'big', null, '{"name": "Lee Lopez"}'), 'Lee approves it');
+select tqa.check(public.approve_hub_quote(:'co', :'big', null, planet_test.approval(:'big', '{"name": "Lee Lopez"}')), 'Lee approves it');
 reset role;
 select tqa.check(tqa.count(:'big') = 9 and tqa.told(:'big') like '%ora@oak.test: Lee Lopez approved quote #% for $25,000.00 | New roof.%',
   'asking for changes twice tells once; approving tells them');
 begin;
 set local role authenticated;
 select tqa.as_user(:'oz');
-select public.convert_quote_to_job(:'big');
+select public.convert_quote_to_job(planet_test.sign(:'big'));
 commit;
 select tqa.check(tqa.count(:'big') = 9, 'making it a job isn''t approving it again');
 
@@ -105,7 +105,7 @@ select tqa.as_user(:'oz');
 insert into public.quotes (company_id, client_id, title) values (:'co', :'lee', 'Barn roof') returning id as barn \gset
 insert into public.quote_line_items (company_id, quote_id, name, unit_price) values (:'co', :'barn', 'Roof', 12000);
 update public.quotes set status = 'sent', sent_at = now() where id = :'barn';
-select public.convert_quote_to_job(:'barn');
+select public.convert_quote_to_job(planet_test.sign(:'barn'));
 commit;
 select tqa.check((select string_agg(event, ',' order by event) = 'approved,sent' from public.quote_alerts where quote_id = :'barn') and tqa.told(:'barn') like '%ada@oak.test: Lee Lopez approved quote #% for $12,000.00 | Barn roof.%',
   'a quote converted straight from sent tells them it was approved');
@@ -127,11 +127,12 @@ select tqa.check(tqa.told(:'shop') = (select format(
 begin;
 set local role authenticated;
 select tqa.as_user(:'sam');
-update public.quotes set status = 'approved', approved_at = now() where id = :'shop';
+select planet_test.sign(:'shop');
 commit;
-select tqa.check(tqa.count(:'shop') = 4 and tqa.told(:'shop') like '%ada@oak.test: Lee Lopez approved quote #% for $18,000.00 |%ora@oak.test: Lee Lopez approved quote #% for $18,000.00 |%'
-  and tqa.told(:'shop') not like '%sam@oak.test: Lee Lopez approved%',
-  'the salesperson marking it approved isn''t told; the owner and the admin are');
+-- Planet Ops: only the customer's signature accepts it (20261120000100), so nobody on the team did it
+-- themselves: the owner, the admin and the salesperson are all told.
+select tqa.check(tqa.count(:'shop') = 5 and tqa.told(:'shop') like '%ada@oak.test: Lee Lopez approved quote #% for $18,000.00 |%ora@oak.test: Lee Lopez approved quote #% for $18,000.00 |%sam@oak.test: Lee Lopez approved quote #% for $18,000.00 |%',
+  'when the customer signs, the owner, the admin and the salesperson are told');
 select tqa.check((select count(*) = 2 from public.quote_alerts where quote_id = :'shop'), 'and each event is still kept once');
 
 -- ===== Only the database writes them ===========================================================

@@ -36,8 +36,8 @@ begin
   if p_materials > 0 then
     insert into public.quote_line_items (company_id, quote_id, name, quantity, unit_price, taxable, sort) values (p_company, v_quote, 'Materials', 1, p_materials, true, 1);
   end if;
-  update public.quotes set status = 'approved', approved_at = now() where id = v_quote;
-  return public.convert_quote_to_job(v_quote);
+  perform planet_test.sign(v_quote);
+  return public.convert_quote_to_job(planet_test.sign(v_quote));
 end $$;
 grant execute on all functions in schema pts to authenticated, service_role;
 
@@ -89,7 +89,7 @@ select pts.check((select sum(tax_amount) = 40 and sum(subtotal) = 1000 from publ
 insert into public.quotes (company_id, client_id, title, tax_rate, discount_amount) values (:'co', :'gus', 'Arbor', 0.10, 300) returning id as arbor_quote \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit_price, taxable) values
   (:'co', :'arbor_quote', 'Cedar', 1, 1000, true), (:'co', :'arbor_quote', 'Labour', 1, 500, false);
-select public.convert_quote_to_job(:'arbor_quote') as arbor \gset
+select public.convert_quote_to_job(planet_test.sign(:'arbor_quote')) as arbor \gset
 select public.create_invoice_for_job(:'arbor', 'progress', 600) as arbor_progress \gset
 select pts.check(pts.figures(:'arbor_progress') = '600.00/40.00/640.00', 'the taxable share counts the job''s discount');
 select public.create_invoice_for_job(:'arbor') as arbor_final \gset
@@ -141,7 +141,7 @@ select pts.check(pts.figures(:'old_final') = '300.00/0.00/300.00' and pts.figure
 insert into public.quotes (company_id, client_id, title, tax_rate, discount_amount) values (:'co', :'gus', 'Old arbor', 0.10, 300) returning id as oa_quote \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit_price, taxable) values
   (:'co', :'oa_quote', 'Cedar', 1, 1000, true), (:'co', :'oa_quote', 'Labour', 1, 500, false);
-select public.convert_quote_to_job(:'oa_quote') as oa \gset
+select public.convert_quote_to_job(planet_test.sign(:'oa_quote')) as oa \gset
 select public.create_invoice_for_job(:'oa', 'progress', 600) as oa_p1 \gset
 delete from public.invoice_line_items where invoice_id = :'oa_p1' and not taxable;
 update public.invoice_line_items set unit_price = 600 where invoice_id = :'oa_p1';

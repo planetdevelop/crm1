@@ -56,8 +56,8 @@ insert into public.promo_codes (company_id, code, kind, value, once_per_client) 
 
 -- ===== A job whose quote took SPRING15 ==========================================================
 select opj.quote(:'co', :'ivy', 'Patio', 'SPRING15') as patio_quote \gset
-update public.quotes set status = 'approved', approved_at = now() where id = :'patio_quote';
-select public.convert_quote_to_job(:'patio_quote') as patio \gset
+select planet_test.sign(:'patio_quote');
+select public.convert_quote_to_job(planet_test.sign(:'patio_quote')) as patio \gset
 update public.jobs set retainage_pct = 10 where id = :'patio';
 select public.create_invoice_for_job(:'patio', 'deposit') as deposit \gset
 select public.create_invoice_for_job(:'patio', 'progress', 400) as progress \gset
@@ -97,7 +97,7 @@ select opj.expect_error(format('select public.apply_promo_code(%L, %L, %L)', 'in
 select opj.quote(:'co', :'ivy', 'Walkway', 'SPRING15') as walkway_quote \gset
 commit;
 set role service_role;
-select opj.check(public.approve_hub_quote(:'co', :'walkway_quote', null, '{"name": "Ivy Inlet"}'), 'Ivy approves a quote with SPRING15 on it');
+select opj.check(public.approve_hub_quote(:'co', :'walkway_quote', null, planet_test.approval(:'walkway_quote', '{"name": "Ivy Inlet"}')), 'Ivy approves a quote with SPRING15 on it');
 select public.hub_deposit_invoice(:'co', :'walkway_quote') as walkway_deposit \gset
 select opj.check((select job_id is null and status = 'sent' and total = 500 from public.invoices where id = :'walkway_deposit'), 'its deposit invoice has no job yet');
 select opj.expect_error(format('select public.apply_promo_code(%L, %L, %L)', 'invoice', :'walkway_deposit', 'TENOFF'),
@@ -109,8 +109,8 @@ begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "d4440000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
 select opj.quote(:'co', :'jon', 'Steps', null) as steps_quote \gset
-update public.quotes set status = 'approved', approved_at = now() where id = :'steps_quote';
-select public.convert_quote_to_job(:'steps_quote') as steps \gset
+select planet_test.sign(:'steps_quote');
+select public.convert_quote_to_job(planet_test.sign(:'steps_quote')) as steps \gset
 select public.create_invoice_for_job(:'steps', 'deposit') as steps_deposit \gset
 update public.invoices set status = 'sent' where id = :'steps_deposit';
 commit;

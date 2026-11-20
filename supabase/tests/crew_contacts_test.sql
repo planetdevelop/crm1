@@ -44,6 +44,7 @@ insert into public.requests (company_id, client_id, property_id, title) values (
 insert into public.requests (company_id, client_id, property_id, title) values (:'co', :'c2', :'p2', 'Parking lot') returning id as r2 \gset
 insert into public.quotes (company_id, client_id, title) values (:'co', :'c1', 'Driveway') returning id as q1 \gset
 insert into public.quotes (company_id, client_id, title) values (:'co', :'c2', 'Parking lot') returning id as q2 \gset
+select planet_test.sign(:'q1');
 insert into public.jobs (company_id, client_id, property_id, quote_id, title) values (:'co', :'c1', :'p1', :'q1', 'Seal the drive') returning id as j1 \gset
 insert into public.jobs (company_id, client_id, property_id, title) values (:'co', :'c2', :'p2', 'Patch the lot') returning id as j2 \gset
 insert into public.invoices (company_id, client_id, job_id) values (:'co', :'c1', :'j1') returning id as i1 \gset

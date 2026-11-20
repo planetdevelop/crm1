@@ -331,7 +331,7 @@ update public.quotes set range_low = 3100, range_high = 3600, range_sent_at = no
 -- F: signed already.
 insert into public.quotes (company_id, client_id, title, roof_package_id) values (:'co', :'client', 'Barn roof', :'pkg') returning id as quote_f \gset
 update public.quotes set range_low = 9100, range_high = 10500, range_sent_at = now(), status = 'sent', sent_at = now() where id = :'quote_f';
-update public.quotes set status = 'approved', approved_at = now(), approval = '{"name": "Jo Homeowner", "method": "in_person"}' where id = :'quote_f';
+select planet_test.sign(:'quote_f');
 -- G: the client asked a question about the range first.
 insert into public.quotes (company_id, client_id, title, roof_package_id) values (:'co', :'client', 'Cabin roof', :'pkg') returning id as quote_g \gset
 update public.quotes set range_low = 11200, range_high = 12900, range_sent_at = now(), status = 'sent', sent_at = now() where id = :'quote_g';

@@ -147,8 +147,8 @@ select tps.check((select payment_schedule -> 1 ->> 'on' = '2027-03-01' from publ
 select tps.check(public.quote_send_problem(:'copy') = 'Payment 2 needs its date.' and public.quote_send_problem(:'patio') is null,
   'the server is told a copy can''t be sent until that day is set');
 select tps.check(tps.error_of(format($q$update public.quotes set status = 'sent', sent_at = now() where id = %L$q$, :'copy')) = '22023: Payment 2 needs its date.'
-  and tps.error_of(format($q$update public.quotes set status = 'approved', approved_at = now() where id = %L$q$, :'copy')) = '22023: Payment 2 needs its date.',
-  'and the copy can''t be marked sent or approved without it');
+  and tps.error_of(format($q$update public.quotes set status = 'approved', approved_at = now() where id = %L$q$, :'copy')) like '22023:%customer signs this exact version%',
+  'and the copy can''t be marked sent without it (nor approved by the office at all: only the customer''s signature accepts it)');
 -- A day already gone can't be sent; set to one still to come, it can.
 update public.quotes set payment_schedule = jsonb_set(payment_schedule, '{1,on}', to_jsonb((private.company_today(:'co') - 1)::text)) where id = :'copy';
 select tps.check(tps.error_of(format($q$update public.quotes set status = 'sent', sent_at = now() where id = %L$q$, :'copy'))
@@ -162,12 +162,12 @@ select tps.check((select status = 'sent' from public.quotes where id = :'copy'),
 select tps.check(tps.error_of(format($q$update public.quotes set payment_schedule = jsonb_set(payment_schedule, '{1,on}', '"2020-01-01"') where id = %L$q$, :'copy')) like '22023: Payment 2 is due on Jan 1, 2020, which has already passed.%',
   'and a quote that''s with the client can''t be given a day already gone');
 -- Approving gives "30 days after they approve" its day, from today where the company is.
-update public.quotes set status = 'approved', approved_at = now() where id = :'copy';
+select planet_test.sign(:'copy');
 select tps.check((select approval -> 'payment_schedule' -> 2 ->> 'on' = (private.company_today(:'co') + 30)::text and approval -> 'payment_schedule' -> 2 ->> 'after' = '30'
                     and approval -> 'payment_schedule' -> 1 ->> 'on' = (private.company_today(:'co') + 5)::text
                     from public.quotes where id = :'copy'),
   'approving works out the day of a payment due 30 days after, and keeps it with the approval');
-select public.convert_quote_to_job(:'copy') as copy_job \gset
+select public.convert_quote_to_job(planet_test.sign(:'copy')) as copy_job \gset
 select tps.check((select due = 'date' and due_on = private.company_today(:'co') + 30 from public.job_installments where job_id = :'copy_job' and position = 3),
   'so the job''s payment has its date');
 select tps.check(private.schedule_problem('[{"kind": "percent", "value": 50, "due": "date", "after": 0}, {"kind": "rest", "due": "work_done"}]', 1000) = 'Payment 1 needs a number of days, 1 to 365.'
@@ -198,7 +198,7 @@ commit;
 
 set role service_role;
 -- What the release before this one does: approve_hub_quote, then hub_deposit_invoice with two arguments.
-select tps.check(public.approve_hub_quote(:'co', :'back', null, '{"name": "Erin Estes"}'), 'Erin approves it in the Client Hub');
+select tps.check(public.approve_hub_quote(:'co', :'back', null, planet_test.approval(:'back', '{"name": "Erin Estes"}')), 'Erin approves it in the Client Hub');
 select public.hub_deposit_invoice(:'co', :'back') as back_deposit \gset
 reset role;
 select tps.check(tps.kept(:'back') = '200.00 approval, 200.00 date, 200.00 work_starts, 200.00 by_hand, 200.00 work_done',
@@ -210,7 +210,7 @@ set local role authenticated;
 select tps.as_user(:'olly');
 select tps.check(tps.error_of(format($q$update public.quotes set payment_schedule = '[{"kind": "rest", "due": "work_done"}]' where id = %L$q$, :'back'))
     = '22023: This quote was approved, so its payment schedule stays as it was signed.', 'a signed schedule stays as it was signed');
-select public.convert_quote_to_job(:'back') as job \gset
+select public.convert_quote_to_job(planet_test.sign(:'back')) as job \gset
 commit;
 select tps.check(tps.rows(:'job') = '1:200.00:approval:deposit/200.00/sent, 2:200.00:date:-, 3:200.00:work_starts:-, 4:200.00:by_hand:-, 5:200.00:work_done:-',
   'the job gets the payments, the deposit invoice the first of them');
@@ -299,10 +299,9 @@ select id as erin from public.clients where display_name = 'Erin Estes' \gset
 select public.merge_company_settings(:'co', '{"payment_schedule": {"send": true}}');
 -- $1,000 of taxed work at 10%: $1,100. A third when they approve, a third as the work starts, the rest when it's done.
 select tps.quote(:'co', :'erin', 'Pergola', 1000, 0.10) as pergola \gset
-update public.quotes set payment_schedule = '[{"kind": "percent", "value": 30, "due": "approval"}, {"kind": "percent", "value": 30, "due": "work_starts"}, {"kind": "rest", "due": "work_done"}]',
-  status = 'approved', approved_at = now()
+update public.quotes set payment_schedule = '[{"kind": "percent", "value": 30, "due": "approval"}, {"kind": "percent", "value": 30, "due": "work_starts"}, {"kind": "rest", "due": "work_done"}]'
  where id = :'pergola';
-select public.convert_quote_to_job(:'pergola') as pjob \gset
+select public.convert_quote_to_job(planet_test.sign(:'pergola')) as pjob \gset
 -- The office approved it, so there's no deposit invoice until they make it (as before); then it's the first payment.
 select public.create_invoice_for_job(:'pjob', 'deposit') as pdeposit \gset
 commit;
@@ -344,10 +343,9 @@ select tps.as_user(:'olly');
 select tps.quote(:'co', :'erin', 'Fire pit', 500) as pit \gset
 update public.quotes set payment_schedule = jsonb_build_array(
     jsonb_build_object('kind', 'percent', 'value', 50, 'due', 'date', 'on', (private.company_today(:'co') - 1)::text),
-    jsonb_build_object('kind', 'rest', 'due', 'work_done')),
-  status = 'approved', approved_at = now()
+    jsonb_build_object('kind', 'rest', 'due', 'work_done'))
  where id = :'pit';
-select public.convert_quote_to_job(:'pit') as pitjob \gset
+select public.convert_quote_to_job(planet_test.sign(:'pit')) as pitjob \gset
 select public.create_invoice_for_job(:'pitjob') as pitfinal \gset
 commit;
 set role service_role;
@@ -392,8 +390,9 @@ begin;
 set local role authenticated;
 select tps.as_user(:'olly');
 select tps.quote(:'co', :'ava', 'Walkway', 600) as walk \gset
-update public.quotes set payment_schedule = '[{"kind": "percent", "value": 50, "due": "work_starts"}, {"kind": "rest", "due": "work_done"}]', status = 'approved', approved_at = now() where id = :'walk';
-select public.convert_quote_to_job(:'walk') as wjob \gset
+update public.quotes set payment_schedule = '[{"kind": "percent", "value": 50, "due": "work_starts"}, {"kind": "rest", "due": "work_done"}]' where id = :'walk';
+select planet_test.sign(:'walk');
+select public.convert_quote_to_job(planet_test.sign(:'walk')) as wjob \gset
 update public.jobs set autopay = true where id = :'wjob';
 commit;
 insert into public.visits (company_id, job_id, title, scheduled_on, status) values (:'co', :'wjob', 'Walkway', private.company_today(:'co'), 'in_progress');
@@ -415,8 +414,9 @@ begin;
 set local role authenticated;
 select tps.as_user(:'olly');
 select tps.quote(:'co', :'erin', 'Steps', 400) as steps \gset
-update public.quotes set payment_schedule = '[{"kind": "percent", "value": 50, "due": "by_hand"}, {"kind": "rest", "due": "work_starts"}]', status = 'approved', approved_at = now() where id = :'steps';
-select public.convert_quote_to_job(:'steps') as sjob \gset
+update public.quotes set payment_schedule = '[{"kind": "percent", "value": 50, "due": "by_hand"}, {"kind": "rest", "due": "work_starts"}]' where id = :'steps';
+select planet_test.sign(:'steps');
+select public.convert_quote_to_job(planet_test.sign(:'steps')) as sjob \gset
 select public.create_invoice_for_job(:'sjob', 'progress', 400) as sall \gset
 commit;
 insert into public.visits (company_id, job_id, title, scheduled_on, status) values (:'co', :'sjob', 'Steps', private.company_today(:'co'), 'completed');
@@ -444,17 +444,15 @@ select tps.as_user(:'olly');
 select tps.quote(:'co', :'erin', 'Cursed deck', 900) as cursed \gset
 update public.quotes set payment_schedule = jsonb_build_array(
     jsonb_build_object('kind', 'percent', 'value', 50, 'due', 'date', 'on', private.company_today(:'co')::text),
-    jsonb_build_object('kind', 'rest', 'due', 'work_done')),
-  status = 'approved', approved_at = now()
+    jsonb_build_object('kind', 'rest', 'due', 'work_done'))
  where id = :'cursed';
-select public.convert_quote_to_job(:'cursed') as cursed_job \gset
+select public.convert_quote_to_job(planet_test.sign(:'cursed')) as cursed_job \gset
 select tps.quote(:'co', :'erin', 'Good deck', 700) as good \gset
 update public.quotes set payment_schedule = jsonb_build_array(
     jsonb_build_object('kind', 'percent', 'value', 50, 'due', 'date', 'on', private.company_today(:'co')::text),
-    jsonb_build_object('kind', 'rest', 'due', 'work_done')),
-  status = 'approved', approved_at = now()
+    jsonb_build_object('kind', 'rest', 'due', 'work_done'))
  where id = :'good';
-select public.convert_quote_to_job(:'good') as good_job \gset
+select public.convert_quote_to_job(planet_test.sign(:'good')) as good_job \gset
 commit;
 set role service_role;
 select tps.check(public.make_due_installments() = 1, 'with one payment that can''t be made, the hourly run still makes the other');
@@ -495,8 +493,9 @@ select tps.as_user(:'pat');
 select public.merge_company_settings(:'co', '{"payment_schedule": {"send": true}}');
 select tps.as_user(:'olly');
 select tps.quote(:'co', :'erin', 'Gazebo', 800) as gazebo \gset
-update public.quotes set payment_schedule = '[{"kind": "percent", "value": 50, "due": "work_starts"}, {"kind": "rest", "due": "work_done"}]', status = 'approved', approved_at = now() where id = :'gazebo';
-select public.convert_quote_to_job(:'gazebo') as gjob \gset
+update public.quotes set payment_schedule = '[{"kind": "percent", "value": 50, "due": "work_starts"}, {"kind": "rest", "due": "work_done"}]' where id = :'gazebo';
+select planet_test.sign(:'gazebo');
+select public.convert_quote_to_job(planet_test.sign(:'gazebo')) as gjob \gset
 commit;
 insert into public.visits (company_id, job_id, title, scheduled_on) values (:'co', :'gjob', 'Gazebo', private.company_today(:'co')) returning id as gv \gset
 insert into public.visit_assignees (company_id, visit_id, user_id) values (:'co', :'gv', :'cruz');
@@ -547,11 +546,13 @@ begin;
 set local role authenticated;
 select tps.as_user(:'olly');
 select tps.quote(:'co', :'erin', 'Arbor', 600) as arbor \gset
-update public.quotes set payment_schedule = '[{"kind": "percent", "value": 50, "due": "work_starts"}, {"kind": "rest", "due": "work_done"}]', status = 'approved', approved_at = now() where id = :'arbor';
-select public.convert_quote_to_job(:'arbor') as ajob \gset
+update public.quotes set payment_schedule = '[{"kind": "percent", "value": 50, "due": "work_starts"}, {"kind": "rest", "due": "work_done"}]' where id = :'arbor';
+select planet_test.sign(:'arbor');
+select public.convert_quote_to_job(planet_test.sign(:'arbor')) as ajob \gset
 select tps.quote(:'co', :'erin', 'Trellis', 500) as trellis \gset
-update public.quotes set payment_schedule = '[{"kind": "percent", "value": 50, "due": "work_starts"}, {"kind": "rest", "due": "work_done"}]', status = 'approved', approved_at = now() where id = :'trellis';
-select public.convert_quote_to_job(:'trellis') as tjob \gset
+update public.quotes set payment_schedule = '[{"kind": "percent", "value": 50, "due": "work_starts"}, {"kind": "rest", "due": "work_done"}]' where id = :'trellis';
+select planet_test.sign(:'trellis');
+select public.convert_quote_to_job(planet_test.sign(:'trellis')) as tjob \gset
 commit;
 insert into public.visits (company_id, job_id, title, scheduled_on, status) values (:'co', :'ajob', 'Arbor', private.company_today(:'co'), 'in_progress'), (:'co', :'tjob', 'Trellis', private.company_today(:'co'), 'in_progress');
 begin;
@@ -580,8 +581,9 @@ begin;
 set local role authenticated;
 select tps.as_user(:'olly');
 select tps.quote(:'co', :'erin', 'Fence', 900) as fence \gset
-update public.quotes set payment_schedule = '[{"kind": "amount", "value": 300, "due": "approval"}, {"kind": "amount", "value": 300, "due": "work_starts"}, {"kind": "rest", "due": "work_done"}]', status = 'approved', approved_at = now() where id = :'fence';
-select public.convert_quote_to_job(:'fence') as fjob \gset
+update public.quotes set payment_schedule = '[{"kind": "amount", "value": 300, "due": "approval"}, {"kind": "amount", "value": 300, "due": "work_starts"}, {"kind": "rest", "due": "work_done"}]' where id = :'fence';
+select planet_test.sign(:'fence');
+select public.convert_quote_to_job(planet_test.sign(:'fence')) as fjob \gset
 select public.create_invoice_for_job(:'fjob', 'deposit') as fdeposit \gset
 select tps.check(tps.error_of(format($q$update public.jobs set billing_mode = 'per_visit' where id = %L$q$, :'fjob'))
     = '22023: This job''s payment schedule still has payments to come: Payment 2 of 3 ($300.00), Payment 3 of 3 ($300.00). Billing it after each visit would bill them twice, so drop them from the job first',
@@ -608,8 +610,9 @@ begin;
 set local role authenticated;
 select tps.as_user(:'olly');
 select tps.quote(:'co', :'erin', 'Old fence', 400) as oldfence \gset
-update public.quotes set payment_schedule = '[{"kind": "percent", "value": 50, "due": "work_starts"}, {"kind": "rest", "due": "work_done"}]', status = 'approved', approved_at = now() where id = :'oldfence';
-select public.convert_quote_to_job(:'oldfence') as ojob \gset
+update public.quotes set payment_schedule = '[{"kind": "percent", "value": 50, "due": "work_starts"}, {"kind": "rest", "due": "work_done"}]' where id = :'oldfence';
+select planet_test.sign(:'oldfence');
+select public.convert_quote_to_job(planet_test.sign(:'oldfence')) as ojob \gset
 commit;
 alter table public.jobs disable trigger keeps_schedule;
 update public.jobs set billing_mode = 'per_visit' where id = :'ojob';

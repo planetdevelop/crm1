@@ -64,7 +64,7 @@ select t3.check((select role from public.memberships where user_id = 'd0000000-0
 insert into public.clients (company_id, display_name) values (:'co', 'Town Square HOA') returning id as client \gset
 insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'Parking lot') returning id as quote \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit_price) values (:'co', :'quote', 'Overlay', 100, 20);
-select public.convert_quote_to_job(:'quote') as job \gset
+select public.convert_quote_to_job(planet_test.sign(:'quote')) as job \gset
 select t3.check((select contract_total from public.job_financials where job_id = :'job') = 2000, 'a job''s total is kept from its line items');
 insert into public.job_line_items (company_id, job_id, name, quantity, unit_price) values (:'co', :'job', 'Striping', 1, 250);
 select t3.check((select contract_total from public.job_financials where job_id = :'job') = 2250, 'adding a line item updates the total');

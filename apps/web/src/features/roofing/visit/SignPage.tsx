@@ -167,6 +167,10 @@ function SignScreen({ quote, takeoff }: { quote: EstimateQuote; takeoff: Takeoff
         ? "The estimate didn't load"
         : templatePending || !details.data
           ? "Getting the estimate…"
+          : version.error
+            ? "The estimate didn't load"
+            : !version.data
+              ? "Getting the estimate…"
           : offers && !option
             ? "Choose their option first"
             : terms.error
@@ -259,7 +263,7 @@ function SignScreen({ quote, takeoff }: { quote: EstimateQuote; takeoff: Takeoff
   };
 
   const submit = () => {
-    if (missing || sign.isPending || !signature || !contract) return;
+    if (missing || sign.isPending || !signature || !contract || !version.data) return;
     const fresh = drawing && drawn ? drawn : undefined;
     sign.mutate(
       {
@@ -270,7 +274,8 @@ function SignScreen({ quote, takeoff }: { quote: EstimateQuote; takeoff: Takeoff
         email_copy: canEmail && emailCopy,
         ...(option ? { option_id: option.id } : {}),
         expected_total: totals.total,
-        ...(version.data ? { fingerprint: version.data } : {}),
+        // Planet Ops: always the version on the screen; the server refuses a signature without it.
+        fingerprint: version.data!,
         ...(contract.hash ? { sections_hash: contract.hash } : {}),
         ...(initials && asking.length ? { initials } : {}),
       },

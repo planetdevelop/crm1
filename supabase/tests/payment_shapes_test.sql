@@ -69,12 +69,15 @@ begin
     into v_rows from jsonb_array_elements(p_shape) with ordinality e (value, i);
   update public.quotes set payment_schedule = v_rows, status = 'sent', sent_at = now() where id = v_quote;
   if p_hub then
-    perform public.approve_hub_quote(p_company, v_quote, null, '{"name": "Erin Estes"}');
+    -- The client hub's server calls these as itself, never as someone signed in.
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform public.approve_hub_quote(p_company, v_quote, null, planet_test.approval(v_quote, '{"name": "Erin Estes"}'));
     perform public.hub_deposit_invoice(p_company, v_quote);
+    perform tpg.as_user(p_office);
   else
-    update public.quotes set status = 'approved', approved_at = now() where id = v_quote;
+    perform planet_test.sign(v_quote);
   end if;
-  v_job := public.convert_quote_to_job(v_quote);
+  v_job := public.convert_quote_to_job(planet_test.sign(v_quote));
   select * into q from public.quotes where id = v_quote;
   insert into public.visits (company_id, job_id, title, scheduled_on) values (p_company, v_job, 'First day', v_today) returning id into v_v1;
   insert into public.visits (company_id, job_id, title, scheduled_on) values (p_company, v_job, 'Second day', v_today + 1) returning id into v_v2;
@@ -233,8 +236,9 @@ begin
   perform tpg.as_user(p_office);
   insert into public.quotes (company_id, client_id, title, tax_rate) values (p_company, p_client, 'Before', p_rate) returning id into v_quote;
   insert into public.quote_line_items (company_id, quote_id, name, unit_price, taxable) values (p_company, v_quote, 'Work', p_price, p_rate > 0);
-  update public.quotes set payment_schedule = p_shape, status = 'approved', approved_at = now() where id = v_quote;
-  v_job := public.convert_quote_to_job(v_quote);
+  update public.quotes set payment_schedule = p_shape where id = v_quote;
+  perform planet_test.sign(v_quote);
+  v_job := public.convert_quote_to_job(planet_test.sign(v_quote));
   insert into public.visits (company_id, job_id, title, scheduled_on) values (p_company, v_job, 'The day', private.company_today(p_company));
   return v_job;
 end $$;

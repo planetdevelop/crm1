@@ -443,7 +443,7 @@ select t_options.check((select total = 5000 and total = t_options.counted(:'qlm'
   'offering another package keeps option 1 at $5,000, with the Good roof picked');
 commit;
 set role service_role;
-select t_options.check(public.approve_hub_quote(:'co', :'ql', array[:'ql_good']::uuid[], '{"name": "Dana Homeowner"}', null, 6000),
+select t_options.check(public.approve_hub_quote(:'co', :'ql', array[:'ql_good']::uuid[], planet_test.approval(:'ql', '{"name": "Dana Homeowner"}'), null, 6000),
   'the client approves the old quote online with the Good roof, at the $6,000 the Client Hub shows');
 reset role;
 select t_options.check((select status = 'approved' and total = 6000 and (approval ->> 'total')::numeric = 6000 from public.quotes where id = :'ql'), 'and it''s approved at that price');
@@ -455,7 +455,7 @@ select set_config('request.jwt.claims', '{"sub": "c0de0000-0000-0000-0000-000000
 insert into public.quote_options (company_id, quote_id, package_id, name, sort) values (:'co', :'qa', :'pkg_temp', 'Seasonal special', 2) returning id as oa3 \gset
 insert into public.quote_line_items (company_id, quote_id, option_id, name, unit_price) values (:'co', :'qa', :'oa3', 'Seasonal roof', 4500);
 select t_options.expect_error(format('insert into public.quote_options (company_id, quote_id, name) values (%L, %L, %L)', :'co', :'qa', 'A fourth'), 'a quote offers up to 3 options');
-update public.quotes set status = 'approved', approved_at = now(), approval = '{"name": "Dana Homeowner", "method": "manual"}' where id = :'qa';
+select planet_test.sign(:'qa');
 select t_options.expect_error(format('update public.quote_options set name = %L where id = %L', 'Renamed', :'oa1'), 'once it''s approved, its options don''t change');
 select t_options.expect_error(format('delete from public.quote_options where id = %L', :'oa2'), 'or go');
 select t_options.expect_error(format('update public.quotes set option_id = %L where id = %L', :'oa2', :'qa'), 'and the option chosen stays');
@@ -479,8 +479,8 @@ select id as om1 from public.quote_options where quote_id = :'qm' and sort = 0 \
 select id as om2 from public.quote_options where quote_id = :'qm' and sort = 1 \gset
 update public.quotes set option_id = :'om2' where id = :'qm';
 select t_options.expect_error(format('select public.convert_quote_to_job(%L)', :'qm'), 'Mark it approved with the option they chose first');
-update public.quotes set status = 'approved', approved_at = now(), approval = '{"name": "Dana Homeowner", "method": "manual"}' where id = :'qm';
-select public.convert_quote_to_job(:'qm') as qm_job \gset
+select planet_test.sign(:'qm');
+select public.convert_quote_to_job(planet_test.sign(:'qm')) as qm_job \gset
 select t_options.check((select status = 'converted' from public.quotes where id = :'qm')
                    and (select array_agg(name || ' ' || unit_price) = array['Carport metal 3500.00'] from public.job_line_items where job_id = :'qm_job'),
   'the office picks the metal option, then approves it and makes the job, which has only metal''s lines');
@@ -846,21 +846,21 @@ commit;
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "c0de0000-0000-0000-0000-000000000003", "role": "authenticated"}', true);
-select t_options.check(t_options.server_sign(:'qg', '{"name": "Dana Homeowner"}', :'og2', 4000) is null, 'signing for an option that isn''t the one shown signs nothing');
-select t_options.check(t_options.server_sign(:'qg', '{"name": "Dana Homeowner"}', null, 2000) is null, 'nor does signing with no option on a quote that offers them');
-select t_options.check(t_options.server_sign(:'qg', '{"name": "Dana Homeowner"}', :'og1', 2001) is null, 'nor at a total other than the one they saw');
+select t_options.check(t_options.server_sign(:'qg', planet_test.approval(:'qg', '{"name": "Dana Homeowner"}'), :'og2', 4000) is null, 'signing for an option that isn''t the one shown signs nothing');
+select t_options.check(t_options.server_sign(:'qg', planet_test.approval(:'qg', '{"name": "Dana Homeowner"}'), null, 2000) is null, 'nor does signing with no option on a quote that offers them');
+select t_options.check(t_options.server_sign(:'qg', planet_test.approval(:'qg', '{"name": "Dana Homeowner"}'), :'og1', 2001) is null, 'nor at a total other than the one they saw');
 select t_options.check((select status = 'sent' and approval is null from public.quotes where id = :'qg'), 'so it''s still waiting');
-select t_options.server_sign(:'qg', '{"name": "Dana Homeowner", "method": "in_person"}', :'og1', 2000) as signed \gset
+select t_options.server_sign(:'qg', planet_test.approval(:'qg', '{"name": "Dana Homeowner", "method": "in_person"}'), :'og1', 2000) as signed \gset
 select t_options.check((:'signed'::jsonb ->> 'total')::numeric = 2000 and (:'signed'::jsonb ->> 'subtotal')::numeric = 2000
                    and (:'signed'::jsonb ->> 'discount_amount')::numeric = 0 and (:'signed'::jsonb ->> 'tax_amount')::numeric = 0,
   'Dana signs the shingle option on the iPad, and gets the amounts back');
 select t_options.check((select status = 'approved' and approved_at is not null and option_id = :'og1' and approval ->> 'name' = 'Dana Homeowner' and approval ->> 'method' = 'in_person'
                                and (approval ->> 'total')::numeric = 2000
                           from public.quotes where id = :'qg'), 'it''s approved with the amounts (the API makes the estimator its salesperson)');
-select t_options.check(t_options.server_sign(:'qg', '{"name": "Second Tab"}', :'og1', 2000) is null and (select approval ->> 'name' = 'Dana Homeowner' from public.quotes where id = :'qg'),
+select t_options.check(t_options.server_sign(:'qg', planet_test.approval(:'qg', '{"name": "Second Tab"}'), :'og1', 2000) is null and (select approval ->> 'name' = 'Dana Homeowner' from public.quotes where id = :'qg'),
   'signing again changes nothing');
-select t_options.check(t_options.server_sign(:'qh', '{"name": "Dana Homeowner"}', :'og1') is null, 'a quote without options isn''t signed for an option');
-select t_options.check((t_options.server_sign(:'qh', '{"name": "Dana Homeowner"}') ->> 'total')::numeric = 900, 'and is signed as before, without one');
+select t_options.check(t_options.server_sign(:'qh', planet_test.approval(:'qh', '{"name": "Dana Homeowner"}'), :'og1') is null, 'a quote without options isn''t signed for an option');
+select t_options.check((t_options.server_sign(:'qh', planet_test.approval(:'qh', '{"name": "Dana Homeowner"}')) ->> 'total')::numeric = 900, 'and is signed as before, without one');
 select t_options.check((select status = 'approved' and (approval ->> 'total')::numeric = 900 from public.quotes where id = :'qh'), 'at its price');
 commit;
 
@@ -891,14 +891,14 @@ commit;
 
 set role service_role;
 select t_options.expect_error(format('select public.approve_hub_quote(%L, %L, %L, %L)', :'co', :'qi', '{}', '{"name": "Dana Homeowner"}'), 'a quote that offers options needs one picked');
-select t_options.check(not public.approve_hub_quote(:'co', :'qi', '{}', '{"name": "Dana Homeowner"}', :'og2'), 'another quote''s option approves nothing');
-select t_options.check(not public.approve_hub_quote(:'co', :'qi', array[:'guards', :'snow']::uuid[], '{"name": "Dana Homeowner"}', :'oi2', 13199), 'nor a total other than the one the client saw');
+select t_options.check(not public.approve_hub_quote(:'co', :'qi', '{}', planet_test.approval(:'qi', '{"name": "Dana Homeowner"}'), :'og2'), 'another quote''s option approves nothing');
+select t_options.check(not public.approve_hub_quote(:'co', :'qi', array[:'guards', :'snow']::uuid[], planet_test.approval(:'qi', '{"name": "Dana Homeowner"}'), :'oi2', 13199), 'nor a total other than the one the client saw');
 reset role;
 select t_options.check((select status = 'sent' and option_id = :'oi1' and total = 9500 from public.quotes where id = :'qi')
                    and (select not selected from public.quote_line_items where id = :'guards') and (select not selected from public.quote_line_items where id = :'snow'),
   'and neither changes the quote, its option or its add-ons');
 set role service_role;
-select t_options.check(public.approve_hub_quote(:'co', :'qi', array[:'guards', :'snow', :'ice']::uuid[], '{"name": "Dana Homeowner", "ip": "203.0.113.7"}', :'oi2', 13200),
+select t_options.check(public.approve_hub_quote(:'co', :'qi', array[:'guards', :'snow', :'ice']::uuid[], planet_test.approval(:'qi', '{"name": "Dana Homeowner", "ip": "203.0.113.7"}'), :'oi2', 13200),
   'Dana approves the Designer option with gutter guards and snow guards, at $13,200');
 reset role;
 select t_options.check((select status = 'approved' and option_id = :'oi2' and total = 13200 and (approval ->> 'total')::numeric = 13200 and approval ->> 'name' = 'Dana Homeowner'
@@ -907,7 +907,7 @@ select t_options.check((select selected from public.quote_line_items where id = 
                    and (select not selected from public.quote_line_items where id = :'ice') and t_options.others_unselected(:'qi'),
   'with the add-ons from the shared lines and that option only, and the other option''s lines left out');
 set role service_role;
-select t_options.check(public.approve_hub_quote(:'co', :'qn', array[:'gate']::uuid[], '{"name": "Dana Homeowner"}'), 'a quote without options is approved as before');
+select t_options.check(public.approve_hub_quote(:'co', :'qn', array[:'gate']::uuid[], planet_test.approval(:'qn', '{"name": "Dana Homeowner"}')), 'a quote without options is approved as before');
 reset role;
 select t_options.check((select status = 'approved' and total = 2400 from public.quotes where id = :'qn'), 'with the gate she picked');
 
@@ -925,13 +925,13 @@ insert into public.quote_line_items (company_id, quote_id, option_id, name, unit
 update public.quotes set priced_on_site_at = now(), status = 'sent', sent_at = now() where id = :'qsp';
 commit;
 set role service_role;
-select t_options.check(not public.approve_hub_quote(:'co', :'qsp', '{}', '{"name": "Dana Homeowner"}', :'osp2', 6500), 'the shingle price set on site isn''t metal''s');
+select t_options.check(not public.approve_hub_quote(:'co', :'qsp', '{}', planet_test.approval(:'qsp', '{"name": "Dana Homeowner"}'), :'osp2', 6500), 'the shingle price set on site isn''t metal''s');
 reset role;
 select t_options.check((select status = 'sent' and option_id = :'osp1' and priced_on_site_at is not null and total = 6500 from public.quotes where id = :'qsp')
                    and exists (select 1 from public.quote_line_items where quote_id = :'qsp' and name = 'Price adjustment'),
   'so that changes nothing, the price set on site included');
 set role service_role;
-select t_options.check(public.approve_hub_quote(:'co', :'qsp', '{}', '{"name": "Dana Homeowner"}', :'osp2', 15000), 'Dana approves metal online at its own $15,000');
+select t_options.check(public.approve_hub_quote(:'co', :'qsp', '{}', planet_test.approval(:'qsp', '{"name": "Dana Homeowner"}'), :'osp2', 15000), 'Dana approves metal online at its own $15,000');
 reset role;
 select t_options.check((select status = 'approved' and option_id = :'osp2' and priced_on_site_at is null and total = 15000 and (approval ->> 'total')::numeric = 15000
                           from public.quotes where id = :'qsp')
@@ -951,7 +951,7 @@ insert into public.quote_line_items (company_id, quote_id, name, unit_price) val
 update public.quotes set status = 'sent', sent_at = now() where id = :'qco';
 commit;
 set role service_role;
-select t_options.check(public.approve_hub_quote(:'co', :'qco', '{}', jsonb_build_object('name', 'Dana Homeowner', 'signed_at', '2026-05-01T12:00:00Z', 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'seen_fingerprint', public.quote_fingerprint(:'qco')), :'oco2', 2600), 'Dana approves the change order''s copper gutters online');
+select t_options.check(public.approve_hub_quote(:'co', :'qco', '{}', planet_test.approval(:'qco', jsonb_build_object('name', 'Dana Homeowner', 'signed_at', '2026-05-01T12:00:00Z', 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'seen_fingerprint', public.quote_fingerprint(:'qco'))), :'oco2', 2600), 'Dana approves the change order''s copper gutters online');
 reset role;
 select t_options.check((select status = 'converted' and (approval ->> 'total')::numeric = 2600 from public.quotes where id = :'qco')
                    and (select array_agg(name order by name) = array['Copper gutters', 'Downspout'] from public.job_line_items where job_id = :'qm_job' and source_quote_id = :'qco'),
@@ -999,11 +999,11 @@ select t_options.check((select status = 'sent' and option_id = :'opm_best' and p
                    and (select not selected from public.quote_line_items where id = :'skylight'),
   'and nothing changed, the option shown included');
 set role service_role;
-select t_options.check(public.approve_hub_quote(:'co', :'qpm', array[:'skylight']::uuid[], '{"name": "Dana Homeowner"}', :'opm_good', 14500),
+select t_options.check(public.approve_hub_quote(:'co', :'qpm', array[:'skylight']::uuid[], planet_test.approval(:'qpm', '{"name": "Dana Homeowner"}'), :'opm_good', 14500),
   'Good with the skylight meets it, and is approved at $14,500');
 select t_options.expect_error(format('select public.apply_promo_code(%L, %L, %L)', 'quote', :'qpr', 'BIG-1500'), 'with Good shown, the code isn''t for Good''s $10,000');
 select public.apply_promo_code('quote', :'qpr', 'BIG-1500', :'opr_best');
-select t_options.check(public.approve_hub_quote(:'co', :'qpr', '{}', '{"name": "Dana Homeowner"}', :'opr_best', 18500),
+select t_options.check(public.approve_hub_quote(:'co', :'qpr', '{}', planet_test.approval(:'qpr', '{"name": "Dana Homeowner"}'), :'opr_best', 18500),
   'but the client picking Best ($20,000) gets it, and approves Best at $18,500');
 select public.apply_promo_code('quote', :'qpn', 'BIG-1500');
 select t_options.expect_state(format('select public.approve_hub_quote(%L, %L, %L, %L, null, %L)', :'co', :'qpn', '{}', '{"name": "Dana Homeowner"}', 10500), 'CX412',
@@ -1012,7 +1012,7 @@ reset role;
 select t_options.check((select status = 'sent' and total = 14500 from public.quotes where id = :'qpn') and (select selected from public.quote_line_items where id = :'qpn_gate'),
   'and keeps its add-on');
 set role service_role;
-select t_options.check(public.approve_hub_quote(:'co', :'qpn', array[:'qpn_gate']::uuid[], '{"name": "Dana Homeowner"}', null, 14500), 'with the gate it is');
+select t_options.check(public.approve_hub_quote(:'co', :'qpn', array[:'qpn_gate']::uuid[], planet_test.approval(:'qpn', '{"name": "Dana Homeowner"}'), null, 14500), 'with the gate it is');
 reset role;
 
 -- ===== A promo code doesn't go on a price agreed on site ========================================
@@ -1079,7 +1079,7 @@ select t_options.check((select approval -> 'company' ->> 'name' = 'Sam Summit' a
 select t_options.expect_error(format('update public.quotes set approval = approval || %L where id = %L', '{"company": {"name": "Olive Office"}}', :'qi'), 'once');
 insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'Deck roof') returning id as qds \gset
 insert into public.quote_line_items (company_id, quote_id, name, unit_price) values (:'co', :'qds', 'Deck roof', 2500);
-select t_options.server_sign(:'qds', '{"name": "Dana Homeowner", "method": "in_person", "company": null}');
+select t_options.server_sign(:'qds', planet_test.approval(:'qds', '{"name": "Dana Homeowner", "method": "in_person", "company": null}'));
 update public.quotes set approval = approval || '{"company": {"name": "Sam Summit", "signature": "data:image/png;base64,AAAA"}}' where id = :'qds';
 select t_options.check((select approval -> 'company' ->> 'name' = 'Sam Summit' and approval ->> 'method' = 'in_person' from public.quotes where id = :'qds'),
   'and on one signed on the iPad without the business''s signature');
@@ -1152,7 +1152,7 @@ select t_options.check((select not selected from public.quote_line_items where q
   'then goes on Good as it is now, not shown, so the quote still comes to Best''s $12,000');
 
 begin;
-select t_options.check(public.approve_hub_quote(:'co', :'qw', '{}', '{"name": "Dana Homeowner"}', :'ow_good', 5400), 'Dana approves Good online, ridge vent and all');
+select t_options.check(public.approve_hub_quote(:'co', :'qw', '{}', planet_test.approval(:'qw', '{"name": "Dana Homeowner"}'), :'ow_good', 5400), 'Dana approves Good online, ridge vent and all');
 select :"dbl".dblink_exec('race', format('begin; set local role authenticated; set local request.jwt.claims = %L',
   '{"sub": "c0de0000-0000-0000-0000-000000000003", "role": "authenticated"}'));
 select :"dbl".dblink_send_query('race', format('insert into public.quote_line_items (company_id, quote_id, option_id, name, unit_price) values (%L, %L, %L, %L, 600)',
@@ -1226,9 +1226,10 @@ rollback;
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "c0de0000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
-delete from public.quotes where id = :'qa';
-select t_options.check(not exists (select 1 from public.quote_options where quote_id = :'qa') and not exists (select 1 from public.quote_line_items where quote_id = :'qa'),
-  'deleting a signed quote with options deletes its options and lines');
+-- Planet Ops: a quote the customer signed is kept as signed (20261120000100).
+select t_options.expect_error(format('delete from public.quotes where id = %L', :'qa'), 'a quote the customer signed can''t be deleted');
+select t_options.check(exists (select 1 from public.quote_options where quote_id = :'qa') and exists (select 1 from public.quote_line_items where quote_id = :'qa'),
+  'so its options and lines stay with it');
 delete from public.quotes where id = :'qf';
 select t_options.check(not exists (select 1 from public.quote_options where quote_id = :'qf') and (select count(*) = 3 from public.quote_options where quote_id = :'qf_copy'),
   'deleting the original leaves its copy alone');
@@ -1240,7 +1241,7 @@ insert into public.quotes (company_id, client_id, title) values (:'gone', :'gone
 select public.apply_quote_options(:'gone_signed', jsonb_build_array(
   jsonb_build_object('package_id', :'gone_pkg', 'name', 'Shingles', 'lines', jsonb_build_array(jsonb_build_object('name', 'Roof', 'unit_price', 5000))),
   jsonb_build_object('name', 'Metal', 'lines', jsonb_build_array(jsonb_build_object('name', 'Metal roof', 'unit_price', 9000)))), 'replace');
-update public.quotes set status = 'approved', approved_at = now() where id = :'gone_signed';
+select planet_test.sign(:'gone_signed');
 insert into public.quotes (company_id, client_id, title) values (:'gone', :'gone_client', 'Open roof') returning id as gone_open \gset
 select public.apply_quote_options(:'gone_open', jsonb_build_array(jsonb_build_object('name', 'Shingles'), jsonb_build_object('name', 'Metal')), 'replace');
 commit;

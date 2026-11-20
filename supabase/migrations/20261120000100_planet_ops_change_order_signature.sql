@@ -21,15 +21,19 @@
 --    approval that isn't the office's "manual" one) is written only by the server: approve_hub_quote (the customer's own link) and sign_quote
 --    (in-person signing through the API, which checks the drawn signature). Nobody signed in can
 --    write or alter one through the API, and sign_quote is no longer callable from the browser.
--- 4. Finalizing a change order (approved or converted, which adds its lines to the job) needs that
---    customer signature, on the version it is now. Staff "Mark approved", converting, status changes
---    and inserts are refused, for added charges, credits and $0 changes alike.
--- 5. A finalized change order stays as signed: it can't be reopened, moved to another job or
---    deleted, and its signed lines can't change. A revised agreement is a new change order, signed
---    again.
+-- 4. Accepting any quote, proposal or change order (approved), or making it a job (converted, which
+--    for a change order adds its lines to the job), needs that drawn customer signature on the
+--    version it is now; so does linking a job to a quote. The office's "Mark approved" ("manual"
+--    approvals), converting an unsigned or office-approved quote, status changes through the API and
+--    inserts are refused: internal approval never stands in for the customer's. Every customer
+--    acceptance needs the version fingerprint (seen_fingerprint) of the page it was signed from.
+-- 5. A signed agreement stays as signed: it can't be reopened, moved to another job, deleted or
+--    signed over, and a change order's signed lines can't change. A revised agreement is a new
+--    revision (a new change order for a job), signed again.
 --
--- Change orders already approved or converted before this keep their state. Packages/core/src/
--- changeOrders.ts has the same rules for the interface.
+-- Agreements already approved or converted before this keep their state; one the office approved
+-- itself needs the customer's signature before it's made a job. Packages/core/src/changeOrders.ts
+-- has the same rules for the interface.
 
 -- ---------------------------------------------------------------------------------------------
 -- 1. The document version and its fingerprint
@@ -68,7 +72,11 @@ language sql stable security definer set search_path = '' as $$
         -- sign (recorded with the approval and its amounts), not the document.
         'selected', case when l.optional or l.option_id is not null then null else l.selected end,
         'option_id', l.option_id, 'option_group', l.option_group, 'sort', l.sort) order by l.sort, l.id), '[]')
-      from public.quote_line_items l where l.quote_id = p_quote),
+      -- A price set on site (estimates.ts SITE_ADJUSTMENT_NAME) goes when the customer picks another
+      -- option (quote_option_switch): it's part of the price they saw and signed for (the signed amounts),
+      -- not of the document offered.
+      from public.quote_line_items l
+     where l.quote_id = p_quote and not (l.name = 'Price adjustment' and l.service_id is null and l.formula is null)),
     'options', (select coalesce(jsonb_agg(to_jsonb(o) - 'created_at' - 'updated_at' order by o.sort, o.id), '[]')
       from public.quote_options o where o.quote_id = p_quote),
     'sections', (select coalesce(jsonb_agg(jsonb_build_object('id', s.id, 'title', s.title, 'body', s.body, 'place', s.place, 'initials', s.initials) order by s.id), '[]')
@@ -106,12 +114,40 @@ grant execute on function public.quote_fingerprint(uuid) to authenticated, servi
 -- 2 and 3. Customer signatures: what one is, who may write one, and what it's tied to
 -- ---------------------------------------------------------------------------------------------
 
--- A signature drawn on the signature pad: a PNG (its file signature, iVBORw0KGgo, at the start of the
--- data), of a size a signature pad makes. The API checks the image itself (logo.ts isDrawnPng); this is
--- the database's own check that it's a drawing, never typed words.
+-- A signature drawn on the signature pad: a PNG data URL whose header (decoded here) says a size a
+-- signature pad makes, at least 120 x 60 pixels (so never a one-pixel image) and at most 8000 a side
+-- and 8 million pixels, 8 bits a channel. The API decodes the whole image before the server writes it
+-- (apps/api/src/lib/drawnSignature.ts: checksums, a complete image, enough ink in a stroke, not a
+-- blank pad or a tap); only the server writes a customer signature (below), so this is the database's
+-- own check that what's kept is a pad's drawing, never typed words.
+create function private.png_size(p text) returns integer[]
+language plpgsql immutable set search_path = '' as $$
+declare b bytea;
+begin
+  if p is null or p !~ '^data:image/png;base64,iVBORw0KGgo[A-Za-z0-9+/=]+$' or length(p) < 70 then
+    return null;
+  end if;
+  b := decode(substr(p, 23, 44), 'base64');
+  if length(b) < 25 or substring(b from 13 for 4) <> '\x49484452'::bytea then
+    return null;
+  end if;
+  return array[
+    (get_byte(b, 16)::bigint << 24 | get_byte(b, 17) << 16 | get_byte(b, 18) << 8 | get_byte(b, 19))::integer,
+    (get_byte(b, 20)::bigint << 24 | get_byte(b, 21) << 16 | get_byte(b, 22) << 8 | get_byte(b, 23))::integer,
+    get_byte(b, 24)];
+exception when others then
+  return null;
+end $$;
+
 create function private.is_drawn_signature(p text) returns boolean
 language sql immutable set search_path = '' as $$
-  select coalesce(p ~ '^data:image/png;base64,iVBORw0KGgo[A-Za-z0-9+/=]+$' and length(p) <= 300100, false)
+  select coalesce(
+    length(p) between 200 and 300100
+    and (private.png_size(p))[1] between 120 and 8000
+    and (private.png_size(p))[2] between 60 and 8000
+    and (private.png_size(p))[1]::bigint * (private.png_size(p))[2] <= 8000000
+    and (private.png_size(p))[3] = 8,
+    false)
 $$;
 
 -- An approval the customer made: anything but the office's "manual" one, with the printed name, the
@@ -139,7 +175,7 @@ $$;
 create function private.customer_signs_only_through_the_server() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
-  if (select auth.uid()) is null or not private.is_customer_signature(new.approval) then
+  if (select auth.uid()) is null or not (private.is_customer_signature(new.approval) or private.is_customer_signature(old.approval)) then
     return new;
   end if;
   if tg_op = 'INSERT' or private.customer_part(new.approval) is distinct from private.customer_part(old.approval) then
@@ -151,41 +187,51 @@ end $$;
 create trigger aa_customer_signs_only_through_the_server before insert or update of approval on public.quotes
   for each row execute function private.customer_signs_only_through_the_server();
 
--- As a quote is signed by the customer: the page they signed from must have shown this version (a
--- change order can't be signed without saying which), and the approval keeps the version.
+-- As the customer signs (a quote, proposal or change order moving to approved): it's a drawn
+-- signature, from a page showing this exact version, and never over a signature already given.
+-- The approval then keeps, each in its own field: the printed name, the drawing, the signing time
+-- (the database's own clock, not the caller's), the version's fingerprint and a copy of it (the
+-- original signed document), and the customer's choices (the option, the add-ons) with the amounts
+-- they came to.
 create function private.signed_version() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare v_version jsonb; v_fingerprint text; v_seen text;
 begin
-  -- An acceptance in the customer's name (it has a signing time) without the drawn signature: a typed
-  -- name alone doesn't sign anything.
-  if jsonb_typeof(new.approval) = 'object' and coalesce(new.approval ->> 'method', '') <> 'manual'
-     and coalesce(new.approval ->> 'signed_at', '') <> '' and not private.is_customer_signature(new.approval) then
+  if jsonb_typeof(new.approval) is distinct from 'object' or coalesce(new.approval ->> 'method', '') = 'manual' then
+    return new;  -- Not the customer's: private.customer_signature_to_accept refuses it.
+  end if;
+  if not private.is_customer_signature(new.approval) then
     raise exception 'A drawn signature is needed to sign: draw it with a finger, mouse or stylus. A typed name alone doesn''t sign.'
       using errcode = '22023';
   end if;
-  if not private.is_customer_signature(new.approval) then
-    return new;
+  if private.is_customer_signature(old.approval) then
+    raise exception 'The customer already signed this. Make a new revision (Copy as new draft) for anything that changes, and send that to sign.'
+      using errcode = '22023';
   end if;
   v_version := private.quote_version(new.id);
   v_fingerprint := md5(v_version::text);
   v_seen := nullif(new.approval ->> 'seen_fingerprint', '');
-  if v_seen is not null and v_seen <> v_fingerprint then
+  if v_seen is null then
+    raise exception 'A document is signed only from a page showing its exact version. Open it again and sign there.'
+      using errcode = 'CX410';
+  end if;
+  if v_seen <> v_fingerprint then
     raise exception 'This document changed after it was opened, so it wasn''t signed. Look over the latest version and sign that.'
       using errcode = 'CX410';
   end if;
-  if new.change_order_for is not null and v_seen is null then
-    raise exception 'A change order is signed only from a page showing its exact version. Open it again and sign there.'
-      using errcode = 'CX410';
-  end if;
-  new.approval := new.approval || jsonb_build_object('fingerprint', v_fingerprint, 'document', v_version);
+  new.approval := new.approval || jsonb_build_object(
+    'signed_at', now(),
+    'fingerprint', v_fingerprint,
+    'document', v_version,
+    'choices', jsonb_build_object(
+      'option_id', new.option_id,
+      'selected_line_ids', (select coalesce(jsonb_agg(l.id order by l.sort, l.id), '[]') from public.quote_line_items l
+                             where l.quote_id = new.id and l.optional and l.selected),
+      'subtotal', new.subtotal, 'discount_amount', new.discount_amount, 'tax_amount', new.tax_amount, 'total', new.total));
   return new;
 end $$;
 create trigger b_signed_version before update of status on public.quotes
   for each row when (new.status = 'approved' and old.status is distinct from 'approved')
-  execute function private.signed_version();
-create trigger b_signed_version_insert before insert on public.quotes
-  for each row when (new.status = 'approved')
   execute function private.signed_version();
 
 -- In-person signing goes through the API (services/signing.ts), which checks the drawn signature and
@@ -194,10 +240,11 @@ revoke execute on function public.sign_quote(uuid, jsonb, uuid, numeric) from au
 grant execute on function public.sign_quote(uuid, jsonb, uuid, numeric) to service_role;
 
 -- ---------------------------------------------------------------------------------------------
--- 4. Finalizing a change order needs the customer's signature on the version it is now
+-- 4. Accepting a quote, proposal or change order, or making it a job, needs the customer's drawn
+--    signature on the version it is now
 -- ---------------------------------------------------------------------------------------------
 
-create function private.change_order_customer_signed(p_quote uuid, p_approval jsonb, p_total numeric) returns boolean
+create function private.customer_signed_this_version(p_quote uuid, p_approval jsonb, p_total numeric) returns boolean
 language sql stable security definer set search_path = '' as $$
   select coalesce(
     private.is_customer_signature(p_approval)
@@ -207,31 +254,67 @@ language sql stable security definer set search_path = '' as $$
     false)
 $$;
 
-create function private.change_order_needs_signature() returns trigger
+-- Approved (the customer accepted it) or converted (it's a job, or a change order on its job): only
+-- with the customer's signature on this exact version. The office's "Mark approved" (a "manual"
+-- approval), converting an unsigned or office-approved quote, a status change through the API, an
+-- assistant or an automation are all refused. A quote is never inserted already accepted.
+create function private.customer_signature_to_accept() returns trigger
 language plpgsql security definer set search_path = '' as $$
+declare v_what text := case when new.change_order_for is not null then 'A change order is added to the job' else 'A quote or proposal is accepted, and made a job,' end;
 begin
-  if not private.change_order_customer_signed(new.id, new.approval, new.total) then
+  if tg_op = 'INSERT' or (new.status = 'converted' and old.status is distinct from 'approved') then
+    raise exception '% only once the customer signs this exact version. Send it to them to sign, or have them sign it in person.', v_what
+      using errcode = '22023';
+  end if;
+  if not private.customer_signed_this_version(new.id, new.approval, new.total) then
     if private.is_customer_signature(new.approval) then
-      raise exception 'This change order changed after the customer signed it, so it needs their signature again before it''s added to the job.'
+      raise exception 'This changed after the customer signed it, so it needs their signature again on a new revision.'
         using errcode = '22023';
     end if;
-    raise exception 'A change order is added to the job only once the customer signs this exact version. Send it to them to sign, or have them sign it in person.'
+    raise exception '% only once the customer signs this exact version. Send it to them to sign, or have them sign it in person.', v_what
       using errcode = '22023';
   end if;
   return new;
 end $$;
 
--- Checked as it's finalized: inserted finalized, or moving from an open state to a finalized one.
 -- Runs after b_signed_version, which keeps the version with the signature first.
-create trigger c_change_order_needs_signature before insert on public.quotes
+create trigger c_customer_signature_to_accept before insert on public.quotes
+  for each row when (new.status in ('approved', 'converted'))
+  execute function private.customer_signature_to_accept();
+create trigger c_customer_signature_to_accept_update before update of status on public.quotes
+  for each row when (new.status in ('approved', 'converted') and old.status is distinct from new.status)
+  execute function private.customer_signature_to_accept();
+
+-- A quote imported from Jobber as approved (import_jobber) comes in sent instead: Jobber's approval is
+-- not the customer's drawn signature on this version, so it waits for one here before it's a job.
+-- This only ever moves an unsigned import back to sent, never forward.
+create function private.jobber_approved_comes_in_sent() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  new.status := 'sent';
+  new.approved_at := null;
+  return new;
+end $$;
+create trigger a_jobber_approved_comes_in_sent before update of status on public.quotes
   for each row
-  when (new.change_order_for is not null and new.status in ('approved', 'converted'))
-  execute function private.change_order_needs_signature();
-create trigger c_change_order_needs_signature_update before update of status, change_order_for on public.quotes
-  for each row
-  when (new.change_order_for is not null and new.status in ('approved', 'converted')
-        and (old.status not in ('approved', 'converted') or old.change_order_for is null))
-  execute function private.change_order_needs_signature();
+  when (new.source_id like 'jobber:%' and old.status = 'draft' and new.status = 'approved' and new.approval is null)
+  execute function private.jobber_approved_comes_in_sent();
+
+-- A job takes a quote (quotes.quote_id) only once the customer signed it: converting it is how a job
+-- gets one. A job made directly (Create Job) has none.
+create function private.job_quote_signed() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if not exists (select 1 from public.quotes q where q.id = new.quote_id and q.status in ('approved', 'converted')
+                    and private.is_customer_signature(q.approval)) then
+    raise exception 'A job takes a quote only once the customer signs it. Send the quote to sign, or make the job without it.'
+      using errcode = '22023';
+  end if;
+  return new;
+end $$;
+create trigger job_quote_signed before insert or update of quote_id on public.jobs
+  for each row when (new.quote_id is not null)
+  execute function private.job_quote_signed();
 
 -- ---------------------------------------------------------------------------------------------
 -- 5. A finalized change order stays as signed
@@ -245,18 +328,20 @@ begin
     return coalesce(new, old);
   end if;
   if tg_op = 'DELETE' then
-    raise exception 'This change order was signed by the customer, so it''s kept as signed and can''t be deleted.'
+    raise exception 'This was signed by the customer, so it''s kept as signed and can''t be deleted.'
       using errcode = '22023';
   end if;
   if new.status not in ('approved', 'converted') or new.change_order_for is distinct from old.change_order_for then
-    raise exception 'This change order was signed by the customer, so it stays as signed. Make a new change order for anything that changes.'
+    raise exception 'This was signed by the customer, so it stays as signed. Make a new revision (for a job, a new change order) for anything that changes.'
       using errcode = '22023';
   end if;
   return new;
 end $$;
+-- Every agreement the customer signed (a quote, proposal or change order), and every change order on
+-- its job (finalized before this migration too): not reopened, moved or deleted.
 create trigger signed_change_order_stays before update of status, change_order_for or delete on public.quotes
   for each row
-  when (old.change_order_for is not null and old.status in ('approved', 'converted'))
+  when (old.status in ('approved', 'converted') and (old.change_order_for is not null or private.is_customer_signature(old.approval)))
   execute function private.signed_change_order_stays();
 
 -- Its signed lines don't change either: the scope and the price.
@@ -292,7 +377,10 @@ end $$;
 create trigger signed_change_order_lines_stay before insert or update or delete on public.quote_line_items
   for each row execute function private.signed_change_order_lines_stay();
 
-revoke execute on function private.quote_version(uuid), private.quote_fingerprint(uuid), private.is_customer_signature(jsonb), private.is_drawn_signature(text),
+-- is_customer_signature, is_drawn_signature and png_size stay callable: pure checks that the triggers'
+-- conditions run as whoever changes the quote.
+revoke execute on function private.quote_version(uuid), private.quote_fingerprint(uuid),
   private.customer_part(jsonb), private.customer_signs_only_through_the_server(), private.signed_version(),
-  private.change_order_customer_signed(uuid, jsonb, numeric), private.change_order_needs_signature(),
+  private.customer_signed_this_version(uuid, jsonb, numeric), private.customer_signature_to_accept(), private.job_quote_signed(),
+  private.jobber_approved_comes_in_sent(),
   private.signed_change_order_stays(), private.signed_change_order_lines_stay() from public;

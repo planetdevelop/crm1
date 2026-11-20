@@ -97,9 +97,9 @@ select trb.expect_error(format('update public.jobs set invoice_day = 31 where id
 -- A quote that repeats becomes per visit, after each visit, as before; a one-time one when it's done.
 insert into public.quotes (company_id, client_id, title, recurrence_rule) values (:'co', :'pat', 'Weekly clean', 'FREQ=WEEKLY;BYDAY=TU') returning id as q1 \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'q1', 'Clean', 1, 'visit', 80);
-select public.convert_quote_to_job(:'q1') as qj1 \gset
+select public.convert_quote_to_job(planet_test.sign(:'q1')) as qj1 \gset
 insert into public.quotes (company_id, client_id, title) values (:'co', :'pat', 'Move-out clean') returning id as q2 \gset
-select public.convert_quote_to_job(:'q2') as qj2 \gset
+select public.convert_quote_to_job(planet_test.sign(:'q2')) as qj2 \gset
 select trb.check(trb.billing(:'qj1') = 'per_visit/after_visit/per_visit' and trb.billing(:'qj2') = '-/-/on_completion',
   'a repeating quote becomes per visit, after each visit; a one-time one is invoiced when the job is done');
 rollback;

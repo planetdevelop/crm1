@@ -432,22 +432,18 @@ function Schedule({ quote, job, canSell, onChanged }: { quote: Quote; job: Quote
     );
   }
   if (!canSell) return <span className="muted small">The office turns it into a job once it's signed.</span>;
-  const signed = quote.status === "approved";
-  // An estimate with options becomes the job of the one they chose, so that's marked first (the quote's Mark approved asks which).
-  if (!signed && quote.options.length) {
-    return (
-      <span className="muted small">
-        Usually once the client signs for the option they chose. If they said yes another way, <Link to={`/quotes/${quote.id}`}>mark it approved on the quote</Link> with their option, then create the job here.
-      </span>
-    );
+  // Planet Ops: only the customer's drawn signature on this exact version makes it a job (the
+  // database refuses anything else), so the button waits for it.
+  if (quote.status !== "approved") {
+    return <span className="muted small">Once {quote.client?.display_name ?? "the client"} signs the estimate (sent to them, or in person), create the job here.</span>;
   }
   return (
     <div className="stack-sm">
-      <Button variant={signed ? "primary" : undefined} icon="job" loading={convert.isPending} disabled={!quote.lines.length || quote.status === "lost"} onClick={() => convert.mutate()} style={{ justifySelf: "start" }}>
+      <Button variant="primary" icon="job" loading={convert.isPending} disabled={!quote.lines.length} onClick={() => convert.mutate()} style={{ justifySelf: "start" }}>
         Create the job
       </Button>
-      <span className="muted small">{signed ? "The estimate's lines become the job's scope." : "Usually once the client signs. You can start it now if they said yes another way."}</span>
-      {quote.status === "approved" && <EntityStatus kind="quote" status={quote.status} />}
+      <span className="muted small">The estimate's lines become the job's scope.</span>
+      <EntityStatus kind="quote" status={quote.status} />
     </div>
   );
 }
