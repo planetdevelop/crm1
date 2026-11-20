@@ -551,6 +551,14 @@ describe("versions and change requests (Planet Ops 1c)", () => {
   });
 });
 
+describe("a proposal on the customer's page (Planet Ops 1b)", () => {
+  it("carries its layout, its sections and both terms, so the page shows them", async () => {
+    roofer({ range_low: null, range_high: null, range_sent_at: null, presentation: "proposal", narrative: { overview: "TEST overview", scope: "1. Demolish" }, contract_terms: "TEST contract terms", payment_terms: "TEST payment terms" });
+    const body = await (await hub({ t: "quote", id: QUOTE })).json();
+    expect(body.quote).toMatchObject({ presentation: "proposal", narrative: { overview: "TEST overview", scope: "1. Demolish" }, contract_terms: "TEST contract terms", payment_terms: "TEST payment terms" });
+  });
+});
+
 describe("signing online", () => {
   beforeEach(() => roofer({ range_low: null, range_high: null, range_sent_at: null }));
 

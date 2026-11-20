@@ -13,6 +13,7 @@
 import { greetingName } from "@crewtavo/core/automations";
 import { notIncludedText } from "@crewtavo/core/estimates";
 import { lineTotal } from "@crewtavo/core/money";
+import { narrativeSections } from "@crewtavo/core/proposals";
 import { promoRuleWords } from "@crewtavo/core/promos";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -372,6 +373,25 @@ function Done({ title, children, action }: { title: string; children?: ReactNode
 }
 
 /** A quote: signed, or waiting for the client's answer. One out as a price range is RangeHub, its own page. */
+/** Planet Ops 1b: a proposal's sections and its one total, on the customer's page. */
+function ProposalScope({ data, total }: { data: QuoteView; total: number }) {
+  const sections = narrativeSections(data.quote.narrative);
+  return (
+    <section className="card card-pad stack" aria-label="Proposal" data-planet-ops="proposal-scope">
+      {sections.map((section) => (
+        <div key={section.key} className="stack-xs">
+          <h2 className="hub-step-title" style={{ fontSize: 16 }}>{section.title}</h2>
+          <p className="pre-wrap" style={{ margin: 0 }}>{section.text}</p>
+        </div>
+      ))}
+      <div className="row" style={{ justifyContent: "space-between", gap: 12 }}>
+        <strong>Total</strong>
+        <strong className="tabular">{formatMoneyCents(total)}</strong>
+      </div>
+    </section>
+  );
+}
+
 function QuoteHub({ token, data, onChanged, printing, onPrint }: { token: string; data: QuoteView; onChanged: () => void; printing: boolean; onPrint: () => void }) {
   // Planet Ops 1c: the office is preparing an updated version; the draft is never shown or signed here.
   if (data.revising) return <Revising data={data} />;
@@ -1089,7 +1109,8 @@ function OpenQuote({ token, data, onChanged, printing }: { token: string; data: 
       <HubDrawings token={token} drawings={data.drawings} />
 
       {/* Without options, what's on it and its add-ons, always in view. */}
-      {!offers && lineCard}
+      {/* Planet Ops 1b: a proposal shows its scope and the agreed total, not priced lines. */}
+      {!offers && (q.presentation === "proposal" ? <ProposalScope data={data} total={totals.total} /> : lineCard)}
 
       <HubReviews reviews={data.reviews} />
 
