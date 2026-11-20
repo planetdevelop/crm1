@@ -13,7 +13,7 @@ import { can, hasRole, useSession } from "@/lib/session";
 import type { FlowInvoice } from "../../paving/ProjectFlow";
 import type { EstimateQuote } from "../estimate";
 import type { RoofProjectExtras } from "./data";
-import { depositLabel, jobLinesText, OPEN, SIGNED } from "./model";
+import { depositLabel, jobLinesText, SIGNED } from "./model";
 import styles from "./flow.module.css";
 
 export function RoofSchedule({ quote, extras, invoices, canSell, current, refresh }: {
@@ -89,22 +89,7 @@ export function RoofSchedule({ quote, extras, invoices, canSell, current, refres
       </div>
     );
   }
-  const early = quote.lines.length > 0 && OPEN.includes(quote.status);
-  if (!early) return <span className="muted small">After it's signed, the estimate becomes the crew's job.</span>;
-  // An estimate with options becomes the job of the one they chose, so that's marked first (the quote's Mark approved asks which).
-  if (quote.options.length) {
-    return (
-      <span className="muted small">
-        Usually after it's signed. If {quote.client?.display_name ?? "the client"} said yes another way, <Link to={`/quotes/${quote.id}`}>mark it approved on the quote</Link> with the option they chose, then make the job here.
-      </span>
-    );
-  }
-  return (
-    <div className={styles.stepBody}>
-      <span className="muted small">Usually after it's signed. If {quote.client?.display_name ?? "the client"} said yes another way, you can make the job now.</span>
-      <div className={styles.actions}>
-        <Button size="sm" icon="job" loading={convert.isPending} onClick={() => convert.mutate()}>Create the job</Button>
-      </div>
-    </div>
-  );
+  // Planet Ops: only the customer's drawn signature on this exact version makes it a job (the
+  // database refuses anything else), so there's no making the job before they sign.
+  return <span className="muted small">Once {quote.client?.display_name ?? "the client"} signs the estimate (sent to them, or in person on the visit), it becomes the crew's job here.</span>;
 }

@@ -916,7 +916,8 @@ function OpenQuote({ token, data, onChanged, printing }: { token: string; data: 
         signature: signature ?? undefined,
         ...(offers && optionId ? { option_id: optionId } : {}),
         expected_total: totals.total,
-        ...(data.fingerprint ? { fingerprint: data.fingerprint } : {}),
+        // Planet Ops: always the version this page showed; without one, the server says to reload it.
+        fingerprint: data.fingerprint ?? undefined,
         ...(contract?.hash ? { sections_hash: contract.hash } : {}),
         ...(initials && asking.length ? { initials } : {}),
       }),

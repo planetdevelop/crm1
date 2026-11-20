@@ -704,8 +704,9 @@ publicRoutes.post("/hub/:token/approve", async (c) => {
       // The total they saw (core chosenTotals): the database turns the approval down if it's changed.
       // A credit change order comes to less than nothing.
       expected_total: z.number().min(-100_000_000).max(100_000_000).optional(),
-      // The version the page showed (GET /hub/:token's fingerprint): the database signs only that one.
-      fingerprint: z.string().regex(/^[0-9a-f]{32}$/).optional(),
+      // The version the page showed (GET /hub/:token's fingerprint): required, and the database signs
+      // only that one (20261120000100). A page without it is from before; it asks to be reloaded.
+      fingerprint: z.string({ error: "This page is out of date. Reload it to see the latest version, then sign." }).regex(/^[0-9a-f]{32}$/),
       // The terms they read (core sectionsHash), and their initials for the sections that ask.
       sections_hash: sectionsHashSchema.optional(),
       initials: initialsImage.optional(),
@@ -781,7 +782,7 @@ publicRoutes.post("/hub/:token/approve", async (c) => {
     p_selected: picked,
     p_approval: {
       name: body.name, selected_line_ids: picked, signature: body.signature, signed_at: signedAt, ip: clientIp(c),
-      ...(body.fingerprint ? { seen_fingerprint: body.fingerprint } : {}),
+      seen_fingerprint: body.fingerprint,
       template: asJson(template),
       ...(company ? { company } : {}),
       option: asJson(kept.option),

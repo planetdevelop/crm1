@@ -73,7 +73,7 @@ select tpf.expect_error(format('insert into public.plan_files (company_id, quote
 select tpf.expect_error(format('insert into public.plan_files (company_id, job_id, title, path, file_name) values (%L, %L, %L, %L, %L)', :'co', :'other_job', 'Wrong job', tpf.path(:'co'), 'x.pdf'), 'not on another company''s job');
 
 -- ===== Quote to job, and telling the crew =====================================================
-select public.convert_quote_to_job(:'quote') as job \gset
+select public.convert_quote_to_job(planet_test.sign(:'quote')) as job \gset
 select tpf.check((select count(*) from public.plan_files where job_id = :'job') = 2, 'when the quote becomes a job, its files go on the job');
 select tpf.check((select quote_id = :'quote' from public.plan_files where id = :'site'), 'and stay on the quote too');
 select tpf.check((select job_id is null from public.plan_files where id = :'striping'), 'a file on the property alone stays there');
@@ -166,7 +166,7 @@ insert into public.plan_files (company_id, quote_id, title, path, file_name) val
 select tpf.check((select job_id is null from public.plan_files where id = :'lane'), 'a change order''s file waits for the approval');
 update public.quotes set status = 'sent', sent_at = now() where id = :'co_quote';
 commit;
-update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'co_quote';
+select planet_test.sign(:'co_quote');
 select tpf.check((select job_id = :'job' from public.plan_files where id = :'lane'), 'once the change order is approved, its files go on the job');
 
 -- ===== Files sent with a booking request ======================================================
@@ -191,7 +191,7 @@ select set_config('request.jwt.claims', '{"sub": "ef000000-0000-0000-0000-000000
 insert into public.quotes (company_id, client_id, property_id, request_id, title) values (:'co', :'gc', :'hill', :'req', 'Church lot') returning id as church_quote \gset
 select tpf.check((select quote_id = :'church_quote' and request_id = :'req' from public.plan_files where id = :'church'), 'a quote made from the request gets its files');
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'church_quote', 'Overlay', 90, 'ton', 140);
-select public.convert_quote_to_job(:'church_quote') as church_job \gset
+select public.convert_quote_to_job(planet_test.sign(:'church_quote')) as church_job \gset
 select tpf.check((select job_id = :'church_job' from public.plan_files where id = :'church'), 'and the job made from that quote');
 select tpf.expect_error(format('insert into public.plan_files (company_id, request_id, title, path, file_name) values (%L, %L, %L, %L, %L)', :'other', :'req', 'Theirs', tpf.path(:'other'), 'x.pdf'), 'a file goes on this company''s request only');
 commit;

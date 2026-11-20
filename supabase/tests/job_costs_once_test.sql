@@ -46,8 +46,8 @@ values (:'co', :'quote', 'New asphalt paving', 1, 'job', 39303, 25303, 10000, 1,
 insert into public.quote_line_items (company_id, quote_id, service_id, name, quantity, unit, unit_price, unit_cost, sort)
 values (:'co', :'quote', :'seal', 'Sealcoat the old lot', 4000, 'sq ft', 0.28, 0.14, 2);
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price, sort) values (:'co', :'quote', 'Permit', 1, 'ea', 150, 3);
-update public.quotes set status = 'approved' where id = :'quote';
-select public.convert_quote_to_job(:'quote') as job \gset
+select planet_test.sign(:'quote');
+select public.convert_quote_to_job(planet_test.sign(:'quote')) as job \gset
 select t_jco.check((select unit_labor_cost = 10000 and parts = :'parts'::jsonb from public.job_line_items where job_id = :'job' and name = 'New asphalt paving'),
   'a quote turned into a job: the calculator line''s labor goes onto the job''s line with its parts');
 select t_jco.check((select unit_labor_cost is null and parts is null from public.job_line_items where job_id = :'job' and name = 'Permit'), 'a plain line with no price list item gets neither');
@@ -98,8 +98,8 @@ select set_config('request.jwt.claims', '{"sub": "c0570000-0000-0000-0000-000000
 insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'Pine old drive') returning id as old_quote \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price, unit_cost, sort) values (:'co', :'old_quote', 'Mill and overlay', 1, 'job', 40000, 28000, 1) returning id as old_line \gset
 insert into public.paving_worksheets (company_id, quote_id, line_id, name, data) values (:'co', :'old_quote', :'old_line', 'Mill and overlay', :'sheet'::jsonb);
-update public.quotes set status = 'approved' where id = :'old_quote';
-select public.convert_quote_to_job(:'old_quote') as old_job \gset
+select planet_test.sign(:'old_quote');
+select public.convert_quote_to_job(planet_test.sign(:'old_quote')) as old_job \gset
 -- A line whose cost was typed down below the worksheet's labor: nothing can be said about it.
 insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'Pine odd drive') returning id as odd_quote \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price, unit_cost, sort) values (:'co', :'odd_quote', 'Mill and overlay', 1, 'job', 9000, 6000, 1) returning id as odd_line \gset

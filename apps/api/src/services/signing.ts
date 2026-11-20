@@ -21,6 +21,7 @@ import { sendEmail, sendSms } from "../lib/notify";
 import { adminClient, type Db } from "../lib/supabase";
 import { companyAddress } from "./automations";
 import { checkContract, contractInput, freezeContract, freezeOption, initialsImage, isPriced, loadOptions, optionTiers, packageFill, postedId, resolveContract, sectionsHashSchema, type OptionRow } from "./contracts";
+import { isDrawnSignature } from "../lib/drawnSignature";
 import { isDrawnPng, logoImage } from "./logo";
 import { textWithStopLine } from "./stopLine";
 import { noteRefusedText, numberStopped, numberStoppedRefusal, textsOffRefusal, textsOffTo } from "./textsOff";
@@ -38,7 +39,13 @@ export interface SigningScope {
  * A drawn signature: a PNG data URL, as SignaturePad makes it (a few to a few hundred KB), of a size a
  * signature pad makes (logo.ts isDrawnPng). Online (routes/public.ts) and on the iPad alike.
  */
-export const signatureImage = z.string().max(300_000).regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/).refine(isDrawnPng);
+// Planet Ops: the whole drawing is decoded and checked for ink (lib/drawnSignature.ts): a blank pad, a
+// tap, a one-pixel or malformed image, or typed text is refused.
+export const signatureImage = z
+  .string()
+  .max(300_000)
+  .regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/, "Draw your signature with your finger, mouse or stylus. A typed name or another picture can't be used.")
+  .refine(isDrawnSignature, "Draw your signature in the box with your finger, mouse or stylus.");
 
 export const saveSignatureSchema = z.object({ image: signatureImage });
 
@@ -56,8 +63,8 @@ export const signSchema = z.object({
   option_id: postedId.optional(),
   /** The total on the paper they signed: it's only signed while the quote still comes to it. A credit change order comes to less than nothing. */
   expected_total: z.number().min(-100_000_000).max(100_000_000).optional(),
-  /** The version the signing screen showed (public.quote_fingerprint): the database signs only that one. Required for a change order. */
-  fingerprint: z.string().regex(/^[0-9a-f]{32}$/).optional(),
+  /** The version the signing screen showed (public.quote_fingerprint): required, and the database signs only that one. */
+  fingerprint: z.string({ error: "This screen is out of date. Open the estimate again to see the latest version, then sign." }).regex(/^[0-9a-f]{32}$/),
   /** The terms on the paper (core sectionsHash), and the homeowner's initials for the sections that ask. */
   sections_hash: sectionsHashSchema.optional(),
   initials: initialsImage.optional(),
@@ -192,7 +199,7 @@ export async function signQuote(s: SigningScope, id: string, body: SignBody) {
     signature: body.signature,
     signed_at: now,
     method: "in_person" as const,
-    ...(body.fingerprint ? { seen_fingerprint: body.fingerprint } : {}),
+    seen_fingerprint: body.fingerprint,
     selected_line_ids: lines.filter((l) => l.optional && countsOn(l, quote.option_id)).map((l) => l.id),
     company: companySignature ? { name: signer || company.name, user_id: s.userId, signature: companySignature, signed_at: now } : null,
     // The template as it was signed, so later changes to it (or another default) don't change the terms above the signatures.

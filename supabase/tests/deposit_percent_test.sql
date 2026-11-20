@@ -76,7 +76,7 @@ reset role;
 set role service_role;
 select tdp.check(public.hub_deposit_invoice(:'co', :'deck') is null, 'a quote not approved yet owes no deposit');
 -- She picks the lighting as she approves: the deposit is 25% of what she chose.
-select tdp.check(public.approve_hub_quote(:'co', :'deck', array[:'lighting']::uuid[], '{"name": "Rae Pinecrest"}'), 'she approves the quote');
+select tdp.check(public.approve_hub_quote(:'co', :'deck', array[:'lighting']::uuid[], planet_test.approval(:'deck', '{"name": "Rae Pinecrest"}')), 'she approves the quote');
 select public.hub_deposit_invoice(:'co', :'deck') as deposit \gset
 select tdp.check(public.hub_deposit_invoice(gen_random_uuid(), :'deck') is null, 'another company''s link makes nothing');
 reset role;
@@ -96,7 +96,7 @@ select tdp.check((select count(*) = 1 from public.invoices where company_id = :'
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "d5500000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
-select public.convert_quote_to_job(:'deck') as job \gset
+select public.convert_quote_to_job(planet_test.sign(:'deck')) as job \gset
 select tdp.check((select job_id = :'job' from public.invoices where id = :'deposit'), 'the deposit invoice joins the job made from the quote');
 select public.create_invoice_for_job(:'job') as final \gset
 select tdp.check(exists (select 1 from public.invoice_line_items where invoice_id = :'final' and name like 'Less deposit%' and unit_price = -366.67),
@@ -112,7 +112,7 @@ insert into public.quote_line_items (company_id, quote_id, name, unit_price) val
 update public.quotes set status = 'sent', sent_at = now() where id = :'railing';
 commit;
 set role service_role;
-select tdp.check(public.approve_hub_quote(:'co', :'railing', '{}', '{"name": "Rae Pinecrest"}'), 'a quote without a deposit is approved');
+select tdp.check(public.approve_hub_quote(:'co', :'railing', '{}', planet_test.approval(:'railing', '{"name": "Rae Pinecrest"}')), 'a quote without a deposit is approved');
 select tdp.check(public.hub_deposit_invoice(:'co', :'railing') is null, 'and has no deposit invoice');
 reset role;
 

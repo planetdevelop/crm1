@@ -45,7 +45,7 @@ insert into public.quote_line_items (company_id, quote_id, name, quantity, unit_
 -- 1,500 of work, 300 off: 200 of it comes off the 1,000 taxable, so tax is 10% of 800.
 select t4.check((select subtotal || '/' || tax_amount || '/' || total from public.quotes where id = :'quote') = '1500.00/80.00/1280.00', 'a quote discount lowers the taxable amount');
 
-select public.convert_quote_to_job(:'quote') as job \gset
+select public.convert_quote_to_job(planet_test.sign(:'quote')) as job \gset
 select t4.check((select count(*) from public.job_line_items where job_id = :'job' and name = 'Discount') = 2, 'the discount comes along to the job');
 select t4.check((select contract_total from public.job_financials where job_id = :'job') = 1200, 'the job total is what the client approved, before tax');
 

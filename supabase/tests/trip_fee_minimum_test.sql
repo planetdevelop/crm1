@@ -82,7 +82,7 @@ select tfm.check((select count(*) = 0 from public.quote_line_items where quote_i
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "c4110000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
-select public.convert_quote_to_job(:'copy') as from_quote \gset
+select public.convert_quote_to_job(planet_test.sign(:'copy')) as from_quote \gset
 insert into public.quotes (company_id, client_id, title, change_order_for) values (:'co', :'paul', 'Change order: one more valve', :'job') returning id as change \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'change', 'Valve', 1, 'ea', 30);
 commit;

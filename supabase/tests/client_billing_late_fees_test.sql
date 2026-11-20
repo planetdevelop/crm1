@@ -48,7 +48,7 @@ insert into public.quote_line_items (company_id, quote_id, name, quantity, unit,
 select cbl.check((select tax_rate = 0 and tax_amount = 0 and total = 100 from public.quotes where id = :'quote'), 'a tax-exempt client''s quote charges no tax');
 update public.quotes set tax_rate = 0.08 where id = :'quote';
 select cbl.check((select tax_rate = 0 from public.quotes where id = :'quote'), 'and can''t be given a rate');
-select public.convert_quote_to_job(:'quote') as job \gset
+select public.convert_quote_to_job(planet_test.sign(:'quote')) as job \gset
 select public.create_invoice_for_job(:'job') as inv \gset
 select cbl.check((select tax_rate = 0 and tax_amount = 0 and total = 100 from public.invoices where id = :'inv'), 'nor can the invoice from its job');
 -- Hal's draft and sent invoices are taxed; then he's marked exempt.

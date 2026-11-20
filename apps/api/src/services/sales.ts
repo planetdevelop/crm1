@@ -5,6 +5,7 @@
  * both use these, with the person's own client. Also how a quote that offers options is priced before
  * the client chooses, and the most its deposit can be.
  */
+import { isCustomerSignature } from "@crewtavo/core/changeOrders";
 import { laborRates, localDate, workLines, workToBill } from "@crewtavo/core";
 import { hidesExactPrice, inRangeMode, optionsIntroText, rangeIntroText } from "@crewtavo/core/estimates";
 import { optionBaseTotal, toCents, type Amount, type OptionLine, type TotalsPromo } from "@crewtavo/core/money";
@@ -13,12 +14,11 @@ import { z } from "zod";
 import type { Env } from "../env";
 import { stripeAccess, syncStripeInvoice } from "../integrations/stripe";
 import { firstName, isEmail, renderEmail } from "../lib/email";
-import { asJson, dbError, HttpError, must } from "../lib/http";
+import { dbError, HttpError, must } from "../lib/http";
 import { clientLinks, sentToClient } from "../lib/links";
 import { sendEmail, sendSms } from "../lib/notify";
 import { adminClient, type Db } from "../lib/supabase";
 import { companyAddress } from "./automations";
-import { loadOptions, manualApproval } from "./contracts";
 import { logoImage } from "./logo";
 import { clientReach, recipientsColumn, sendChoicesFor, sendToEach, stoppedNumbers } from "./recipients";
 import { textWithStopLine } from "./stopLine";
@@ -368,36 +368,20 @@ export async function sendQuote(s: SalesScope, id: string, body: SendBody) {
   return result;
 }
 
-/** Quotes the client hasn't answered yet: what convertQuote keeps the contract of first. */
-const UNSIGNED = ["draft", "sent", "changes_requested"];
-
 /**
  * Turn a quote into a job (convert_quote_to_job), as the office's "Convert to job" and "Create the
- * job now" and the assistants do it. A quote the client never signed (the office heard yes another
- * way and converts it straight from sent) first gets the approval "Mark approved" would keep
- * (contracts.ts manualApproval, `by` its name): the template and the contract it was sent with,
- * filled in, so its signed copy prints those words and not today's. Only the approval is written,
- * not the status, so a change order still joins its job in the database's one step; and only while
- * it's unsigned, so a signature that came in meanwhile keeps its own. One that offers options is
- * approved with the option chosen first (the database refuses it otherwise). One that says how often
- * becomes a recurring job, and its next visits are made now. Returns the job's id.
+ * job now" and the assistants do it. Planet Ops: only a quote, proposal or change order the customer
+ * signed (their drawn signature on its exact version) becomes a job; an office approval never stands
+ * in for theirs (20261120000100, which the database enforces too). One that says how often becomes a
+ * recurring job, and its next visits are made now. Returns the job's id.
  */
-export async function convertQuote(s: Pick<SalesScope, "db" | "companyId" | "env">, quoteId: string, by: string): Promise<string> {
+export const NOT_SIGNED_YET = "The customer hasn't signed this yet. Send it to them to sign, or have them sign it in person, then make the job.";
+export async function convertQuote(s: Pick<SalesScope, "db" | "companyId" | "env">, quoteId: string, _by: string): Promise<string> {
   const quote = must(await s.db.from("quotes").select("id, status, approval, recurrence_rule, change_order_for, is_template").eq("id", quoteId).eq("company_id", s.companyId).maybeSingle(), "Quote not found.");
   if (quote.is_template) throw new HttpError(400, "A quote template can't be made a job. Make a quote from it first.");
-  const before = quote.approval;
-  const kept = UNSIGNED.includes(quote.status) && !(await loadOptions(s.db, s.companyId, quoteId)).length;
-  if (kept) {
-    const approval = await manualApproval(s.db, s.companyId, quoteId, { name: by, optionId: null });
-    const { error } = await s.db.from("quotes").update({ approval: asJson(approval) }).eq("id", quoteId).eq("company_id", s.companyId).in("status", UNSIGNED);
-    if (error) throw dbError(error);
-  }
+  if (quote.status !== "approved" || !isCustomerSignature(quote.approval)) throw new HttpError(409, NOT_SIGNED_YET);
   const { data, error } = await s.db.rpc("convert_quote_to_job", { p_quote: quoteId });
-  if (error) {
-    // Not a job after all: it's still unsigned, so it goes back to the approval it had.
-    if (kept) await s.db.from("quotes").update({ approval: before }).eq("id", quoteId).eq("company_id", s.companyId).in("status", UNSIGNED);
-    throw dbError(error);
-  }
+  if (error) throw dbError(error);
   if (quote.recurrence_rule && !quote.change_order_for) {
     // The same visits the daily recurrence task would make (tasks.ts), so a role that sells but doesn't
     // dispatch still gets them now. The job is made either way: that task catches up if this fails.

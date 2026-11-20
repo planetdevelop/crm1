@@ -10,6 +10,7 @@ import { HttpError } from "../src/lib/http";
 import { clientLink, linksReplaced, readClientLink } from "../src/lib/links";
 import { StripeError } from "../src/services/stripe";
 import { drawnPng } from "./fixtures/drawn";
+import { ONE_PIXEL, PAD_BLANK, PAD_DOT, PAD_SHORT } from "./fixtures/signaturePad";
 
 // A stand-in for the service-role client the Client Hub uses: tables of rows that the usual filters
 // narrow down, and selects that return only the columns asked for (json paths like settings->branding
@@ -182,8 +183,13 @@ const S = { roof: "s-roof", tear: "s-tear", edge: "s-edge", deck: "s-deck", chim
 type HubLink = { t: "quote" | "invoice" | "client"; id: string; pv?: 1; via?: "office"; old?: true };
 const tokenFor = async ({ old, ...link }: HubLink) =>
   (await clientLink(env, "https://ops.example.com", { c: ROOFER, ...(old || link.pv || link.via ? {} : { own: 1 as const }), ...link })).split("/hub/")[1]!;
+// Planet Ops: an approval comes from a page that showed a version (its fingerprint); a test that
+// wants it missing says fingerprint: null.
+const PAGE_FINGERPRINT = "0123456789abcdef0123456789abcdef";
+const withFingerprint = (path: string, body: unknown) =>
+  path === "/approve" && body && typeof body === "object" && !("fingerprint" in body) ? { ...body, fingerprint: PAGE_FINGERPRINT } : body;
 const hub = async (link: HubLink, path = "", body?: unknown) =>
-  app.request(`/api/hub/${await tokenFor(link)}${path}`, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Forwarded-For": "203.0.113.7" }, body: JSON.stringify(body) }, env);
+  app.request(`/api/hub/${await tokenFor(link)}${path}`, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Forwarded-For": "203.0.113.7" }, body: JSON.stringify(withFingerprint(path, body)) }, env);
 
 const line = (id: string, service_id: string | null, name: string, values: Row = {}) => ({
   id, company_id: ROOFER, quote_id: QUOTE, option_id: null, service_id, name, description: null, quantity: 1, unit: "ea", unit_price: 0, unit_cost: 0, taxable: true,
@@ -331,6 +337,30 @@ describe("a price range in the Client Hub", () => {
     const approve = await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG });
     expect(approve.status).toBe(200);
     expect(state.calls.some((c) => c.name === "approve_hub_quote")).toBe(true);
+  });
+
+  it("is signed only with a drawing and the exact version the page showed (Planet Ops)", async () => {
+    roofer({ exact_sent_at: "2026-10-24T15:00:00Z" });
+    state.rpcs.approve_hub_quote = () => ({ data: true, error: null });
+    const refused = async (body: Record<string, unknown>) => {
+      const res = await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG, ...body });
+      expect(res.status, JSON.stringify(body).slice(0, 60)).toBe(400);
+    };
+    // No version, or not one the server gave: the page is out of date.
+    await refused({ fingerprint: null });
+    await refused({ fingerprint: undefined });
+    await refused({ fingerprint: "latest" });
+    // Not a drawing: missing, a typed name, a blank pad, only a tap, a one-pixel or broken image.
+    await refused({ signature: null });
+    await refused({ signature: "Dana Whitfield" });
+    await refused({ signature: PAD_BLANK });
+    await refused({ signature: PAD_DOT });
+    await refused({ signature: ONE_PIXEL });
+    await refused({ signature: PAD_SHORT.slice(0, PAD_SHORT.length - 40) });
+    expect(state.calls.some((c) => c.name === "approve_hub_quote")).toBe(false);
+    // A short real signature is fine, and the version the page showed goes to the database to check.
+    expect((await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PAD_SHORT })).status).toBe(200);
+    expect(state.calls.find((c) => c.name === "approve_hub_quote")?.args).toMatchObject({ p_approval: { seen_fingerprint: PAGE_FINGERPRINT, signature: PAD_SHORT } });
   });
 
   it("shows the exact price once it's priced on site", async () => {

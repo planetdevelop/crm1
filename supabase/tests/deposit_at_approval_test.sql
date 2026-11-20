@@ -56,11 +56,11 @@ select tda.quote(:'co', :'erin', 'Planter', 250, 0) as planter \gset
 commit;
 
 set role service_role;
-select tda.check(public.approve_hub_quote(:'co', :'deck', null, '{"name": "Erin Estes"}'), 'Erin approves the deck');
-select tda.check(public.approve_hub_quote(:'co', :'stairs', null, '{"name": "Erin Estes"}'), 'the stairs');
-select tda.check(public.approve_hub_quote(:'co', :'railing', null, '{"name": "Erin Estes"}'), 'the railing');
-select tda.check(public.approve_hub_quote(:'co', :'bench', null, '{"name": "Erin Estes"}'), 'the bench');
-select tda.check(public.approve_hub_quote(:'co', :'planter', null, '{"name": "Erin Estes"}'), 'and the planter');
+select tda.check(public.approve_hub_quote(:'co', :'deck', null, planet_test.approval(:'deck', '{"name": "Erin Estes"}')), 'Erin approves the deck');
+select tda.check(public.approve_hub_quote(:'co', :'stairs', null, planet_test.approval(:'stairs', '{"name": "Erin Estes"}')), 'the stairs');
+select tda.check(public.approve_hub_quote(:'co', :'railing', null, planet_test.approval(:'railing', '{"name": "Erin Estes"}')), 'the railing');
+select tda.check(public.approve_hub_quote(:'co', :'bench', null, planet_test.approval(:'bench', '{"name": "Erin Estes"}')), 'the bench');
+select tda.check(public.approve_hub_quote(:'co', :'planter', null, planet_test.approval(:'planter', '{"name": "Erin Estes"}')), 'and the planter');
 
 -- ===== Not paid online: the invoice is made, and the office is told at once ====================
 select public.hub_deposit_invoice(:'co', :'deck', false) as deck_deposit \gset

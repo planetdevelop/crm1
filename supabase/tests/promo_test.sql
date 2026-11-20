@@ -82,9 +82,9 @@ select public.apply_promo_code('quote', :'q3', 'FLAT50');
 select t5.check((select discount_amount from public.quotes where id = :'q3') = 50, 'a freed-up use can be used by someone else');
 
 -- ===== The discount follows the work ======================================================
-update public.quotes set status = 'approved' where id = :'q1';
+select planet_test.sign(:'q1');
 select t5.expect_error(format('select public.apply_promo_code(%L, %L, %L)', 'quote', :'q1', 'FLAT50'), 'codes can''t change on an approved quote', '%approved%');
-select public.convert_quote_to_job(:'q1') as job \gset
+select public.convert_quote_to_job(planet_test.sign(:'q1')) as job \gset
 select t5.check((select count(*) from public.job_line_items where job_id = :'job' and name = 'Promo code SPRING10') = 1, 'the job shows the promo code as a credit');
 select public.create_invoice_for_job(:'job') as inv \gset
 select t5.check((select total from public.invoices where id = :'inv') = (select total from public.quotes where id = :'q1'), 'the invoice matches the discounted quote');

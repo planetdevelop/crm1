@@ -1,12 +1,11 @@
 /**
  * Sales pipeline: open requests and quotes as a board with value and age. Drag a request to
- * "Drafting quote" to start a quote, a draft to "Awaiting response" to send it, a sent quote to
- * "Approved" to mark it approved (keeping its template and contract, as "Mark approved" on the quote
- * does), or anything to "Lost". A quote that offers options (quote_options) is approved from its own
- * page, where the office says which option they chose; until it's signed, its value here is its
- * cheapest option's (quotes/options.ts listPrice), as on the quotes list.
+ * "Drafting quote" to start a quote, a draft to "Awaiting response" to send it, or anything to "Lost".
+ * Planet Ops: a quote reaches "Approved" only when the customer signs it (the database refuses an
+ * office approval), so a quote dropped there is refused with how it gets signed. Until it's signed,
+ * a quote that offers options is valued at its cheapest option's price (quotes/options.ts listPrice),
+ * as on the quotes list.
  */
-import type { Json } from "@crewtavo/core/database";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type DragEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -20,7 +19,7 @@ import { api, supabase, unwrap } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { toast, type ToastTone } from "@/lib/toast";
-import { ALREADY_ANSWERED, listPrice, withOptionLines } from "../quotes/options";
+import { listPrice, withOptionLines } from "../quotes/options";
 import { optionsNote } from "../quotes/QuotesPage";
 import { SendDialog } from "../quotes/SendDialog";
 
@@ -44,15 +43,15 @@ interface Card {
 }
 type ColumnKey = "new" | "assess" | "draft" | "sent" | "won";
 
-const PICK_ON_QUOTE = "Open the quote to pick the option they chose.";
+/** Planet Ops: only the customer's drawn signature approves a quote. */
+export const CUSTOMER_SIGNS = "A quote is approved when the customer signs it. Send it to them to sign, or have them sign it in person.";
 
 /**
- * Why a card dropped on a column can't move there from the board, or null when it can: a quote that
- * offers options is approved on its own page, which asks which option they chose. (Options added
- * since the board was read are caught as it's approved.)
+ * Why a card dropped on a column can't move there from the board, or null when it can. "Approved"
+ * is never a drop target for a quote: only the customer's signature approves one.
  */
 export function moveRefusal(card: Pick<Card, "kind" | "options">, to: ColumnKey | "lost"): string | null {
-  return card.kind === "quote" && to === "won" && card.options > 0 ? PICK_ON_QUOTE : null;
+  return card.kind === "quote" && to === "won" ? CUSTOMER_SIGNS : null;
 }
 
 const COLUMNS: Array<{ key: ColumnKey; label: string; statuses: string[]; kind: Card["kind"]; color: string }> = [
@@ -66,7 +65,7 @@ const COLUMNS: Array<{ key: ColumnKey; label: string; statuses: string[]; kind: 
 const daysOld = (iso: string) => Math.floor((Date.now() - Date.parse(iso)) / 86_400_000);
 
 export function PipelinePage() {
-  const { company, profile } = useSession();
+  const { company } = useSession();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [dragging, setDragging] = useState<Card | null>(null);
@@ -113,18 +112,6 @@ export function PipelinePage() {
       if (card.kind === "request" && to === "draft") {
         const quote = await api.post<{ id: string }>(`/requests/${card.id}/quote`);
         return { message: "Quote started", open: `/quotes/${quote.id}`, tone: "quote" };
-      }
-      if (card.kind === "quote" && to === "won") {
-        // The quote page's own approval, loaded only once a quote is dropped here.
-        const { boardApproval } = await import("../quotes/QuotePage");
-        const approval = await boardApproval(queryClient, card.id, { companyId: company.id, name: profile.full_name || "Office", trade: company.trade_preset });
-        if (!approval) return { message: PICK_ON_QUOTE, refused: true, open: `/quotes/${card.id}` };
-        // Only while it's still waiting: a client who signed meanwhile keeps their own approval.
-        const saved = unwrap(
-          await supabase().from("quotes").update({ status: "approved", approved_at: new Date().toISOString(), approval: approval as unknown as Json }).eq("id", card.id).in("status", ["sent", "changes_requested"]).select("id"),
-        );
-        if (!saved.length) return { message: ALREADY_ANSWERED, refused: true, open: `/quotes/${card.id}` };
-        return { message: `Quote #${card.number} marked approved`, tone: "quote" };
       }
       throw new Error("That move isn't possible.");
     },

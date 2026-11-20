@@ -234,7 +234,7 @@ insert into public.quote_line_items (company_id, quote_id, name, quantity, unit,
 commit;
 -- The client approves it in the Client Hub (the server, as the service role).
 update public.quotes set status = 'sent', sent_at = now() where id = :'quote';
-update public.quotes set status = 'approved', approved_at = now() where id = :'quote';
+select planet_test.sign(:'quote');
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "b1000000-0000-0000-0000-000000000002", "role": "authenticated"}', true);
@@ -246,7 +246,7 @@ commit;
 insert into public.quotes (company_id, client_id, title, change_order_for) values (:'co', :'client', 'Add aeration', :'job') returning id as change \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'change', 'Aeration', 1, 'ea', 250);
 update public.quotes set status = 'sent', sent_at = now() where id = :'change';
-update public.quotes set status = 'approved', approved_at = now(), approval = jsonb_build_object('name', 'Test Customer', 'signed_at', now(), 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'total', total, 'seen_fingerprint', private.quote_fingerprint(id)) where id = :'change';
+select planet_test.sign(:'change');
 select t16.expect_error(format('update public.quotes set status = ''sent'' where id = %L', :'change'), 'a signed change order can''t be re-opened');
 select t16.check((select count(*) from public.job_line_items where job_id = :'job' and source_quote_id = :'change') = 1, 'a signed change order adds its lines to the job once');
 select t16.check((select status from public.quotes where id = :'change') = 'converted', 'and is marked added to the job');
