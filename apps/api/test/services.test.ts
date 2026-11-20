@@ -799,7 +799,7 @@ describe("quote approval", () => {
     const quote = (await clientLink(env, "https://ops.example.com", { c: "co-1", t: "quote", id: "quote-1" })).split("/hub/")[1];
     const res = await app.request(
       `/api/hub/${quote}/approve`,
-      { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ name: "Ana Smith", selected_line_ids: [option], fingerprint: "0123456789abcdef0123456789abcdef", ...(drawn ? { signature: drawnPng() } : {}) }) },
+      { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ name: "Ana Smith", selected_line_ids: [option], fingerprint: "0123456789abcdef0123456789abcdef", expected_total: 0, ...(drawn ? { signature: drawnPng() } : {}) }) },
       bindings,
     );
     return { option, calls, res };
@@ -814,6 +814,7 @@ describe("quote approval", () => {
       p_company: "co-1",
       p_quote: "quote-1",
       p_selected: [option],
+      p_expected_total: 0,
       // The business has no template saved, so the built-in one is kept with the approval, with its
       // terms as the contract (no options, no sections and nothing to initial).
       p_approval: {
@@ -858,7 +859,7 @@ describe("quote approval", () => {
         return [];
       });
       const quote = (await clientLink(env, "https://ops.example.com", { c: "co-1", t: "quote", id: "quote-1" })).split("/hub/")[1];
-      const res = await app.request(`/api/hub/${quote}/approve`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Ana Smith", selected_line_ids: selected, signature: drawnPng(), fingerprint: "0123456789abcdef0123456789abcdef" }) }, connectedFrom("203.0.113.9"));
+      const res = await app.request(`/api/hub/${quote}/approve`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Ana Smith", selected_line_ids: selected, signature: drawnPng(), fingerprint: "0123456789abcdef0123456789abcdef", expected_total: 0 }) }, connectedFrom("203.0.113.9"));
       return { res, calls };
     };
     for (const wrong of [[], [good, best], [gutters]]) {

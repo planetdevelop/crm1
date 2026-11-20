@@ -186,8 +186,13 @@ const tokenFor = async ({ old, ...link }: HubLink) =>
 // Planet Ops: an approval comes from a page that showed a version (its fingerprint); a test that
 // wants it missing says fingerprint: null.
 const PAGE_FINGERPRINT = "0123456789abcdef0123456789abcdef";
+// The page also sends the total it showed (required): a test that leaves it out gets the quote's
+// total as the database has it, and one that wants it missing says expected_total: null.
+const pageTotal = () => Number(state.tables.quotes?.find((q) => q.id === QUOTE)?.total ?? 0);
 const withFingerprint = (path: string, body: unknown) =>
-  path === "/approve" && body && typeof body === "object" && !("fingerprint" in body) ? { ...body, fingerprint: PAGE_FINGERPRINT } : body;
+  path === "/approve" && body && typeof body === "object"
+    ? { ...("fingerprint" in body ? {} : { fingerprint: PAGE_FINGERPRINT }), ...("expected_total" in body ? {} : { expected_total: pageTotal() }), ...body }
+    : body;
 const hub = async (link: HubLink, path = "", body?: unknown) =>
   app.request(`/api/hub/${await tokenFor(link)}${path}`, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Forwarded-For": "203.0.113.7" }, body: JSON.stringify(withFingerprint(path, body)) }, env);
 
@@ -961,14 +966,18 @@ describe("approving an estimate with options", () => {
     expect((await res.json()).error).toBe("The price changed. Please look it over again.");
     expect(approvalArgs().p_expected_total).toBe(15000);
 
-    state.calls = [];
-    const old = await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG, option_id: GOOD });
-    expect((await old.json()).error).toBe("This quote can't be approved anymore.");
-    expect(Object.keys(approvalArgs())).not.toContain("p_expected_total");
   });
 
-  it("fills in the total their choices come to when the page didn't send one", async () => {
-    await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG, option_id: GOOD, selected_line_ids: [L.vent] });
+  it("needs the total the page showed (Planet Ops): a request without it isn't signed", async () => {
+    state.rpcs.approve_hub_quote = () => ({ data: true, error: null });
+    for (const missing of [{ expected_total: null }, { expected_total: undefined }, { expected_total: "15413" }]) {
+      const res = await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG, option_id: GOOD, selected_line_ids: [L.vent], ...missing });
+      expect(res.status, JSON.stringify(missing)).toBe(400);
+    }
+    expect(state.calls.some((c) => c.name === "approve_hub_quote")).toBe(false);
+    // With it, the terms say that total and the database checks it.
+    await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG, option_id: GOOD, selected_line_ids: [L.vent], expected_total: 15413 });
+    expect(approvalArgs().p_expected_total).toBe(15413);
     const contract = (approvalArgs().p_approval as Row).contract as { sections: Row[] };
     expect(contract.sections[0]!.body).toBe("<p>The price is $15,413.00. Make checks out to Summit Roofing.</p>");
   });
@@ -1023,7 +1032,7 @@ describe("approving an estimate with options", () => {
     const res = await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG, selected_line_ids: [L.gutter] });
     expect(res.status).toBe(200);
     const args = approvalArgs();
-    expect(Object.keys(args).sort()).toEqual(["p_approval", "p_company", "p_quote", "p_selected"]);
+    expect(Object.keys(args).sort()).toEqual(["p_approval", "p_company", "p_expected_total", "p_quote", "p_selected"]);
     expect(args.p_selected).toEqual([L.gutter]);
     expect(args.p_approval).toMatchObject({ option: null, contract: { terms: "Thanks, Dana Whitfield.", sections: [] }, initials: null });
   });

@@ -119,10 +119,9 @@ language sql stable security definer set search_path = '' as $$
         'unit_price', l.unit_price, 'taxable', l.taxable, 'optional', l.optional,
         'selected', case when l.optional or l.option_id is not null then null else l.selected end,
         'option_id', l.option_id, 'option_group', l.option_group, 'sort', l.sort) order by l.sort, l.id), '[]')
-      -- A price set on site goes when the customer picks another option: it's in the amounts they
-      -- signed for, not the document offered (as in 20261120000100).
-      from public.quote_line_items l
-     where l.quote_id = p_quote and not (l.name = 'Price adjustment' and l.service_id is null and l.formula is null)),
+      -- A price set on site ("Price adjustment" lines) is part of the price offered, as in
+      -- 20261120000100 (private.offered_version keeps the customer's own choice of option theirs).
+      from public.quote_line_items l where l.quote_id = p_quote),
     'options', (select coalesce(jsonb_agg(to_jsonb(o) - 'created_at' - 'updated_at' order by o.sort, o.id), '[]')
       from public.quote_options o where o.quote_id = p_quote),
     'sections', (select coalesce(jsonb_agg(jsonb_build_object('id', s.id, 'title', s.title, 'body', s.body, 'place', s.place, 'initials', s.initials) order by s.id), '[]')
