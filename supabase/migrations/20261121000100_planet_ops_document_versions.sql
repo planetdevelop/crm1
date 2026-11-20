@@ -46,7 +46,7 @@ create table public.quote_versions (
   total numeric(12, 2),
   issued_at timestamptz not null default now(),
   issued_by uuid references auth.users (id) on delete set null,
-  issued_via text not null check (issued_via in ('sent', 'in_person', 'site_price', 'existing')),
+  issued_via text not null check (issued_via in ('sent', 'in_person', 'site_price', 'promo', 'existing')),
   superseded_at timestamptz,
   superseded_by uuid,
   signed_at timestamptz,
@@ -151,7 +151,8 @@ create trigger issue_on_send_insert after insert on public.quotes
   for each row when (new.status = 'sent' and new.is_template is not true)
   execute function private.issue_on_send();
 
--- "Resend" / "Make available to sign" from the office or the server: issue the document as it is now
+-- "Resend" / "Make available to sign" from the office or the server (and, as 'promo', the server after
+-- the customer applies or removes a promo code on their link): issue the document as it is now
 -- (a new version when it changed, else the same one again), answer open change requests, and put a
 -- document with changes requested back to waiting for the customer. The sender's access is checked
 -- by the API (and, from Phase 1d, its send_pricing area).
@@ -167,13 +168,17 @@ begin
   if q.status not in ('sent', 'changes_requested') or q.is_template then
     raise exception 'Only a document that''s with the customer can be issued again.' using errcode = '22023';
   end if;
-  if p_via not in ('sent', 'site_price') then
+  if p_via not in ('sent', 'site_price', 'promo') then
     raise exception 'Unknown way to issue a version.' using errcode = '22023';
   end if;
   v_id := private.issue_version(p_quote, p_via);
-  perform private.answer_change_requests(p_quote, v_id);
-  if q.status = 'changes_requested' then
-    update public.quotes set status = 'sent' where id = p_quote;
+  -- A promo code the customer applied on their own link is their own change, like choosing an
+  -- option: issued so their page stays current, never an answer to a change request.
+  if p_via <> 'promo' then
+    perform private.answer_change_requests(p_quote, v_id);
+    if q.status = 'changes_requested' then
+      update public.quotes set status = 'sent' where id = p_quote;
+    end if;
   end if;
   return v_id;
 end $$;
