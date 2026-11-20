@@ -34,6 +34,14 @@ export type ProposalPatch = { presentation?: Presentation; narrative?: Exclude<J
  */
 export function DocumentTypeChoice({ value, onChange, editable = true, compact = false }: { value: Presentation; onChange: (p: Presentation) => void; editable?: boolean; compact?: boolean }) {
   const name = useId();
+  // Shown chosen at once, while the quote saves (and back in step with it once it's read again).
+  const [shown, setShown] = useState(value);
+  useEffect(() => setShown(value), [value]);
+  const choose = (p: Presentation) => {
+    if (p === shown) return;
+    setShown(p);
+    onChange(p);
+  };
   if (!editable) {
     return (
       <div className="row wrap" style={{ gap: 8, alignItems: "baseline" }} data-planet-ops="document-type">
@@ -47,8 +55,8 @@ export function DocumentTypeChoice({ value, onChange, editable = true, compact =
       <legend className="strong small" style={{ padding: 0, marginBottom: 6 }}>Document type</legend>
       <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))" }}>
         {PRESENTATIONS.map((p) => (
-          <label key={p} className="card card-pad" style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer", padding: compact ? 10 : undefined, borderColor: value === p ? "var(--accent, #1C50E4)" : undefined, boxShadow: value === p ? "0 0 0 1px var(--accent, #1C50E4)" : undefined }}>
-            <input type="radio" name={name} value={p} checked={value === p} onChange={() => value !== p && onChange(p)} style={{ marginTop: 3 }} />
+          <label key={p} className="card card-pad" style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer", padding: compact ? 10 : undefined, borderColor: shown === p ? "var(--accent, #1C50E4)" : undefined, boxShadow: shown === p ? "0 0 0 1px var(--accent, #1C50E4)" : undefined }}>
+            <input type="radio" name={name} value={p} checked={shown === p} onChange={() => choose(p)} style={{ marginTop: 3 }} />
             <span className="stack-xs">
               <strong>{PRESENTATION_LABELS[p]}</strong>
               {!compact && <span className="muted small">{PRESENTATION_HINTS[p]}</span>}
