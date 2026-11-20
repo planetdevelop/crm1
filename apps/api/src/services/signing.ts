@@ -9,6 +9,7 @@
  * signature. The contract signed with it (the option chosen, the sections and the homeowner's
  * initials) is checked and kept the same way as online, by services/contracts.ts.
  */
+import { isCustomerSignature } from "@crewtavo/core/changeOrders";
 import { pickTemplate } from "@crewtavo/core/documents";
 import { countsOn } from "@crewtavo/core/money";
 import { z } from "zod";
@@ -53,8 +54,12 @@ export const signSchema = z.object({
   /** The customer's printed name. */
   name: z.string().trim().min(2).max(120),
   signature: signatureImage,
-  /** The salesperson's signature for the business, drawn now; else their saved one is used. */
+  /**
+   * The salesperson's signature for the business: drawn now, or (use_saved_signature) their own saved
+   * one, applied because they chose it for this agreement. Planet Ops: never applied for them.
+   */
   company_signature: signatureImage.optional(),
+  use_saved_signature: z.literal(true).optional(),
   save_signature: z.boolean().optional(),
   email_copy: z.boolean().optional(),
   /** Where to email the copy; the client's email when left out. */
@@ -71,7 +76,8 @@ export const signSchema = z.object({
 });
 export type SignBody = z.infer<typeof signSchema>;
 
-export const countersignSchema = z.object({ signature: signatureImage.optional(), save_signature: z.boolean().optional() });
+/** A countersignature: drawn now, or the signer's own saved one applied on purpose (one of the two). */
+export const countersignSchema = z.object({ signature: signatureImage.optional(), use_saved_signature: z.literal(true).optional(), save_signature: z.boolean().optional() });
 export type CountersignBody = z.infer<typeof countersignSchema>;
 
 export const copySchema = z.object({ channel: z.enum(["email", "sms"]), to: z.string().trim().max(200).optional() });
@@ -169,8 +175,8 @@ export async function signQuote(s: SigningScope, id: string, body: SignBody) {
   if (templates.error) throw dbError(templates.error);
   // The trade's starter terms when the business never saved its own, as the Hub and the printout show them.
   const template = pickTemplate(templates.data ?? [], quote.template_id, company.trade_preset);
-  const companySignature = body.company_signature ?? saved;
-  if (!companySignature && template.company_signs) throw new HttpError(400, `Sign for ${company.name} too.`);
+  const chosen = companySignatureChosen(body.company_signature, body.use_saved_signature, saved);
+  if (!chosen && template.company_signs) throw new HttpError(400, `Sign for ${company.name} too: draw your signature, or use your saved one.`);
 
   // The option they chose is the one shown on the visit page, and it has to be the one on the paper.
   let option: OptionRow | null = null;
@@ -201,7 +207,8 @@ export async function signQuote(s: SigningScope, id: string, body: SignBody) {
     method: "in_person" as const,
     seen_fingerprint: body.fingerprint,
     selected_line_ids: lines.filter((l) => l.optional && countsOn(l, quote.option_id)).map((l) => l.id),
-    company: companySignature ? { name: signer || company.name, user_id: s.userId, signature: companySignature, signed_at: now } : null,
+    // The database stamps its time and the version the customer signed (20261120000200).
+    ...(chosen ? { company: { name: signer || company.name, user_id: s.userId, method: chosen.method, signature: chosen.image } } : {}),
     // The template as it was signed, so later changes to it (or another default) don't change the terms above the signatures.
     template,
     ...kept,
@@ -234,17 +241,33 @@ export async function signQuote(s: SigningScope, id: string, body: SignBody) {
   return { status: "approved" as const, emailed: copy.sent, ...(copy.sent ? {} : { email_reason: copy.reason }), link: links.office };
 }
 
-/** Signs for the business on a quote that's already signed (online, say), with a drawn or saved signature. */
+/**
+ * The signature for the business, as the signer chose it: drawn now, or their own saved one because
+ * they asked for it (never both, and never on its own). Null when they chose neither.
+ */
+function companySignatureChosen(drawn: string | undefined, useSaved: true | undefined, saved: string | null): { method: "drawn" | "saved"; image: string } | null {
+  if (drawn && useSaved) throw new HttpError(400, "Draw your signature, or use your saved one, not both.");
+  if (drawn) return { method: "drawn", image: drawn };
+  if (!useSaved) return null;
+  if (!saved) throw new HttpError(400, "You don't have a saved signature yet. Draw it instead.");
+  if (!isDrawnSignature(saved)) throw new HttpError(400, "Your saved signature can't be used. Draw it again.");
+  return { method: "saved", image: saved };
+}
+
+/** Signs for the business on a quote the customer already signed (online, say): drawn now, or the signer's saved signature, chosen on purpose. */
 export async function countersignQuote(s: SigningScope, id: string, body: CountersignBody) {
   const quote = await loadQuote(s, id);
   if (!SIGNED.includes(quote.status)) throw new HttpError(409, "This estimate isn't signed yet.");
   const company = await loadCompany(s);
   const approval = quote.approval && typeof quote.approval === "object" && !Array.isArray(quote.approval) ? (quote.approval as Record<string, unknown>) : {};
   if (approval.company) throw new HttpError(409, `This estimate was already signed for ${company.name}.`);
-  const image = body.signature ?? (await savedSignature(s.db, s.companyId, s.userId));
-  if (!image) throw new HttpError(400, "Draw your signature first.");
+  // Planet Ops: the customer signs first, then the company, for this exact agreement.
+  if (!isCustomerSignature(approval)) throw new HttpError(409, "The customer hasn't signed this yet. Your company countersigns once they have.");
+  const chosen = companySignatureChosen(body.signature, body.use_saved_signature, body.use_saved_signature ? await savedSignature(s.db, s.companyId, s.userId) : null);
+  if (!chosen) throw new HttpError(400, "Draw your signature, or choose to use your saved one.");
   const signer = await signerName(s);
-  const merged = { ...approval, company: { name: signer || company.name, user_id: s.userId, signature: image, signed_at: new Date().toISOString() } };
+  // The database stamps the time and binds it to the version the customer signed (20261120000200).
+  const merged = { ...approval, company: { name: signer || company.name, user_id: s.userId, method: chosen.method, signature: chosen.image } };
   // Only while nobody has signed for the business yet (->> reads a missing key and a JSON null alike).
   const updated = await s.db
     .from("quotes")

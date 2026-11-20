@@ -495,13 +495,14 @@ describe("the crew on the client's home page", () => {
 describe("signing online", () => {
   beforeEach(() => roofer({ range_low: null, range_high: null, range_sent_at: null }));
 
-  it("puts the salesperson's saved signature on for the business", async () => {
+  it("never signs for the business as the customer signs, even with the salesperson's saved signature (Planet Ops)", async () => {
     state.rpcs.approve_hub_quote = () => ({ data: true, error: null });
     const res = await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG });
     expect(res.status).toBe(200);
     const approval = state.calls.find((c) => c.name === "approve_hub_quote")!.args.p_approval as Row;
-    expect(approval).toMatchObject({ name: "Dana Whitfield", signature: PNG, company: { name: "Mike Torres", user_id: SALES, signature: PNG } });
-    expect(typeof (approval.company as Row).signed_at).toBe("string");
+    expect(approval).toMatchObject({ name: "Dana Whitfield", signature: PNG });
+    // A countersignature is the signer's own step afterwards (POST /quotes/:id/countersign).
+    expect(approval).not.toHaveProperty("company");
   });
 
   it("keeps the quote's template with the approval, as it is when the client signs", async () => {

@@ -8,11 +8,17 @@
  *                                    changes (20261113001120_high_value_quote_alerts.sql); off empty
  *   settings.quotes.draft_requests   a request from a booking form or the Client Hub gets a draft
  *                                    quote by itself (services/quoteDrafts.ts), off unless set
+ *   settings.quotes.countersign_required   Planet Ops: the company countersigns before an agreement
+ *                                    counts; a change order the customer signed joins its job once it
+ *                                    has (20261120000200), off unless set
+ *   settings.quotes.contract_terms / payment_terms   Planet Ops: the Contract Terms and Payment Terms
+ *                                    a new quote or proposal starts with, edited per job
  *   settings.quote_ai                Draft a quote uses Claude: its own switch, saved at once by the
  *                                    server once Claude answers with the company's key (PUT
  *                                    /quotes/drafting), never with the Save button
  */
 import { toUnits } from "@crewtavo/core/money";
+import { proposalSettings, TERMS_MAX } from "@crewtavo/core/proposals";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Button, useJustDone } from "@/components/ui/Button";
@@ -25,13 +31,26 @@ interface QuoteForm {
   draftRequests: boolean;
   /** The amount as typed; empty is off. */
   alertOver: string;
+  /** Planet Ops: the company countersigns before an agreement counts. */
+  countersignRequired: boolean;
+  /** Planet Ops: the Contract Terms and Payment Terms new quotes start with. */
+  contractTerms: string;
+  paymentTerms: string;
 }
 
 /** The form's values from the company's settings. */
 export function quoteForm(settings: unknown): QuoteForm {
   const s = (settings ?? {}) as Record<string, any>;
   const over = Number(s.quotes?.alert_over);
-  return { sendPayments: s.payment_schedule?.send === true, draftRequests: s.quotes?.draft_requests === true, alertOver: typeof s.quotes?.alert_over === "number" && over > 0 ? String(over) : "" };
+  const p = proposalSettings(settings);
+  return {
+    sendPayments: s.payment_schedule?.send === true,
+    draftRequests: s.quotes?.draft_requests === true,
+    alertOver: typeof s.quotes?.alert_over === "number" && over > 0 ? String(over) : "",
+    countersignRequired: p.countersignRequired,
+    contractTerms: p.contractTerms,
+    paymentTerms: p.paymentTerms,
+  };
 }
 
 /** The alert amount to save: a number above 0 to the cent, null for off. Throws the field's message when it isn't one. */
@@ -58,7 +77,16 @@ export function QuoteSettings() {
   const save = useMutation({
     meta: { inline: true },
     mutationFn: async (v: QuoteForm) => {
-      const settings = { payment_schedule: { send: v.sendPayments }, quotes: { alert_over: alertAmount(v.alertOver), draft_requests: v.draftRequests } };
+      const settings = {
+        payment_schedule: { send: v.sendPayments },
+        quotes: {
+          alert_over: alertAmount(v.alertOver),
+          draft_requests: v.draftRequests,
+          countersign_required: v.countersignRequired,
+          contract_terms: v.contractTerms.trim(),
+          payment_terms: v.paymentTerms.trim(),
+        },
+      };
       unwrap(await supabase().rpc("merge_company_settings", { p_company: company.id, p_settings: settings as never }));
     },
     onSuccess: () => {
@@ -107,6 +135,21 @@ export function QuoteSettings() {
       <span className="muted small">
         A quote's payment schedule becomes invoices on its job as each payment comes due. Off, each one waits in Drafts and the people who handle invoices are told. On, it's sent to the client the usual way, and they're told only if it couldn't be sent. A payment due when the work starts waits 30 minutes after the first visit is started, and isn't sent if that visit is put back in that time.
       </span>
+      <strong style={{ marginTop: 8 }}>Agreements</strong>
+      <label className="switch-row" style={{ fontWeight: 400 }}>
+        <input type="checkbox" className="switch" checked={f.countersignRequired} onChange={(e) => setF({ ...f, countersignRequired: e.target.checked })} />
+        Company countersignature required
+      </label>
+      <span className="muted small">
+        On, an agreement the customer signed also needs your company's signature before it counts: a change order the customer signed waits to be added to the job until someone countersigns it on the quote. Off, the customer's signature is enough. Customer acceptance and your countersignature are always kept separately.
+      </span>
+      <Field label="Contract Terms" optional hint="New quotes and proposals start with these, as their own section. Edit them per job on the quote. Use your approved wording.">
+        <textarea className="textarea" rows={6} maxLength={TERMS_MAX} value={f.contractTerms} onChange={(e) => setF({ ...f, contractTerms: e.target.value })} />
+      </Field>
+      <Field label="Payment Terms" optional hint="Kept separate from the Contract Terms, on every quote and proposal. Edit them per job on the quote. Use your approved wording.">
+        <textarea className="textarea" rows={4} maxLength={TERMS_MAX} value={f.paymentTerms} onChange={(e) => setF({ ...f, paymentTerms: e.target.value })} />
+      </Field>
+      <span className="muted small">Changing these doesn't change quotes already made, and never a signed agreement.</span>
       <FormError error={save.error} />
       <div className="form-actions" style={{ justifyContent: "flex-start" }}>
         <Button type="submit" variant="primary" loading={save.isPending} done={saved}>Save</Button>

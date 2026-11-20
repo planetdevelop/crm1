@@ -174,6 +174,11 @@ export interface QuoteView {
   /** The business's Google rating and up to three reviews, when it shows them on quotes (`pdf`: on its PDF too). Null otherwise, and left out by older servers. */
   reviews?: HubReviews | null;
   quote: {
+    /** Planet Ops: the layout, a proposal's sections, and the separate Contract Terms and Payment Terms (servers from before leave them out). */
+    presentation?: string | null;
+    narrative?: unknown;
+    contract_terms?: string | null;
+    payment_terms?: string | null;
     id: string;
     number: number;
     status: string;

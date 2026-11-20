@@ -34,7 +34,7 @@ export const NAV_GROUPS: NavItem[][] = [
   [
     { to: "/clients", label: msg("Clients"), icon: "clients", keywords: "customers contacts properties addresses client hub portal" },
     { to: "/requests", label: msg("Requests"), icon: "requests", keywords: "inquiries leads assessments website form messages contact form" },
-    { to: "/quotes", label: msg("Quotes"), icon: "quote", roles: ["admin", "office", "estimator"], also: ["/pipeline", "/measure"], keywords: "estimates proposals bids" },
+    { to: "/quotes", label: msg("Quotes & Proposals"), icon: "quote", roles: ["admin", "office", "estimator"], also: ["/pipeline", "/measure"], keywords: "estimates proposals bids" },
     { to: "/jobs", label: msg("Jobs"), icon: "job", keywords: "work orders projects recurring visits job costing" },
     { to: "/invoices", label: msg("Invoices"), icon: "invoice", roles: ["admin", "office"], perm: "invoices", also: ["/payouts"], keywords: "billing bills payments batch invoicing collect payments" },
     { to: "/drive", label: msg("Drive"), icon: "folder", roles: ["admin", "office", "estimator"], feature: "drive", keywords: "files documents folders google drive upload pdf word docx trash" },

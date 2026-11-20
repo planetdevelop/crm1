@@ -175,6 +175,7 @@ export function DocumentPdf({ template, company, data, pictures, font, currency,
   const sections = data.contract?.sections ?? [];
   const terms = estimate ? sections.filter((s) => s.place === "terms") : [];
   const signs = estimate && signsAnything(template, data.signatures);
+  const proposal = estimate && data.presentation === "proposal";
 
   return (
     <Document title={data.number ? `${kind} ${data.number}` : kind} author={company.name} creator="Planet Ops" producer="Planet Ops (based on Crewtavo)">
@@ -195,7 +196,9 @@ export function DocumentPdf({ template, company, data, pictures, font, currency,
           </View>
         )}
         {options.length > 0 && <Options options={options} pictures={pictures} look={look} />}
-        <Lines lines={data.lines} look={look} />
+        {/* Planet Ops: a proposal prints its narrative scope in place of the priced lines; the same totals either way. */}
+        {proposal && (data.narrative ?? []).map((section, n) => <TextBlock key={`nv${n}`} title={section.title} text={section.text} />)}
+        {!proposal && <Lines lines={data.lines} look={look} />}
         <Totals data={data} look={look} />
 
         {paragraphs(data.notes).map((text, i) => (
@@ -204,6 +207,8 @@ export function DocumentPdf({ template, company, data, pictures, font, currency,
             <T size={12} lh={1.6}>{text}</T>
           </View>
         ))}
+        {/* Planet Ops: Contract Terms and Payment Terms, two separate sections, on both layouts. */}
+        {estimate && (data.terms ?? []).map((section, n) => <TextBlock key={`ag${n}`} title={section.title} text={section.text} />)}
         {paragraphs(template.terms).map((text, i) => (
           <T key={`t${i}`} size={11} lh={1.6} style={{ marginTop: px(i ? TERMS_LINE : GAP), color: TEXT_2, ...(i === 0 && { paddingTop: px(14), borderTopWidth: px(1), borderTopColor: RULE }) }}>
             {text}
@@ -228,6 +233,20 @@ export function DocumentPdf({ template, company, data, pictures, font, currency,
         )}
       </Page>
     </Document>
+  );
+}
+
+/** Planet Ops: a titled block of plain text (a proposal's section, the Contract Terms, the Payment Terms), as the notes print. */
+function TextBlock({ title, text }: { title: string; text: string }) {
+  return (
+    <>
+      {paragraphs(text).map((para, i) => (
+        <View key={i} style={{ marginTop: px(i ? NOTES_LINE : GAP) }} minPresenceAhead={i ? 0 : px(40)}>
+          {i === 0 && <T size={10.5} style={eyebrow({ marginBottom: px(4) })}>{title}</T>}
+          <T size={12} lh={1.6}>{para}</T>
+        </View>
+      ))}
+    </>
   );
 }
 

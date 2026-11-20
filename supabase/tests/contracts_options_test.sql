@@ -1073,14 +1073,16 @@ select t_options.expect_error(format('update public.quotes set approval = %L whe
 select t_options.expect_error(format('update public.quotes set status = %L, approved_at = now(), approval = %L where id = %L', 'approved', '{"name": "Office", "method": "manual"}', :'qi'),
   'not even marking it approved again, with the option it shows');
 select t_options.expect_error(format('update public.quotes set approved_at = now() where id = %L', :'qi'), 'or changes when it was approved');
-update public.quotes set approval = approval || '{"company": {"name": "Sam Summit", "signature": "data:image/png;base64,AAAA"}}' where id = :'qi';
+-- Planet Ops: the signer's own drawing, chosen on purpose (20261120000200).
+update public.quotes set approval = approval || jsonb_build_object('company', jsonb_build_object('name', 'Sam Summit', 'user_id', 'c0de0000-0000-0000-0000-000000000001', 'method', 'drawn', 'signature', planet_test.drawn())) where id = :'qi';
 select t_options.check((select approval -> 'company' ->> 'name' = 'Sam Summit' and approval ->> 'name' = 'Dana Homeowner' and (approval ->> 'total')::numeric = 13200
                           from public.quotes where id = :'qi'), 'the business signs under the client''s signature');
 select t_options.expect_error(format('update public.quotes set approval = approval || %L where id = %L', '{"company": {"name": "Olive Office"}}', :'qi'), 'once');
 insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'Deck roof') returning id as qds \gset
 insert into public.quote_line_items (company_id, quote_id, name, unit_price) values (:'co', :'qds', 'Deck roof', 2500);
 select t_options.server_sign(:'qds', planet_test.approval(:'qds', '{"name": "Dana Homeowner", "method": "in_person", "company": null}'));
-update public.quotes set approval = approval || '{"company": {"name": "Sam Summit", "signature": "data:image/png;base64,AAAA"}}' where id = :'qds';
+-- Planet Ops: the signer's own drawing, chosen on purpose (20261120000200).
+update public.quotes set approval = approval || jsonb_build_object('company', jsonb_build_object('name', 'Sam Summit', 'user_id', 'c0de0000-0000-0000-0000-000000000001', 'method', 'drawn', 'signature', planet_test.drawn())) where id = :'qds';
 select t_options.check((select approval -> 'company' ->> 'name' = 'Sam Summit' and approval ->> 'method' = 'in_person' from public.quotes where id = :'qds'),
   'and on one signed on the iPad without the business''s signature');
 select t_options.expect_error(format('update public.quotes set status = %L where id = %L', 'approved', :'qm'), 'a quote that''s a job isn''t approved again');

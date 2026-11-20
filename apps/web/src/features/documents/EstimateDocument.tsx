@@ -155,6 +155,29 @@ function paperOf(template: TemplateSettings, company: DocumentCompany, data: Doc
   const pieces: Piece[] = [];
   const tables: Record<string, PieceTable> = {};
   const add = (piece: Piece) => pieces.push(piece);
+  // Planet Ops: a titled block of plain text (a proposal's section, the Contract Terms, the Payment
+  // Terms), a paragraph at a time, its title kept with the first line as the notes' label is.
+  const textBlock = (key: string, title: string, text: string) =>
+    paragraphs(text).forEach((para, i) => {
+      const label = i === 0 && <div className={styles.eyebrow}>{title}</div>;
+      add({
+        key: `${key}-${i}`,
+        node: (
+          <div className={styles.notes} data-planet-ops={key}>
+            {label}
+            <span data-split="">{para}</span>
+          </div>
+        ),
+        part: ({ words: [words], carried }) => (
+          <div className={styles.notes} data-planet-ops={key}>
+            {!carried && label}
+            <span>{wordsOf(para, words)}</span>
+          </div>
+        ),
+        space: i ? NOTES_LINE : GAP,
+      });
+    });
+  const proposal = estimate && data.presentation === "proposal";
 
   add({ key: "parties", node: <Parties data={data} level={level} />, space: 0 });
   if (data.title || (data.facts?.length ?? 0) > 0) {
@@ -173,10 +196,13 @@ function paperOf(template: TemplateSettings, company: DocumentCompany, data: Doc
   const options = estimate && (data.options?.length ?? 0) >= 2 ? data.options! : [];
   if (options.length) add({ key: "options", node: <Options options={options} />, space: GAP });
 
+  // Planet Ops: a proposal prints its narrative scope in place of the priced lines, then the same
+  // totals as the line-item quote (one total, whichever layout).
+  if (proposal) (data.narrative ?? []).forEach((section, n) => textBlock(`narrative-${n}`, section.title, section.text));
   tables.lines = { className: styles.lines, cols: LINE_COLS, head: LINE_HEAD, headKey: "lines-head" };
-  add({ key: "lines-head", node: LINE_HEAD, table: "lines", head: true, space: GAP, keepWithNext: true });
-  data.lines.forEach((line, i) => add({ key: `line-${i}`, node: <LineRow line={line} />, part: (cut) => <LineRow line={line} cut={cut} />, table: "lines", space: 0, whole: true }));
-  if (!data.lines.length) {
+  if (!proposal) add({ key: "lines-head", node: LINE_HEAD, table: "lines", head: true, space: GAP, keepWithNext: true });
+  if (!proposal) data.lines.forEach((line, i) => add({ key: `line-${i}`, node: <LineRow line={line} />, part: (cut) => <LineRow line={line} cut={cut} />, table: "lines", space: 0, whole: true }));
+  if (!proposal && !data.lines.length) {
     add({
       key: "line-none",
       node: (
@@ -211,6 +237,8 @@ function paperOf(template: TemplateSettings, company: DocumentCompany, data: Doc
       space: i ? NOTES_LINE : GAP,
     });
   });
+  // Planet Ops: Contract Terms and Payment Terms, two separate sections, on both layouts.
+  if (estimate) (data.terms ?? []).forEach((section, n) => textBlock(`agreement-${n}`, section.title, section.text));
   // The business's Google reviews, when it prints them on its quotes: kept whole on a page.
   if (estimate && data.reviews && (printedReviews(data.reviews).shown.length || data.reviews.count)) add({ key: "reviews", node: <Reviews reviews={data.reviews} />, space: GAP });
   // The template's own terms, as they've always printed: no title, line breaks kept.

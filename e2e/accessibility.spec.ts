@@ -10,7 +10,7 @@ const OFFICE_SCREENS: Array<[string, string]> = [
   ["/schedule", "Schedule"],
   ["/clients", "Clients"],
   ["/requests", "Requests"],
-  ["/quotes", "Quotes"],
+  ["/quotes", "Quotes & Proposals"],
   ["/jobs", "Jobs"],
   ["/invoices", "Invoices"],
   ["/marketing", "Marketing"],

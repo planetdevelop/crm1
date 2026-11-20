@@ -118,15 +118,15 @@ Delivered as small PRs into `planet-ops-staging`, in this order:
 
 | Slice | Scope | Status |
 | --- | --- | --- |
-| 1a | **Change orders finalize only with the customer's signature on the exact version** (database, API, UI) | PR open |
-| 1b | Quotes & Proposals: line-item quote vs proposal layout (one authoritative total), narrative sections (overview, scope in work order, inclusions, exclusions, assumptions, alternates), nav relabel | Next |
+| 1a | **Every acceptance needs the customer's drawn signature on the exact version; no staff bypass** (database, API, UI) | PR open |
+| 1b | Quotes & Proposals: line-item quote vs proposal layout (one authoritative total), narrative sections, separate editable Contract Terms and Payment Terms, configurable drawn company countersignature, nav relabel | PR open |
 | 1c | Document revisions: a snapshot per sent version, superseded versions can't be signed; **Request changes** note tied to the revision reviewed, office notice and follow-up task, signing paused until a revision is issued | To do |
 | 1d | `send_pricing` permission (build vs approve/send customer pricing); separate states for customer accepted, company countersigned, deposit received, ready to schedule; job summary of original contract, change orders, revised total, invoiced, paid, remaining | To do |
 | 1e | Convert Quote / Proposal to Job links the exact signed revision; repeat conversion opens the existing job | To do |
 
-Owner inputs still needed: contract terms wording, payment terms, and whether the company must
-countersign. Until then, documents use the existing contract-section library and clearly marked
-placeholders; no legal text is invented.
+Owner inputs still needed: the approved Contract Terms and Payment Terms wording, and whether to turn
+on the (configurable) company countersignature. Until the wording arrives, new quotes carry clearly
+marked `[PLACEHOLDER]` terms; no legal text is invented.
 
 ### 1a: customer signature required for every acceptance, tied to the exact document version
 
@@ -197,3 +197,47 @@ stands in for the customer.
     total, a stale total, and credit/$0 totals. Run against the earlier rule, the new database tests
     fail at "a change to the price set on site is a new version".
 - Countersignature (configurable) is in 1b.
+
+### 1b: Quotes & Proposals, separate terms, configurable countersignature
+
+- Migration `20261120000200_planet_ops_quotes_and_proposals.sql` (not yet released):
+  - `quotes.presentation` (`line_items` / `proposal`), `quotes.narrative` (only overview, scope,
+    inclusions, exclusions, assumptions, alternates), `quotes.contract_terms`, `quotes.payment_terms`.
+  - **Terms.** A new quote starts with the company's default Contract Terms and Payment Terms
+    (`settings.quotes.contract_terms` / `payment_terms`), each edited per job before signing. Until
+    the company saves its approved wording, new quotes get clearly marked `[PLACEHOLDER]` terms (the
+    quote page warns while they're placeholders); a default saved empty means none.
+  - All of these are part of the signed document version (with a price set on site, as in 1a); once
+    signed they stay as signed, and the signed copy (`approval.document`) keeps them.
+  - **Company countersignature, configurable** (`settings.quotes.countersign_required`, off unless
+    set). A countersignature is an intentional act for one agreement, after the customer's signature:
+    drawn now, or the signer's own saved drawing applied on purpose (`approval.company.method`
+    `drawn` / `saved`). The database records the signer (`user_id`, which must be the person signed
+    in), stamps its own time and the fingerprint of the version the customer signed, and refuses one
+    that's a name, typed words, a one-pixel image, applied automatically, in someone else's name,
+    before the customer signs, or on a document that changed since. It can't be changed or removed.
+  - Nothing is signed for the company as the customer signs (the hub no longer adds the
+    salesperson's saved signature; in person, the seller draws or taps "Use my saved signature").
+  - When required, a quote or proposal becomes a job, and a change order joins its job, only once
+    it's countersigned (convert, status, and job inserts are all refused before). Turned on after a
+    customer signed, it's still needed.
+- App: quote page "Customer document" card (layout switch, proposal sections, Contract Terms, Payment
+  Terms, "Use the company's terms", a placeholder warning); "awaiting your company's countersignature"
+  state, with "Sign for …" (draw) and "Use my saved signature" (explicit); "Convert to job" waits for a
+  required countersignature; the in-person screen asks the seller to draw or choose their saved
+  signature; Settings → Quotes and payments: countersignature switch and default terms; documents
+  (office, client hub, print, PDF) print a proposal's sections and one total without priced lines,
+  and both terms sections on either layout; a signed document prints from the copy kept with the
+  signature; Copy as new draft keeps layout, sections and terms; nav and page renamed "Quotes &
+  Proposals", "New Quote / Proposal". Estimating is untouched (Phase 3).
+- Tests: `supabase/tests/planet_ops_quotes_proposals_test.sql` (placeholders and defaults, per-job
+  edits, layouts with one total, the version including layout/narrative/both terms, outdated pages
+  refused on both signing paths and a page without a version, proposals signed on the link and in
+  person with the document preserved, countersignature off (optional, still bound) and on (before the
+  customer, name only, typed, one-pixel, no method, automatic, someone else's, drawn, saved, changed or
+  removed after, convert/status/job refused before, in person with and without, turned on after
+  signing), change orders waiting for it, a change while awaiting refused); API: explicit saved use,
+  never implicit, hub never adds a company signature; `packages/core/test/proposals.test.ts`;
+  `apps/web/test/planetOpsProposals.test.ts`; PDF tests for both layouts.
+- Owner input still needed: the approved Contract Terms and Payment Terms wording (enter it in
+  Settings → Quotes and payments), and whether to turn the countersignature on.

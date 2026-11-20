@@ -7,6 +7,7 @@
  * approves the estimate, only while it's still the option and the price on the paper.
  */
 import { shownCustomFields } from "@crewtavo/core/customFields";
+import { proposalSettings } from "@crewtavo/core/proposals";
 import { useIsMutating, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useBlocker, useNavigate, useParams } from "react-router-dom";
@@ -118,8 +119,9 @@ function SignScreen({ quote, takeoff }: { quote: EstimateQuote; takeoff: Takeoff
   // Their initials, drawn once, and the sections they've added them to (with the words those had then).
   const [initials, setInitials] = useState<string | null>(null);
   const [initialed, setInitialed] = useState<InitialedSections>(() => new Map());
-  // The salesperson's signature for the business: their saved one, unless they sign again here.
-  const [redraw, setRedraw] = useState(false);
+  // The salesperson's signature for the business. Planet Ops: never applied for them; they draw it
+  // here, or tap "Use my saved signature" for this agreement.
+  const [companyChoice, setCompanyChoice] = useState<"none" | "saved" | "drawn">("none");
   const [drawn, setDrawn] = useState<string | null>(null);
   const [saveMine, setSaveMine] = useState(true);
   const [emailCopy, setEmailCopy] = useState(canEmail);
@@ -154,10 +156,11 @@ function SignScreen({ quote, takeoff }: { quote: EstimateQuote; takeoff: Takeoff
   const detailsFailed = !details.data && Boolean(details.error);
 
   const saved = mine.data ?? null;
-  const drawing = !saved || redraw;
-  // Drawn now, else the saved one (the server uses it when nothing new is drawn).
-  const companyImage = (drawing ? drawn : null) ?? saved;
-  const companyRow = template.company_signs || Boolean(saved);
+  // Without a saved one, the pad is there to draw on; with one, it's chosen on purpose.
+  const drawing = companyChoice === "drawn" || (!saved && companyChoice === "none");
+  const companyImage = drawing ? drawn : companyChoice === "saved" ? saved : null;
+  const countersignRequired = proposalSettings(session.company.settings).countersignRequired;
+  const companyRow = template.company_signs || countersignRequired || Boolean(saved);
   // What's still missing before signing, as the button says it: the estimate, the option, the terms, the initials, then the signatures.
   const missing = checking
     ? "Checking it again…"
@@ -270,6 +273,8 @@ function SignScreen({ quote, takeoff }: { quote: EstimateQuote; takeoff: Takeoff
         name: name.trim(),
         signature,
         company_signature: fresh,
+        // Their own saved signature, applied because they chose it for this agreement.
+        ...(!fresh && companyChoice === "saved" && saved ? { use_saved_signature: true } : {}),
         save_signature: Boolean(fresh && saveMine),
         email_copy: canEmail && emailCopy,
         ...(option ? { option_id: option.id } : {}),
@@ -414,7 +419,7 @@ function SignScreen({ quote, takeoff }: { quote: EstimateQuote; takeoff: Takeoff
                       type="button"
                       className={styles.textButton}
                       onClick={() => {
-                        setRedraw(false);
+                        setCompanyChoice("saved");
                         setDrawn(null);
                       }}
                     >
@@ -422,14 +427,23 @@ function SignScreen({ quote, takeoff }: { quote: EstimateQuote; takeoff: Takeoff
                     </button>
                   )}
                 </div>
-              ) : (
+              ) : companyChoice === "saved" ? (
                 <div className={styles.companyRow}>
                   <img src={saved!} alt={`${myName || "Your"} signature`} className={styles.companyImage} />
                   <span className={styles.companyText}>
                     <strong>{myName}</strong>
-                    <span>Signed for {company}</span>
+                    <span>Signing for {company} with your saved signature</span>
                   </span>
-                  <button type="button" className={styles.textButton} onClick={() => setRedraw(true)}>Sign again</button>
+                  <button type="button" className={styles.textButton} onClick={() => setCompanyChoice("drawn")}>Draw it instead</button>
+                </div>
+              ) : (
+                <div className={styles.companyRow}>
+                  <span className={styles.companyText}>
+                    <strong>{myFirst ? `${myFirst}, sign for ${company}` : `Sign for ${company}`}</strong>
+                    <span>{template.company_signs ? "This estimate has a line for the business." : "Or countersign later from the office."}</span>
+                  </span>
+                  <button type="button" className="btn" onClick={() => setCompanyChoice("saved")}>Use my saved signature</button>
+                  <button type="button" className={styles.textButton} onClick={() => setCompanyChoice("drawn")}>Draw it</button>
                 </div>
               ))}
 
