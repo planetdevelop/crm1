@@ -103,13 +103,16 @@ begin
   if q.status not in ('sent', 'changes_requested') or q.is_template then
     raise exception 'Only a document that''s with the customer can be issued again.' using errcode = '22023';
   end if;
-  if p_via not in ('sent', 'site_price') then
+  if p_via not in ('sent', 'site_price', 'promo') then
     raise exception 'Unknown way to issue a version.' using errcode = '22023';
   end if;
   v_id := private.issue_version(p_quote, p_via);
-  perform private.answer_change_requests(p_quote, v_id);
-  if q.status = 'changes_requested' then
-    update public.quotes set status = 'sent' where id = p_quote;
+  -- A customer's own promo code answers no change request (as in 20261121000100).
+  if p_via <> 'promo' then
+    perform private.answer_change_requests(p_quote, v_id);
+    if q.status = 'changes_requested' then
+      update public.quotes set status = 'sent' where id = p_quote;
+    end if;
   end if;
   return v_id;
 end $$;
