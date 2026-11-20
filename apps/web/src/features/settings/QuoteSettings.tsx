@@ -33,6 +33,8 @@ interface QuoteForm {
   alertOver: string;
   /** Planet Ops: the company countersigns before an agreement counts. */
   countersignRequired: boolean;
+  /** Planet Ops 1d: "Ready to schedule" waits for a deposit that was asked for. */
+  depositBeforeScheduling: boolean;
   /** Planet Ops: the Contract Terms and Payment Terms new quotes start with. */
   contractTerms: string;
   paymentTerms: string;
@@ -48,6 +50,7 @@ export function quoteForm(settings: unknown): QuoteForm {
     draftRequests: s.quotes?.draft_requests === true,
     alertOver: typeof s.quotes?.alert_over === "number" && over > 0 ? String(over) : "",
     countersignRequired: p.countersignRequired,
+    depositBeforeScheduling: p.depositBeforeScheduling,
     contractTerms: p.contractTerms,
     paymentTerms: p.paymentTerms,
   };
@@ -83,6 +86,7 @@ export function QuoteSettings() {
           alert_over: alertAmount(v.alertOver),
           draft_requests: v.draftRequests,
           countersign_required: v.countersignRequired,
+          deposit_before_scheduling: v.depositBeforeScheduling,
           contract_terms: v.contractTerms.trim(),
           payment_terms: v.paymentTerms.trim(),
         },
@@ -142,6 +146,13 @@ export function QuoteSettings() {
       </label>
       <span className="muted small">
         On, an agreement the customer signed also needs your company's signature before it counts: a change order the customer signed waits to be added to the job until someone countersigns it on the quote. Off, the customer's signature is enough. Customer acceptance and your countersignature are always kept separately.
+      </span>
+      <label className="switch-row" style={{ fontWeight: 400 }}>
+        <input type="checkbox" className="switch" checked={f.depositBeforeScheduling} onChange={(e) => setF({ ...f, depositBeforeScheduling: e.target.checked })} />
+        Ready to schedule waits for the deposit
+      </label>
+      <span className="muted small">
+        On, a signed agreement that asked for a deposit shows as ready to schedule only once its deposit invoice is paid. Off (the default), the signatures are what it waits for, and the deposit is shown on its own. Either way, signing never counts as paying.
       </span>
       <Field label="Contract Terms" optional hint="New quotes and proposals start with these, as their own section. Edit them per job on the quote. Use your approved wording.">
         <textarea className="textarea" rows={6} maxLength={TERMS_MAX} value={f.contractTerms} onChange={(e) => setF({ ...f, contractTerms: e.target.value })} />

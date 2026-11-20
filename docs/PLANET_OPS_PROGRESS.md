@@ -124,7 +124,7 @@ Delivered as small PRs into `planet-ops-staging`. Three kinds of evidence are ke
 | 1b | Line-item quote / proposal layouts, separate Contract and Payment Terms, configurable countersignature, nav relabel | Merged, PR #3 (`ad1c0fc`) | Yes: CI green on `d9c4b09` and on the merge | Deployed; not exercised by hand (as above) |
 | 1b+ | Document type chosen first (New Quote / Proposal), shown at the top of a draft; Edit / Preview kept apart from it | Branch `claude/phase-1b-creation-choice` | Unit tests; browser test `e2e/proposals.spec.ts` (CI) | Not yet |
 | 1c | Document versions (snapshot per issued version, supersession) and customer Request changes | Branch `claude/phase-1c-revisions` (stacked on 1b+) | `planet_ops_document_versions_test.sql`, API hub tests, browser test `e2e/change-requests.spec.ts` (CI) | Not yet |
-| 1d | `send_pricing` permission; accepted / countersigned / deposit / ready states; job contract summary | To do | | |
+| 1d | `send_pricing` permission; accepted / countersigned / deposit / ready states; job contract summary | Branch `claude/phase-1d-pricing-readiness` (stacked on 1c) | `planet_ops_send_pricing_contract_test.sql`, API send/sign refusals, core `agreementFacts` tests (CI runs the full suite) | Not yet |
 | 1e | Convert the exact signed revision to a job; retry- and race-safe; job-created handoff | To do | | |
 
 Staging access: Claude can reach the staging app (health, setup, the deployed bundle) but has no
@@ -294,4 +294,32 @@ Migration `20261121000100_planet_ops_document_versions.sql` (not yet released).
   `e2e/change-requests.spec.ts` (portal request → paused → office reply → revision hidden → sent
   as version 2 → signed). Existing database tests send their documents before signing
   (`planet_test.sign` / `planet_test.approval` issue the version, as the office does).
+
+### 1d: preparing pricing apart from sending it; agreement facts; the job's contract
+
+Migration `20261121000200_planet_ops_send_pricing_and_contract.sql` (not yet released).
+
+- **send_pricing** ("Send pricing to customers"): a new area. `sales` prepares quotes, proposals
+  and change orders; sending one (first send, resend, exact price, range, making it available again
+  after a change request, in-person signing) needs `send_pricing` too. Enforced in the database for
+  anyone signed in (status to sent, sent/exact/range times, inserts as sent, `issue_quote_version`),
+  and checked by the API before anything goes out (`lib/sendPricing.ts`: send, send range, in-person
+  sign; the assistant's send_quote uses the same service). A price set on site by someone without
+  it stays a draft revision. Owners, admins, office and estimators have it by default and every
+  existing custom role that sells kept it, so nobody lost access; a custom role can now prepare
+  without sending (Settings → Team). The send dialogs explain it instead of opening.
+  No "Mark approved" bypass came back.
+- **Agreement facts** (core `agreementFacts`, quote page and job page): Customer accepted (their
+  drawn signature), Company countersigned (Not required / Waiting / Signed), Deposit (from its
+  invoice's payments: none / owed / partly paid / received; `quote_deposit_status`), Ready to
+  schedule (the signatures, plus the deposit only if Settings → Quotes and payments → "Ready to
+  schedule waits for the deposit" is on; off by default). None implies another.
+- **Contract summary** (`job_contract_summary`, job page "Contract"): original signed agreement
+  (signed amount and version), each change order with its state and amount, finalized changes
+  (credits included, each once; a credit counts its signed subtotal since totals can't go below
+  zero), revised contract total, and, with invoices access, invoiced, paid, outstanding on invoices
+  and not yet invoiced. Unsigned, declined, cancelled and changes-requested change orders count for
+  nothing; the revised total creates no invoice, payment or balance.
+- Decision for the owner: whether "Ready to schedule" should wait for the deposit (a switch, off),
+  and which roles should prepare without sending (custom roles).
 

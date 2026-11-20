@@ -610,6 +610,8 @@ select t1070.check(array(
   'automated_campaign_states(uuid)',
   'autopay_pause(uuid, boolean)', 'autopay_set_settings(uuid, jsonb)', 'autopay_vouch(uuid, uuid[], text)', 'call_off_autopay_charge(uuid)',
   'campaign_audience(uuid, jsonb)', 'campaign_audience_choices(uuid)', 'campaign_recipient_results(uuid, integer, integer, text)', 'campaign_results(uuid, uuid)',
+  -- Planet Ops 1d: whether the person may send pricing: true only for members who sell with send_pricing, never a sub.
+  'can_send_pricing(uuid)',
   'careers_set_enabled(uuid, boolean)',
   -- Tagging many clients at once: runs as the caller, and no rule lets a sub change a client.
   'change_client_tags(uuid[], text, text)',
@@ -644,6 +646,8 @@ select t1070.check(array(
   'issue_quote_version(uuid, text)',
   -- The checklists a job's items bring up: a sub's, for the jobs of their own visits (as job_scope).
   'job_checklists(uuid)',
+  -- Planet Ops 1d: a job's contract summary: owners, admins, office and estimators only (raises for anyone else).
+  'job_contract_summary(uuid)',
   -- What's on a job to log materials against, by name and unit: the office's and the crew's, never a sub's.
   'job_estimated_materials(uuid)',
   'job_material_costs(uuid)', 'job_pay_accept(uuid, uuid[])', 'job_pay_cancel(uuid)', 'job_pay_costs(uuid[])', 'job_pay_covers(uuid, uuid, uuid)', 'job_pay_mark_done(uuid, date)',
@@ -669,6 +673,8 @@ select t1070.check(array(
   'postcard_results(uuid, uuid)',
   'price_change_history(uuid, integer)', 'price_change_preview(uuid, jsonb)',
   'promo_code_jobs(uuid, boolean)', 'promo_code_usage(uuid)', 'put_quote_package(uuid, uuid, jsonb, boolean)',
+  -- Planet Ops 1d: a quote's deposit status: people who sell only.
+  'quote_deposit_status(uuid)',
   -- The quote follow-up after an exact price goes out: the office and estimators with Sales only, never a sub.
   'quote_exact_sent(uuid)',
   -- A quote's version fingerprint, for the in-person signing screen (20261120000100): members of its company only; a sub gets none.

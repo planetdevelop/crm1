@@ -103,7 +103,7 @@ select t1060.check(private.level_permissions('owner') @> '{subs}' and private.le
   'owners, admins and office staff can have the subs area');
 select t1060.check(not (private.level_permissions('estimator') @> '{subs}') and not (private.level_permissions('crew_lead') @> '{subs}') and not (private.level_permissions('field_crew') @> '{subs}'),
   'estimators, crew leads and field crew can''t');
-select t1060.check(private.level_permissions('crew_lead') = '{schedule,timesheets,equipment}' and private.level_permissions('estimator') = '{sales,schedule,equipment}',
+select t1060.check(private.level_permissions('crew_lead') = '{schedule,timesheets,equipment}' and private.level_permissions('estimator') = '{sales,send_pricing,schedule,equipment}',  -- send_pricing: Planet Ops 1d
   'and keep exactly the areas they had');
 select t1060.check((select array_agg(name order by name) from public.company_roles where company_id = :'co' and 'subs' = any (permissions))
   = '{"General manager","Office manager","Operations manager"}', 'the starter roles that handle job costs handle subs');

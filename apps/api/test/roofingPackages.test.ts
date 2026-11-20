@@ -22,6 +22,8 @@ const state = vi.hoisted(() => ({
   meanwhile: null as (() => void) | null,
   /** What quote_send_problem answers: why the quote can't be sent as it is, or null. */
   sendProblem: null as string | null,
+  /** Planet Ops 1d: the person can prepare pricing but not send it (no send_pricing area). */
+  cannotSend: false,
 }));
 vi.mock("../src/lib/supabase", () => {
   const embed = (table: string, row: Row): Row =>
@@ -76,6 +78,7 @@ vi.mock("../src/lib/supabase", () => {
       if (name === "accept_hub_range") return by === "admin" ? { data: acceptHubRange(args), error: null } : { data: null, error: { message: "permission denied for function accept_hub_range", code: "42501" } };
       if (name === "put_quote_package") return { data: putQuotePackage(args), error: null };
       if (name === "quote_send_problem") return { data: state.sendProblem, error: null };
+      if (name === "can_send_pricing") return { data: !state.cannotSend, error: null };
       return { data: true, error: null };
     },
     from: (table: string) => {
@@ -231,6 +234,7 @@ afterEach(() => {
   state.afterInsert = {};
   state.meanwhile = null;
   state.sendProblem = null;
+  state.cannotSend = false;
 });
 
 describe("setting up roofing", () => {
@@ -821,6 +825,27 @@ describe("sending a roof estimate the usual way", () => {
       expect(mail.Subject).toBe("Quote #1042 from Peak Roofing");
       expect(mail.Text).toContain("Here's your quote ($19,768.32).");
     }
+  });
+});
+
+describe("sending pricing needs the send_pricing area (Planet Ops 1d)", () => {
+  const lines = [{ id: "l1", service_id: ROOF, name: "Architectural shingle roof", quantity: 30, unit: "square", unit_price: 560, sort: 0, selected: true }];
+  it("refuses an estimator who can prepare but not send, before anything goes out", async () => {
+    roofer({ role: "estimator", lines, status: "draft" });
+    state.cannotSend = true;
+    env.MAILPIT_URL = "http://mailpit.local";
+    try {
+      for (const [path, body] of [[`/quotes/${QUOTE}/send`, { channel: "email" }], [`/quotes/${QUOTE}/send`, { channel: "link" }], [`/roofing/${QUOTE}/send-range`, { channel: "email" }]] as const) {
+        const res = await send(path, body);
+        expect(res.status, path).toBe(403);
+        expect((await res.json()).error, path).toMatch(/Send pricing to customers/);
+      }
+    } finally {
+      delete env.MAILPIT_URL;
+    }
+    expect(rows("messages")).toEqual([]);
+    expect(rows("quotes")[0]!.status).toBe("draft");
+    expect(state.rpcs.some((r) => r.name === "issue_quote_version")).toBe(false);
   });
 });
 

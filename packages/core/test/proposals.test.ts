@@ -1,6 +1,6 @@
 /** Planet Ops Phase 1b: quote and proposal layouts, separate terms, countersignature state. */
 import { describe, expect, it } from "vitest";
-import { CONTRACT_TERMS_PLACEHOLDER, NARRATIVE_SECTIONS, PAYMENT_TERMS_PLACEHOLDER, isCompanyCountersignature, isPlaceholderTerms, isPresentation, narrativeSections, proposalSettings, readNarrative, signatureState, termsSections } from "../src/proposals";
+import { CONTRACT_TERMS_PLACEHOLDER, agreementFacts, NARRATIVE_SECTIONS, PAYMENT_TERMS_PLACEHOLDER, isCompanyCountersignature, isPlaceholderTerms, isPresentation, narrativeSections, proposalSettings, readNarrative, signatureState, termsSections } from "../src/proposals";
 
 describe("proposal narrative", () => {
   it("keeps only its own sections, trimmed, in print order", () => {
@@ -33,9 +33,10 @@ describe("Contract Terms and Payment Terms", () => {
   });
 
   it("come from the company's defaults, with countersignature off unless set", () => {
-    expect(proposalSettings({ quotes: { contract_terms: "C", payment_terms: "P", countersign_required: true } })).toEqual({ contractTerms: "C", paymentTerms: "P", countersignRequired: true });
+    expect(proposalSettings({ quotes: { contract_terms: "C", payment_terms: "P", countersign_required: true } })).toEqual({ contractTerms: "C", paymentTerms: "P", countersignRequired: true, depositBeforeScheduling: false });
     // Until the business saves its approved wording: clearly marked placeholders. Saved empty: none.
-    expect(proposalSettings(null)).toEqual({ contractTerms: CONTRACT_TERMS_PLACEHOLDER, paymentTerms: PAYMENT_TERMS_PLACEHOLDER, countersignRequired: false });
+    expect(proposalSettings(null)).toEqual({ contractTerms: CONTRACT_TERMS_PLACEHOLDER, paymentTerms: PAYMENT_TERMS_PLACEHOLDER, countersignRequired: false, depositBeforeScheduling: false });
+    expect(proposalSettings({ quotes: { deposit_before_scheduling: true } }).depositBeforeScheduling).toBe(true);
     expect(isPlaceholderTerms(CONTRACT_TERMS_PLACEHOLDER) && isPlaceholderTerms(PAYMENT_TERMS_PLACEHOLDER)).toBe(true);
     expect(proposalSettings({ quotes: { contract_terms: "", payment_terms: "" } })).toMatchObject({ contractTerms: "", paymentTerms: "" });
     expect(proposalSettings({ quotes: { countersign_required: "true" } }).countersignRequired).toBe(false);
@@ -68,5 +69,35 @@ describe("signatureState", () => {
 
   it("doesn't call a staff approval a signature", () => {
     expect(signatureState({ status: "approved", approval: { name: "Owner", method: "manual" }, countersignRequired: false })).toBe("unsigned");
+  });
+});
+
+describe("agreementFacts (Planet Ops 1d)", () => {
+  const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+  const FP = "0123456789abcdef0123456789abcdef";
+  const customer = { name: "Test Customer", signed_at: "2026-11-20T15:00:00Z", signature: PNG, fingerprint: FP };
+  const company = { name: "Owner", user_id: "00000000-0000-4000-8000-000000000001", method: "drawn", signature: PNG, signed_at: "2026-11-20T16:00:00Z", fingerprint: FP };
+  const base = { status: "approved", approval: customer, countersignRequired: false, depositBeforeScheduling: false, depositAsked: 0, depositPaid: null };
+
+  it("keeps acceptance, countersignature, deposit and readiness apart", () => {
+    expect(agreementFacts(base)).toEqual({ customerAccepted: true, countersign: "not_required", deposit: "none", readyToSchedule: true, waitingFor: [] });
+    // Signing isn't paying: a deposit asked for is owed until its payments say otherwise.
+    expect(agreementFacts({ ...base, depositAsked: 500 })).toMatchObject({ customerAccepted: true, deposit: "owed", readyToSchedule: true });
+    expect(agreementFacts({ ...base, depositAsked: 500, depositPaid: 200 }).deposit).toBe("partly_paid");
+    expect(agreementFacts({ ...base, depositAsked: 500, depositPaid: 500 }).deposit).toBe("received");
+  });
+
+  it("waits for a required countersignature, and the deposit only when the business says so", () => {
+    expect(agreementFacts({ ...base, countersignRequired: true })).toMatchObject({ countersign: "waiting", readyToSchedule: false, waitingFor: ["countersign"] });
+    expect(agreementFacts({ ...base, countersignRequired: true, approval: { ...customer, company } })).toMatchObject({ countersign: "done", readyToSchedule: true });
+    expect(agreementFacts({ ...base, depositBeforeScheduling: true, depositAsked: 500 })).toMatchObject({ readyToSchedule: false, waitingFor: ["deposit"] });
+    expect(agreementFacts({ ...base, depositBeforeScheduling: true, depositAsked: 500, depositPaid: 500 }).readyToSchedule).toBe(true);
+    // An optional countersignature given is recorded, and needed by nothing.
+    expect(agreementFacts({ ...base, approval: { ...customer, company } }).countersign).toBe("done");
+  });
+
+  it("isn't accepted without the customer's own signature", () => {
+    expect(agreementFacts({ ...base, status: "sent", approval: null })).toMatchObject({ customerAccepted: false, readyToSchedule: false, waitingFor: ["customer"] });
+    expect(agreementFacts({ ...base, approval: { name: "Owner", method: "manual" } })).toMatchObject({ customerAccepted: false, readyToSchedule: false });
   });
 });
