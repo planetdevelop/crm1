@@ -353,28 +353,6 @@ const signedCard = (o: FrozenOption) => ({
 });
 
 /**
- * The business's signature on a quote the client signs online: the salesperson's saved one, when
- * the template has a line for the business and they're still on the team. Null leaves it to sign
- * later from the office.
- */
-async function businessSignature(admin: ReturnType<typeof adminClient>, companyId: string, quote: { salesperson_id: string | null }, template: TemplateSettings) {
-  if (!quote.salesperson_id || !template.company_signs) return null;
-  // Planet Ops: when the company must countersign (settings.quotes.countersign_required), that's a
-  // deliberate step after the customer signs (POST /quotes/:id/countersign), never a saved signature
-  // added as they sign.
-  const { data: co } = await admin.from("companies").select("settings").eq("id", companyId).maybeSingle();
-  if (proposalSettings(co?.settings).countersignRequired) return null;
-  const [saved, profile, member] = await Promise.all([
-    admin.from("user_signatures").select("image").eq("company_id", companyId).eq("user_id", quote.salesperson_id).maybeSingle(),
-    admin.from("profiles").select("full_name").eq("user_id", quote.salesperson_id).maybeSingle(),
-    admin.from("memberships").select("user_id").eq("company_id", companyId).eq("user_id", quote.salesperson_id).eq("active", true).maybeSingle(),
-  ]);
-  const image = pngOrNull(saved.data?.image);
-  if (!image || !member.data) return null;
-  return { name: profile.data?.full_name?.trim() ?? "", user_id: quote.salesperson_id, signature: image, signed_at: new Date().toISOString() };
-}
-
-/**
  * Map drawings the office chose to show on this quote or invoice: the sizes, and whether there's a
  * picture (served by /hub/:token/drawings/:id, never as a storage link).
  */
@@ -772,10 +750,10 @@ publicRoutes.post("/hub/:token/approve", async (c) => {
   // it's still waiting for an answer, shows the option they picked, sets the add-ons to their
   // choices, checks the total still comes to what they saw, and records the approval with the
   // amounts they came to. So two approvals at once, or one racing a change by the office, record
-  // one, and only that one picks the options. The business signs too when its salesperson has a
-  // saved signature, so the signed estimate has both. The template is kept with the approval as it
-  // is now, so the signed copy keeps the terms the client signed under.
-  const company = await businessSignature(admin, l.c, quote, template);
+  // one, and only that one picks the options. The template is kept with the approval as it is now,
+  // so the signed copy keeps the terms the client signed under.
+  // Planet Ops: nothing is signed for the company as the customer signs. A countersignature is a
+  // signer's own deliberate step afterwards (POST /quotes/:id/countersign).
   const { data: approved, error } = await admin.rpc("approve_hub_quote", {
     p_company: l.c,
     p_quote: l.id,
@@ -784,7 +762,6 @@ publicRoutes.post("/hub/:token/approve", async (c) => {
       name: body.name, selected_line_ids: picked, signature: body.signature, signed_at: signedAt, ip: clientIp(c),
       seen_fingerprint: body.fingerprint,
       template: asJson(template),
-      ...(company ? { company } : {}),
       option: asJson(kept.option),
       contract: asJson(kept.contract),
       initials: asJson(kept.initials),

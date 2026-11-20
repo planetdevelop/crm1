@@ -228,7 +228,6 @@ describe("signing on site", () => {
     expect(q.status).toBe("approved");
     expect(q.approved_at).toEqual(expect.any(String));
     expect(q.salesperson_id).toBe(MIKE);
-    const signedAt = (q.approval as Row).signed_at;
     expect(q.approval).toEqual({
       name: "Alex Morgan",
       signature: HOMEOWNER,
@@ -237,7 +236,8 @@ describe("signing on site", () => {
       signed_at: expect.any(String),
       method: "in_person",
       selected_line_ids: ["line-2"],
-      company: { name: "Mike Torres", user_id: MIKE, signature: MIKES, signed_at: signedAt },
+      // Planet Ops: drawn now, by the signed-in salesperson. The database stamps its time and the version.
+      company: { name: "Mike Torres", user_id: MIKE, method: "drawn", signature: MIKES },
       // No template saved yet: the built-in one, kept as it was signed.
       template: DEFAULT_TEMPLATE,
       // No options and no sections: only the template's terms, filled in (these have nothing to fill).
@@ -274,20 +274,32 @@ describe("signing on site", () => {
     expect(background.kickAutomations).toHaveBeenCalledTimes(1);
   });
 
-  it("uses the salesperson's saved signature for the business", async () => {
+  it("uses the salesperson's saved signature for the business when they choose it", async () => {
     roofer({ saved: SAVED });
-    const res = await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER });
+    const res = await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER, use_saved_signature: true });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: "approved", emailed: false, link: expect.any(String) });
-    expect((quote().approval as Row).company).toEqual(expect.objectContaining({ name: "Mike Torres", signature: SAVED }));
+    expect((quote().approval as Row).company).toEqual({ name: "Mike Torres", user_id: MIKE, method: "saved", signature: SAVED });
     expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("never applies the saved signature unless they choose it (Planet Ops)", async () => {
+    roofer({ saved: SAVED });
+    const res = await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER });
+    expect(res.status).toBe(400);
+    expect(quote().status).toBe("sent");
+    // Drawn and saved at once, or a saved one that isn't there: refused.
+    expect((await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER, company_signature: MIKES, use_saved_signature: true })).status).toBe(400);
+    roofer();
+    expect((await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER, use_saved_signature: true })).status).toBe(400);
+    expect(quote().status).toBe("sent");
   });
 
   it("asks for the business's signature when the template has a line for it", async () => {
     roofer();
     const res = await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER });
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("Sign for Ridgeline Roofing too.");
+    expect((await res.json()).error).toBe("Sign for Ridgeline Roofing too: draw your signature, or use your saved one.");
     expect(quote().status).toBe("sent");
     expect(quote().approval).toBeNull();
   });
@@ -302,7 +314,7 @@ describe("signing on site", () => {
     quote().template_id = "t-simple";
     const res = await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER });
     expect(res.status).toBe(200);
-    expect((quote().approval as Row).company).toBeNull();
+    expect((quote().approval as Row).company).toBeUndefined();
     // The quote's own template is kept with the signatures, so editing it later doesn't change the signed copy.
     expect((quote().approval as Row).template).toEqual(templateSettings({ company_signs: false }));
   });
@@ -579,12 +591,20 @@ describe("making a job from a quote needs the customer's signature", () => {
 describe("signing for the business afterwards", () => {
   const online = { name: "Alex Morgan", signature: HOMEOWNER, signed_at: "2026-10-20T15:00:00.000Z", ip: "203.0.113.9", selected_line_ids: [], total: 18304 };
 
-  it("adds the saved signature to an estimate the client signed online", async () => {
+  it("adds the saved signature to an estimate the client signed online, when the signer chooses it", async () => {
     roofer({ status: "approved", approval: { ...online }, saved: SAVED });
-    const res = await call(`/quotes/${QUOTE}/countersign`, {});
+    // Planet Ops: nothing chosen, nothing signed, even with a saved signature.
+    const nothing = await call(`/quotes/${QUOTE}/countersign`, {});
+    expect(nothing.status).toBe(400);
+    expect((await nothing.json()).error).toBe("Draw your signature, or choose to use your saved one.");
+    expect((quote().approval as Row).company).toBeUndefined();
+    expect((await call(`/quotes/${QUOTE}/countersign`, { signature: MIKES, use_saved_signature: true })).status).toBe(400);
+
+    const res = await call(`/quotes/${QUOTE}/countersign`, { use_saved_signature: true });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
-    expect(quote().approval).toEqual({ ...online, company: { name: "Mike Torres", user_id: MIKE, signature: SAVED, signed_at: expect.any(String) } });
+    // Who signed and how; the database stamps the time and the version the customer signed.
+    expect(quote().approval).toEqual({ ...online, company: { name: "Mike Torres", user_id: MIKE, method: "saved", signature: SAVED } });
 
     // Only once.
     const again = await call(`/quotes/${QUOTE}/countersign`, { signature: MIKES });
@@ -603,10 +623,17 @@ describe("signing for the business afterwards", () => {
 
   it("asks for a signature when there's no saved one", async () => {
     roofer({ status: "approved", approval: { ...online } });
-    const res = await call(`/quotes/${QUOTE}/countersign`, {});
+    const res = await call(`/quotes/${QUOTE}/countersign`, { use_saved_signature: true });
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("Draw your signature first.");
+    expect((await res.json()).error).toBe("You don't have a saved signature yet. Draw it instead.");
     expect((quote().approval as Row).company).toBeUndefined();
+  });
+
+  it("is only after the customer's own signature, never on an office approval (Planet Ops)", async () => {
+    roofer({ status: "approved", approval: { name: "Sam Office", method: "manual", signed_at: online.signed_at } });
+    const res = await call(`/quotes/${QUOTE}/countersign`, { signature: MIKES });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("The customer hasn't signed this yet. Your company countersigns once they have.");
   });
 
   it("is only for signed estimates", async () => {

@@ -258,7 +258,10 @@ export function useSetSitePrice(quoteId: string) {
 export interface SignBody {
   name: string;
   signature: string;
+  /** The salesperson's signature for the business, drawn now. */
   company_signature?: string;
+  /** Planet Ops: the salesperson chose to apply their own saved signature to this agreement. */
+  use_saved_signature?: true;
   save_signature?: boolean;
   email_copy?: boolean;
   /** The option they chose (the one shown), when it offers options. */

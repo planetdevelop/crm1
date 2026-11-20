@@ -410,7 +410,15 @@ export function QuotePage() {
   const templateId = q.template_id && templateRows.some((t) => t.id === q.template_id) ? q.template_id : templateRows.find((t) => t.is_default)?.id ?? templateRows[0]?.id ?? "";
   // Signing for the business is offered on approved quotes, and on jobs whose client signed online.
   const signatures = (
-    <ApprovalSignatures quoteId={q.id} approval={approval} approvedAt={q.approved_at} companySigns={template.company_signs} canSign={canSell && (q.status === "approved" || Boolean(approval?.signature))} onSigned={refresh} />
+    <ApprovalSignatures
+      quoteId={q.id}
+      approval={approval}
+      approvedAt={q.approved_at}
+      companySigns={template.company_signs || proposalSettings(session.company.settings).countersignRequired}
+      // Planet Ops: the company countersigns only after the customer's own signature.
+      canSign={canSell && ["approved", "converted"].includes(q.status) && isCustomerSignature(q.approval)}
+      onSigned={refresh}
+    />
   );
   const changeRequest = history.data?.messages.find((m) => m.direction === "in" && m.subject === "Changes requested");
   const expired = q.valid_until && q.valid_until < todayIn(session.company.timezone) && ["sent", "draft"].includes(q.status);
@@ -441,6 +449,9 @@ export function QuotePage() {
   // version with a drawn signature; the server and the database refuse anything else, and there's no
   // office "Mark approved" to stand in for it.
   const customerSigned = q.status === "approved" && isCustomerSignature(q.approval);
+  // And, when the company must countersign, its countersignature on that version (the database checks it too).
+  const awaitingCountersign = signatureState({ status: q.status, approval: q.approval, countersignRequired: proposalSettings(session.company.settings).countersignRequired }) === "awaiting_countersign";
+  const readyForJob = customerSigned && !awaitingCountersign;
 
   return (
     <>
@@ -473,7 +484,7 @@ export function QuotePage() {
               ) : (
                 <Button icon="send" variant={q.status === "draft" || q.status === "changes_requested" ? "primary" : "secondary"} onClick={() => setDialog("send")} disabled={!q.lines.length} title={!q.lines.length ? "Add a line item first" : undefined}>{q.status === "draft" ? "Send quote" : "Resend"}</Button>
               ))}
-            {customerSigned && !coBlocker && (
+            {readyForJob && !coBlocker && (
               <Button variant="primary" icon="job" loading={convert.isPending} disabled={!q.lines.length} onClick={() => convert.mutate()}>{convertLabel}</Button>
             )}
             <Menu
@@ -526,7 +537,7 @@ export function QuotePage() {
             {signatures}
           </div>
           {/* The header's button is the solid one. */}
-          {canSell && customerSigned && <Button size="sm" loading={convert.isPending} onClick={() => convert.mutate()}>{convertLabel}</Button>}
+          {canSell && readyForJob && <Button size="sm" loading={convert.isPending} onClick={() => convert.mutate()}>{convertLabel}</Button>}
         </div>
       )}
       {changeJob && (
@@ -559,7 +570,7 @@ export function QuotePage() {
         </div>
       )}
       {/* Planet Ops: customer acceptance and the company's countersignature are separate states (core proposals.ts). */}
-      {signatureState({ status: q.status, approval: q.approval, countersignRequired: proposalSettings(session.company.settings).countersignRequired }) === "awaiting_countersign" && (
+      {awaitingCountersign && (
         <div className="callout callout-warning" data-planet-ops="awaiting-countersign">
           <Icon name="signature" size={20} />
           <div className="grow">
@@ -894,7 +905,7 @@ function ApprovalSignatures({ quoteId, approval, approvedAt, companySigns, canSi
   const mine = useMySignature({ enabled: needsCompany });
   const countersign = useMutation({
     meta: { inline: drawing, success: `Signed for ${company.name}`, tone: "quote" },
-    mutationFn: (body: { signature?: string; save_signature?: boolean }) => api.post<{ ok: true }>(`/quotes/${quoteId}/countersign`, body),
+    mutationFn: (body: { signature?: string; save_signature?: boolean; use_saved_signature?: true }) => api.post<{ ok: true }>(`/quotes/${quoteId}/countersign`, body),
     onSuccess: (_, body) => {
       if (body.save_signature && body.signature) queryClient.setQueryData(mySignatureKey(company.id, userId), body.signature);
       setDrawing(false);
@@ -911,10 +922,19 @@ function ApprovalSignatures({ quoteId, approval, approvedAt, companySigns, canSi
       ) : (
         needsCompany && (
           <div className="stack-sm" style={{ gap: 6, alignSelf: "center" }}>
-            <Button size="sm" icon="signature" loading={countersign.isPending || mine.isPending} onClick={() => (mine.data ? countersign.mutate({}) : setDrawing(true))}>
-              Sign for {company.name}
-            </Button>
-            <span className="small" style={{ fontWeight: 400 }}>{mine.data ? "With your saved signature." : "The business's line is still blank."}</span>
+            {/* Planet Ops: an intentional act for this agreement: draw now, or apply your own saved signature. */}
+            <div className="row wrap" style={{ gap: 8 }}>
+              <Button size="sm" icon="signature" disabled={countersign.isPending} onClick={() => setDrawing(true)}>
+                Sign for {company.name}
+              </Button>
+              {mine.data && (
+                <Button size="sm" loading={countersign.isPending && !drawing} onClick={() => countersign.mutate({ use_saved_signature: true })}>
+                  Use my saved signature
+                </Button>
+              )}
+            </div>
+            <span className="small" style={{ fontWeight: 400 }}>The business's line is still blank. {mine.data ? "Draw your signature, or apply your saved one to this agreement." : "Draw your signature to countersign."}</span>
+            {!drawing && <FormError error={countersign.error} />}
           </div>
         )
       )}

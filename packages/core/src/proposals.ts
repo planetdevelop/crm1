@@ -69,25 +69,53 @@ export function termsSections(quote: { contract_terms?: string | null; payment_t
   return out;
 }
 
+/**
+ * Planet Ops: until the business supplies its approved wording, new quotes start with these clearly
+ * marked placeholders (the database's quote_default_terms has the same words). The quote page warns
+ * while either is still a placeholder. Saving the setting empty means none.
+ */
+export const CONTRACT_TERMS_PLACEHOLDER = "[PLACEHOLDER] Contract Terms: Planet Demolition will supply the approved wording. This is not approved text; don't send it to a real customer.";
+export const PAYMENT_TERMS_PLACEHOLDER = "[PLACEHOLDER] Payment Terms: Planet Demolition will supply the approved wording. This is not approved text; don't send it to a real customer.";
+export const isPlaceholderTerms = (text: string | null | undefined) => typeof text === "string" && text.includes("[PLACEHOLDER]");
+
 /** The company's defaults and its countersignature rule, from companies.settings.quotes. */
 export function proposalSettings(settings: unknown): { contractTerms: string; paymentTerms: string; countersignRequired: boolean } {
   const q = ((settings ?? {}) as Record<string, unknown>).quotes as Record<string, unknown> | undefined;
   return {
-    contractTerms: typeof q?.contract_terms === "string" ? q.contract_terms : "",
-    paymentTerms: typeof q?.payment_terms === "string" ? q.payment_terms : "",
+    contractTerms: typeof q?.contract_terms === "string" ? q.contract_terms : CONTRACT_TERMS_PLACEHOLDER,
+    paymentTerms: typeof q?.payment_terms === "string" ? q.payment_terms : PAYMENT_TERMS_PLACEHOLDER,
     countersignRequired: q?.countersign_required === true,
   };
 }
 
 /**
+ * A company countersignature as the database keeps one (20261120000200 is_company_countersignature):
+ * who signed (name, user), how (drawn now, or their saved drawing applied on purpose), the drawing,
+ * and the time and version the database stamped it with, which is the version the customer signed.
+ */
+export function isCompanyCountersignature(approval: unknown): boolean {
+  const a = approval && typeof approval === "object" && !Array.isArray(approval) ? (approval as Record<string, unknown>) : null;
+  const c = a?.company && typeof a.company === "object" && !Array.isArray(a.company) ? (a.company as Record<string, unknown>) : null;
+  return Boolean(
+    c &&
+      typeof c.name === "string" && c.name.trim().length > 0 &&
+      typeof c.user_id === "string" &&
+      (c.method === "drawn" || c.method === "saved") &&
+      isDrawnSignature(c.signature) &&
+      typeof c.signed_at === "string" &&
+      typeof c.fingerprint === "string" && c.fingerprint === a!.fingerprint,
+  );
+}
+
+/**
  * Where an agreement stands on signatures. "Customer accepted" and "company countersigned" are
- * separate: one never implies the other. Both are drawn signatures: the customer's (with their printed
- * name and the signing time), and the company's when a countersignature is required.
+ * separate: one never implies the other. The customer's is a drawn signature with their printed name
+ * and the signing time; the company's, when it's required, an intentional countersignature on the
+ * version the customer signed (isCompanyCountersignature).
  */
 export function signatureState(input: { status: string; approval: unknown; countersignRequired: boolean }): "unsigned" | "awaiting_countersign" | "signed" {
   if (input.status !== "approved" && input.status !== "converted") return "unsigned";
   const a = input.approval && typeof input.approval === "object" && !Array.isArray(input.approval) ? (input.approval as Record<string, unknown>) : null;
   if (!a || a.method === "manual" || !isDrawnSignature(a.signature)) return input.status === "converted" ? "signed" : "unsigned";
-  const company = a.company && typeof a.company === "object" && !Array.isArray(a.company) ? (a.company as Record<string, unknown>) : null;
-  return input.countersignRequired && !isDrawnSignature(company?.signature) ? "awaiting_countersign" : "signed";
+  return input.countersignRequired && !isCompanyCountersignature(a) ? "awaiting_countersign" : "signed";
 }
