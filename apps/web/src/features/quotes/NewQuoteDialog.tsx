@@ -7,12 +7,16 @@ import { supabase, unwrap } from "@/lib/api";
 import { addDaysIso, todayIn } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { ClientPicker, PropertySelect, type PickedClient } from "../clients/ClientForm";
+import type { Presentation } from "@crewtavo/core/proposals";
 import { CustomFieldInputs, customFieldsToSave, useCustomFields } from "../customFields/CustomFields";
+import { DocumentTypeChoice } from "./ProposalCard";
 
 /**
  * Start a draft quote; the editor opens next for line items. It can start from a quote template
  * (`initialTemplate` picks one): a copy of its lines, options, sections and message for the client
  * picked (duplicate_quote), titled with the template's name unless another title is typed.
+ * Planet Ops: it starts with the document type, a line-item quote or a proposal (kept on the copy
+ * of a template too), which the draft can switch later without losing prices or terms.
  */
 export function NewQuoteDialog({ open, onClose, onCreated, initialClient = null, initialTemplate = null }: { open: boolean; onClose: () => void; onCreated: (id: string) => void; initialClient?: PickedClient; initialTemplate?: string | null }) {
   const { company } = useSession();
@@ -21,6 +25,7 @@ export function NewQuoteDialog({ open, onClose, onCreated, initialClient = null,
   const [client, setClient] = useState<PickedClient>(initialClient);
   const [propertyId, setPropertyId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
+  const [presentation, setPresentation] = useState<Presentation>("line_items");
   const [custom, setCustom] = useState<Record<string, string>>({});
   const fields = useCustomFields("quote");
   const templates = useQuery({
@@ -36,12 +41,12 @@ export function NewQuoteDialog({ open, onClose, onCreated, initialClient = null,
     if (open && initialTemplate) setTemplateId(initialTemplate);
   }, [open, initialTemplate]);
   const create = useMutation({
-    meta: { inline: true, success: "Quote created", tone: "quote" },
+    meta: { inline: true, success: () => (presentation === "proposal" ? "Proposal created" : "Quote created"), tone: "quote" },
     mutationFn: async () => {
       // Checked before anything is made, so a value that doesn't fit leaves no quote behind.
       const values = Object.keys(custom).length ? customFieldsToSave(fields, template?.custom_fields ?? {}, custom) : null;
       if (template) {
-        return unwrap(
+        const copy = unwrap(
           await supabase().rpc("duplicate_quote", {
             p_quote: template.id,
             p_client: client!.id,
@@ -50,6 +55,9 @@ export function NewQuoteDialog({ open, onClose, onCreated, initialClient = null,
             ...(values ? { p_custom_fields: values } : {}),
           }),
         );
+        // The type chosen here, whatever the template was.
+        unwrap(await supabase().from("quotes").update({ presentation }).eq("id", copy).eq("company_id", company.id));
+        return copy;
       }
       const settings = company.settings as { default_tax_rate?: number; quote_valid_days?: number };
       return unwrap(
@@ -60,6 +68,7 @@ export function NewQuoteDialog({ open, onClose, onCreated, initialClient = null,
             client_id: client!.id,
             property_id: propertyId,
             title: title.trim(),
+            presentation,
             tax_rate: Number(settings.default_tax_rate ?? 0),
             valid_until: addDaysIso(todayIn(company.timezone), Number(settings.quote_valid_days ?? 30)),
             ...(values ? { custom_fields: values } : {}),
@@ -78,13 +87,15 @@ export function NewQuoteDialog({ open, onClose, onCreated, initialClient = null,
     setTemplateId("");
     setClient(initialClient);
     setTitle("");
+    setPresentation("line_items");
     setPropertyId(null);
     setCustom({});
     create.reset();
   };
   return (
-    <Dialog open={open} onClose={onClose} onExited={reset} title="New quote">
+    <Dialog open={open} onClose={onClose} onExited={reset} title="New Quote / Proposal">
       <form onSubmit={(e: FormEvent) => { e.preventDefault(); if (client && (template || title.trim())) create.mutate(); }}>
+        <DocumentTypeChoice value={presentation} onChange={setPresentation} />
         {(templates.data?.length ?? 0) > 0 && (
           <Field label="Start from" hint="A quote template brings its lines, options, contract sections and message.">
             <select className="select" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
@@ -106,7 +117,7 @@ export function NewQuoteDialog({ open, onClose, onCreated, initialClient = null,
         <div className="form-actions">
           <FormChecks />
           <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary" loading={create.isPending}>Create quote</Button>
+          <Button type="submit" variant="primary" loading={create.isPending}>{presentation === "proposal" ? "Create proposal" : "Create quote"}</Button>
         </div>
       </form>
     </Dialog>

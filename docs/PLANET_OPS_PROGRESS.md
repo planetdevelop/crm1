@@ -5,8 +5,8 @@ phase's acceptance evidence here.
 
 | Phase | Status |
 | --- | --- |
-| 0: fork/staging baseline, shared records, permissions, Planet Ops name | **Merged** into `planet-ops-staging` (PR #1); Railway staging pending owner |
-| 1: quotes, proposals, terms, signatures, change orders | **In progress**: slice 1a (change-order signature gate) in review; 1b–1e to follow |
+| 0: fork/staging baseline, shared records, permissions, Planet Ops name | **Merged** (PR #1). Railway staging exists (owner-confirmed): https://crewtavo-staging.up.railway.app/ |
+| 1: quotes, proposals, terms, signatures, change orders | **In progress**: 1a and 1b merged (PR #2, #3); 1b follow-up, 1c, 1d, 1e in stacked PRs (see Phase 1) |
 | 2–9 | Not started. Gusto and historical import remain deferred |
 
 ## Phase 0 (branch `claude/phase-0-foundation`)
@@ -114,15 +114,22 @@ where the message is still raw (see "Remaining").
 
 ## Phase 1 (in progress)
 
-Delivered as small PRs into `planet-ops-staging`, in this order:
+Delivered as small PRs into `planet-ops-staging`. Three kinds of evidence are kept apart:
+**Implemented** (code on a branch), **Automated** (unit, database and CI browser tests pass) and
+**Staging** (checked by hand on https://crewtavo-staging.up.railway.app/).
 
-| Slice | Scope | Status |
-| --- | --- | --- |
-| 1a | **Every acceptance needs the customer's drawn signature on the exact version; no staff bypass** (database, API, UI) | PR open |
-| 1b | Quotes & Proposals: line-item quote vs proposal layout (one authoritative total), narrative sections, separate editable Contract Terms and Payment Terms, configurable drawn company countersignature, nav relabel | PR open |
-| 1c | Document revisions: a snapshot per sent version, superseded versions can't be signed; **Request changes** note tied to the revision reviewed, office notice and follow-up task, signing paused until a revision is issued | To do |
-| 1d | `send_pricing` permission (build vs approve/send customer pricing); separate states for customer accepted, company countersigned, deposit received, ready to schedule; job summary of original contract, change orders, revised total, invoiced, paid, remaining | To do |
-| 1e | Convert Quote / Proposal to Job links the exact signed revision; repeat conversion opens the existing job | To do |
+| Slice | Scope | Implemented | Automated | Staging (manual) |
+| --- | --- | --- | --- | --- |
+| 1a | Every acceptance needs the customer's drawn signature on the exact version; no staff bypass | Merged, PR #2 (`a0d5d8e`) | Yes: CI green on `42b2bb6` and on the merge | Deployed (web bundle has the 1a/1b screens; health ok). Not exercised by hand: no staging sign-in available to Claude |
+| 1b | Line-item quote / proposal layouts, separate Contract and Payment Terms, configurable countersignature, nav relabel | Merged, PR #3 (`ad1c0fc`) | Yes: CI green on `d9c4b09` and on the merge | Deployed; not exercised by hand (as above) |
+| 1b+ | Document type chosen first (New Quote / Proposal), shown at the top of a draft; Edit / Preview kept apart from it | Branch `claude/phase-1b-creation-choice` | Unit tests; browser test `e2e/proposals.spec.ts` (CI) | Not yet |
+| 1c | Document versions (snapshot per issued version, supersession) and customer Request changes | To do | | |
+| 1d | `send_pricing` permission; accepted / countersigned / deposit / ready states; job contract summary | To do | | |
+| 1e | Convert the exact signed revision to a job; retry- and race-safe; job-created handoff | To do | | |
+
+Staging access: Claude can reach the staging app (health, setup, the deployed bundle) but has no
+sign-in there (single-company mode, email off), so every hand check on staging is the owner's until a
+test login is arranged. Physical iPad / finger / stylus signing is the owner's in any case.
 
 Owner inputs still needed: the approved Contract Terms and Payment Terms wording, and whether to turn
 on the (configurable) company countersignature. Until the wording arrives, new quotes carry clearly
