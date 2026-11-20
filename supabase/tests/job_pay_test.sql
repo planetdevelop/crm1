@@ -139,7 +139,7 @@ insert into public.quote_line_items (company_id, quote_id, service_id, name, qua
 insert into public.measurements (company_id, property_id, quote_id, geojson, waste_pct, roofing_squares, created_at) values
   (:'co', :'prop', :'quote', '{"type": "FeatureCollection", "features": []}', 10, 23, now() - interval '1 day'),
   (:'co', :'prop', :'quote', '{"type": "FeatureCollection", "features": []}', 15, 24, now());
-select public.convert_quote_to_job(:'quote') as j1 \gset
+select public.convert_quote_to_job(planet_test.sign(:'quote')) as j1 \gset
 insert into public.jobs (company_id, client_id, property_id, title) values (:'co', :'client', :'prop', 'Garage roof') returning id as j2 \gset
 insert into public.job_line_items (company_id, job_id, service_id, name, quantity, unit, unit_price, unit_cost) values (:'co', :'j2', :'shingles', 'Architectural shingles', 10, 'sq', 450, 300);
 insert into public.jobs (company_id, client_id, property_id, title) values (:'co', :'client', :'prop', 'Gutters') returning id as j3 \gset
@@ -165,7 +165,7 @@ insert into public.quote_line_items (company_id, quote_id, service_id, name, qua
 update public.quotes set status = 'sent', sent_at = now() where id = :'co_quote';
 commit;
 -- The client approves it in the Client Hub (the server, as the service role).
-update public.quotes set status = 'approved', approved_at = now() where id = :'co_quote';
+select planet_test.sign(:'co_quote');
 
 -- The subs' sign-ins, as the server makes them.
 insert into public.memberships (company_id, user_id, role, subcontractor_id) values

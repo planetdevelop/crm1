@@ -54,7 +54,7 @@ select t87.expect_error(format('update public.invoices set tax_rate = 1 where id
 select t87.expect_error(format('update public.invoices set tax_rate = -0.000001 where id = %L', :'inv'), 'and not negative');
 
 -- ===== The rate follows the work to its invoices ================================================
-select public.convert_quote_to_job(:'quote') as job \gset
+select public.convert_quote_to_job(planet_test.sign(:'quote')) as job \gset
 select public.create_invoice_for_job(:'job') as final \gset
 select t87.check((select tax_rate::text || '/' || tax_amount from public.invoices where id = :'final') = '0.088750/88.75', 'the job''s invoice uses the quote''s 8.875%');
 

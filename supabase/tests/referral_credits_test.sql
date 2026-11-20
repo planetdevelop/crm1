@@ -747,7 +747,7 @@ update public.requests set status = 'archived' where id = (select request_id fro
 select trc.check((select status from public.referrals where id = :'dex_ref') = 'won', 'and a won referral isn''t lost again');
 insert into public.quotes (company_id, client_id, title) values (:'co', trc.friend(:'pip_ref'), 'Hedges') returning id as pq \gset
 update public.quotes set status = 'sent' where id = :'pq';
-update public.quotes set status = 'approved' where id = :'pq';
+select planet_test.sign(:'pq');
 select trc.check((select status = 'won' and reward_status = 'pending' from public.referrals where id = :'pip_ref'),
   'a quote approved wins the referral, and the credit waits for the friend to pay');
 

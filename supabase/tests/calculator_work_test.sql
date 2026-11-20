@@ -50,8 +50,8 @@ insert into public.quote_line_items (company_id, quote_id, service_id, name, qua
 values (:'co', :'quote', :'seal', 'Sealcoat', 4000, 'sq ft', 0.28, 0.14, 2);
 select t_cw.expect_error(format('insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price, parts) values (%L, %L, %L, 1, %L, 10, %L)', :'co', :'quote', 'Bad parts', 'job', '{"work": "asphalt"}'),
   'a line''s parts are a list');
-update public.quotes set status = 'approved' where id = :'quote';
-select public.convert_quote_to_job(:'quote') as job \gset
+select planet_test.sign(:'quote');
+select public.convert_quote_to_job(planet_test.sign(:'quote')) as job \gset
 select t_cw.check((select parts = :'parts'::jsonb from public.job_line_items where job_id = :'job' and name = 'New asphalt paving'),
   'a quote turned into a job: the calculator line''s parts go onto the job''s line');
 select t_cw.check((select parts is null from public.job_line_items where job_id = :'job' and service_id = :'seal'), 'a price list line has none');
@@ -64,7 +64,12 @@ select t_cw.check((select parts is null from public.job_line_items where job_id 
 insert into public.quotes (company_id, client_id, title, change_order_for) values (:'co', :'client', 'Vale apron', :'job') returning id as change \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price, unit_cost, sort, parts)
 values (:'co', :'change', 'Tar and chip', 1, 'job', 4000, 2500, 1, '[{"id": "stone8", "name": "#8 stone", "unit": "ton", "quantity": 9, "unit_cost": 30, "material": true, "work": "tar_chip"}]');
-update public.quotes set status = 'approved' where id = :'change';
+commit;
+-- The customer signs it (the server records the signature: 20261120000100).
+select planet_test.sign(:'change');
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub": "ca1c0000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
 select t_cw.check((select parts -> 0 ->> 'work' = 'tar_chip' from public.job_line_items where job_id = :'job' and name = 'Tar and chip'),
   'an approved change order''s calculator line brings its parts');
 

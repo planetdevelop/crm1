@@ -31,7 +31,7 @@ insert into public.services (company_id, name, unit, unit_price, unit_cost) valu
 insert into public.clients (company_id, display_name) values (:'co', 'Oak Plaza') returning id as client \gset
 insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'Parking lot') returning id as quote \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'quote', 'Overlay', 100, 'ton', 140);
-select public.convert_quote_to_job(:'quote') as job \gset
+select public.convert_quote_to_job(planet_test.sign(:'quote')) as job \gset
 insert into public.visits (company_id, job_id, title, scheduled_on) values (:'co', :'job', 'Paving', current_date + 1) returning id as visit \gset
 insert into public.visit_assignees (company_id, visit_id, user_id) values (:'co', :'visit', 'ae000000-0000-0000-0000-000000000002');
 
@@ -42,7 +42,7 @@ update public.quotes set status = 'sent', sent_at = now() where id = :'co_quote'
 commit;
 
 -- The client approves it in the Client Hub (the server does that as the service role).
-update public.quotes set status = 'approved', approved_at = now() where id = :'co_quote';
+select planet_test.sign(:'co_quote');
 select t14.check((select status from public.quotes where id = :'co_quote') = 'converted', 'an approved change order is added to its job');
 select t14.check((select contract_total from public.job_financials where job_id = :'job') = 15350, 'and the job''s total includes it');
 select t14.check((select count(*) from public.job_line_items where job_id = :'job' and source_quote_id = :'co_quote') = 1, 'its lines say where they came from');

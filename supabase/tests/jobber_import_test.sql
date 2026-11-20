@@ -68,7 +68,8 @@ select id as q102 from public.quotes where source_id = 'jobber:102' \gset
 select jbi.check((select status = 'sent' and title = 'Spring cleanup' and property_id = :'oak' and total = 243 and deposit_amount = 50
   and sent_at::date = '2026-10-02' and created_at::date = '2026-10-01' and custom_fields = '{"jobber_quote": "101"}' from public.quotes where id = :'q101'),
   'an open quote comes in as it was in Jobber: sent, with its lines, tax, deposit and dates');
-select jbi.check((select status = 'approved' and approved_at::date = '2026-09-20' and total = 2400 from public.quotes where id = :'q102'), 'an approved one comes in approved, ready to become a job');
+select jbi.check((select status = 'sent' and approved_at is null and approval is null and total = 2400 from public.quotes where id = :'q102'),
+  'one approved in Jobber comes in sent: Planet Ops needs the customer''s own drawn signature before it''s a job (20261120000100)');
 select jbi.check((select array_agg(number order by number) = array[:here_number + 1, :here_number + 2]::bigint[] from public.quotes where source_id is not null),
   'Crewtavo numbers them next in its own sequence (Jobber''s number is kept beside it)');
 select jbi.check((select count(*) = 1 from public.custom_field_definitions where company_id = :'co' and record_type = 'quote' and key = 'jobber_quote' and label = 'Jobber quote #' and type = 'text'),

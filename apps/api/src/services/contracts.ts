@@ -16,13 +16,14 @@ import { isPackagePicturePath } from "@crewtavo/core/presets";
 import { z } from "zod";
 import { dbError, HttpError, must } from "../lib/http";
 import type { Db } from "../lib/supabase";
+import { isDrawnSignature } from "../lib/drawnSignature";
 import { isDrawnPng } from "./logo";
 
 /**
  * Initials drawn on the screen once, to stamp on each section that asks: a small PNG data URL, up to
  * 60 KB, of a size a signature pad makes (logo.ts isDrawnPng).
  */
-export const initialsImage = z.string().max(60 * 1024).regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/).refine(isDrawnPng);
+export const initialsImage = z.string().max(60 * 1024).regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/).refine(isDrawnSignature, "Draw your initials in the box.");
 
 /** The fingerprint of the terms a homeowner read (core sectionsHash): 16 hex digits. */
 export const sectionsHashSchema = z.string().regex(/^[0-9a-f]{16}$/);

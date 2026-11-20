@@ -2,12 +2,14 @@
  * Signatures (routes/signing.ts, services/signing.ts): a person's saved signature, the homeowner
  * signing on the salesperson's iPad, signing for the business afterwards, and the signed copy.
  */
+import { NOT_SIGNED_YET } from "../src/services/sales";
 import { contractInput, contractValues, resolveSections, sectionsHash } from "@crewtavo/core/contracts";
 import { DEFAULT_TEMPLATE, templateSettings } from "@crewtavo/core/documents";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../src/env";
 import { readClientLink } from "../src/lib/links";
 import { drawnPng } from "./fixtures/drawn";
+import { ONE_PIXEL, PAD_BLANK, PAD_DOT, PAD_SHORT } from "./fixtures/signaturePad";
 
 // Stand-ins for the signed-in person's Supabase client: tables of rows that eq, in, is (including a
 // ->> json path) and match filter, with insert, upsert, update (returning rows after .select()) and
@@ -129,8 +131,18 @@ const hubLinkIn = (text: unknown) => readClientLink(env, String(text).match(/\/h
 const MIKES = drawnPng(840, 280, "Mike");
 const SAVED = drawnPng(840, 280, "Mike, saved");
 
+// Planet Ops: in-person signing sends the version the screen showed (its fingerprint); a test that
+// wants it missing says fingerprint: null.
+const SCREEN_FINGERPRINT = "fedcba9876543210fedcba9876543210";
+// It also sends the total on the paper (required): a test that leaves it out gets the quote's total
+// as the database has it, and one that wants it missing says expected_total: null.
+const screenTotal = () => Number(state.tables.quotes?.find((q) => q.id === QUOTE)?.total ?? 0);
+const withFingerprint = (path: string, body: unknown) =>
+  path.endsWith("/sign") && body && typeof body === "object"
+    ? { ...("fingerprint" in body ? {} : { fingerprint: SCREEN_FINGERPRINT }), ...("expected_total" in body ? {} : { expected_total: screenTotal() }), ...body }
+    : body;
 const call = (path: string, body?: unknown, method = body === undefined ? "GET" : "POST") =>
-  app.request(`/api${path}`, { method, headers: { Authorization: "Bearer token", "X-Company-Id": ROOFER, "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) }, env);
+  app.request(`/api${path}`, { method, headers: { Authorization: "Bearer token", "X-Company-Id": ROOFER, "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(withFingerprint(path, body)) }, env);
 
 const quote = () => state.tables.quotes!.find((q) => q.id === QUOTE)!;
 
@@ -225,6 +237,8 @@ describe("signing on site", () => {
     expect(q.approval).toEqual({
       name: "Alex Morgan",
       signature: HOMEOWNER,
+      // Planet Ops: the version the screen showed, which the database checks as it's signed.
+      seen_fingerprint: SCREEN_FINGERPRINT,
       signed_at: expect.any(String),
       method: "in_person",
       selected_line_ids: ["line-2"],
@@ -242,7 +256,7 @@ describe("signing on site", () => {
       total: 18304,
     });
     // Signed in the database, as the signed-in salesperson.
-    expect(state.calls.filter((c) => c.name === "sign_quote")).toEqual([{ name: "sign_quote", args: { p_quote: QUOTE, p_approval: expect.objectContaining({ name: "Alex Morgan" }) } }]);
+    expect(state.calls.filter((c) => c.name === "sign_quote")).toEqual([{ name: "sign_quote", args: { p_quote: QUOTE, p_expected_total: 18304, p_approval: expect.objectContaining({ name: "Alex Morgan" }) } }]);
     // It's never the IP: that's only for online approvals.
     expect(q.approval).not.toHaveProperty("ip");
 
@@ -337,6 +351,42 @@ describe("signing on site", () => {
     expect((await call(`/quotes/${QUOTE}/sign`, { name: "A", signature: HOMEOWNER, company_signature: MIKES })).status).toBe(400);
     expect((await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", company_signature: MIKES })).status).toBe(400);
     expect(quote().status).toBe("sent");
+  });
+
+  it("needs the total on the paper (Planet Ops): a request without it isn't signed", async () => {
+    roofer();
+    for (const missing of [{ expected_total: null }, { expected_total: undefined }, { expected_total: "18304" }]) {
+      const res = await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER, company_signature: MIKES, ...missing });
+      expect(res.status, JSON.stringify(missing)).toBe(400);
+    }
+    expect(state.calls.some((c) => c.name === "sign_quote")).toBe(false);
+    expect(quote().status).toBe("sent");
+    // A total that isn't the quote's any more: not signed.
+    expect((await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER, company_signature: MIKES, expected_total: 18000 })).status).toBe(409);
+    expect(quote().status).toBe("sent");
+  });
+
+  it("signs a credit and a $0 change with their totals (Planet Ops)", async () => {
+    for (const total of [-450, 0]) {
+      roofer();
+      quote().total = total;
+      const res = await call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER, company_signature: MIKES, expected_total: total });
+      expect(res.status, String(total)).toBe(200);
+      expect(state.calls.filter((c) => c.name === "sign_quote").at(-1)?.args.p_expected_total).toBe(total);
+    }
+  });
+
+  it("needs a real drawing and the exact version on the screen (Planet Ops)", async () => {
+    roofer();
+    const sign = (body: Record<string, unknown>) => call(`/quotes/${QUOTE}/sign`, { name: "Alex Morgan", signature: HOMEOWNER, company_signature: MIKES, ...body });
+    for (const body of [
+      { fingerprint: null }, { fingerprint: undefined }, { fingerprint: "stale" },
+      { signature: "Alex Morgan" }, { signature: PAD_BLANK }, { signature: PAD_DOT }, { signature: ONE_PIXEL }, { signature: PAD_SHORT.slice(0, -40) },
+    ]) expect((await sign(body)).status, JSON.stringify(body).slice(0, 60)).toBe(400);
+    expect(quote().status).toBe("sent");
+    // A short signature drawn on the pad signs.
+    expect((await sign({ signature: PAD_SHORT })).status).toBe(200);
+    expect(quote().approval).toMatchObject({ signature: PAD_SHORT, seen_fingerprint: SCREEN_FINGERPRINT });
   });
 });
 
@@ -518,64 +568,39 @@ describe("signing a single-package estimate on site", () => {
   });
 });
 
-describe("a quote turned into a job before it was signed", () => {
-  const PAYMENT_DUE = "00000000-0000-4000-8000-00000000e0b4";
-  function sent() {
-    roofer({ templates: [{ id: "t-standard", company_id: ROOFER, is_default: true, settings: { license: "OH-7731", terms: "Thanks, {Customer name}.", sections: [PAYMENT_DUE] } }] });
-    quote().section_ids = [CANCEL];
-    state.tables.contract_sections = [
-      { id: PAYMENT_DUE, company_id: ROOFER, title: "Payment", body: "<p>{Total} when the roof is done, {Customer name}.</p>", place: "terms", initials: false, sort: 0 },
-      { id: CANCEL, company_id: ROOFER, title: "Your right to cancel", body: "<p>{Customer name} may cancel within three business days.</p>", place: "signatures", initials: true, sort: 1 },
-    ];
-  }
+// Planet Ops: a quote, proposal or change order becomes a job only once the customer signed it, by
+// drawing their signature on its exact version; an office approval never stands in for theirs
+// (services/sales.ts convertQuote, and the database: 20261120000100).
+describe("making a job from a quote needs the customer's signature", () => {
+  it("refuses a quote that's only been sent, without approving it for the customer", async () => {
+    roofer();
+    const res = await call(`/quotes/${QUOTE}/convert`, {});
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe(NOT_SIGNED_YET);
+    expect(quote().approval ?? null).toBeNull();
+    expect(quote().status).toBe("sent");
+    expect(state.calls.some((c) => c.name === "convert_quote_to_job")).toBe(false);
+  });
 
-  it("keeps the contract it was sent with, approved in the name of whoever converted it", async () => {
-    sent();
+  it("refuses one the office approved itself", async () => {
+    roofer({ status: "approved", approval: { name: "Mike Torres", method: "manual" } });
+    const res = await call(`/quotes/${QUOTE}/convert`, {});
+    expect(res.status).toBe(409);
+    expect(state.calls.some((c) => c.name === "convert_quote_to_job")).toBe(false);
+  });
+
+  it("refuses an approval with a typed name and no drawing", async () => {
+    roofer({ status: "approved", approval: { name: "Alex Morgan", signed_at: "2026-10-20T15:00:00.000Z" } });
+    expect((await call(`/quotes/${QUOTE}/convert`, {})).status).toBe(409);
+  });
+
+  it("makes the job from one the customer signed, leaving their approval as it is", async () => {
+    const signed = { name: "Alex Morgan", signature: HOMEOWNER, signed_at: "2026-10-20T15:00:00.000Z", fingerprint: "fedcba9876543210fedcba9876543210" };
+    roofer({ status: "approved", approval: { ...signed } });
     const res = await call(`/quotes/${QUOTE}/convert`, {});
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ job_id: "job-1" });
-    expect(quote().approval).toEqual({
-      name: "Mike Torres",
-      method: "manual",
-      template: templateSettings({ license: "OH-7731", terms: "Thanks, {Customer name}.", sections: [PAYMENT_DUE] }),
-      option: null,
-      contract: {
-        terms: "Thanks, Alex Morgan.",
-        sections: [
-          { id: PAYMENT_DUE, title: "Payment", body: "<p>$18,304.00 when the roof is done, Alex Morgan.</p>", place: "terms", initials: false, initialed: false },
-          // Nobody signed, so nobody initialed it.
-          { id: CANCEL, title: "Your right to cancel", body: "<p>Alex Morgan may cancel within three business days.</p>", place: "signatures", initials: true, initialed: false },
-        ],
-      },
-      initials: null,
-    });
-    // Only the approval: the database's one step turns it into a job (and a change order joins its job).
-    expect(quote().status).toBe("sent");
-    expect(state.calls.map((c) => c.name)).toEqual(["convert_quote_to_job"]);
-  });
-
-  it("leaves the approval of a quote that was signed as it is", async () => {
-    roofer({ status: "approved", approval: { name: "Alex Morgan", signature: HOMEOWNER } });
-    expect((await call(`/quotes/${QUOTE}/convert`, {})).status).toBe(201);
-    expect(quote().approval).toEqual({ name: "Alex Morgan", signature: HOMEOWNER });
-  });
-
-  it("goes back to the approval it had when it doesn't become a job", async () => {
-    sent();
-    quote().approval = { name: "Old", method: "manual" };
-    state.convertError = { message: "This quote can't become a job right now.", code: "22023" };
-    const res = await call(`/quotes/${QUOTE}/convert`, {});
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("This quote can't become a job right now.");
-    expect(quote().approval).toEqual({ name: "Old", method: "manual" });
-  });
-
-  it("isn't approved here when it offers options: it's approved with the option chosen first", async () => {
-    withOptions();
-    state.convertError = { message: "This estimate offers options. Mark it approved with the option they chose first.", code: "22023" };
-    const res = await call(`/quotes/${QUOTE}/convert`, {});
-    expect(res.status).toBe(400);
-    expect(quote().approval).toBeNull();
+    expect(quote().approval).toEqual(signed);
   });
 });
 

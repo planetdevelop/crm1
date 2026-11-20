@@ -5,8 +5,8 @@ phase's acceptance evidence here.
 
 | Phase | Status |
 | --- | --- |
-| 0: fork/staging baseline, shared records, permissions, Planet Ops name | **Repository work done (PR into `planet-ops-staging`)**; Railway staging pending owner |
-| 1: quotes, proposals, terms, signatures, change orders | Not started |
+| 0: fork/staging baseline, shared records, permissions, Planet Ops name | **Merged** into `planet-ops-staging` (PR #1); Railway staging pending owner |
+| 1: quotes, proposals, terms, signatures, change orders | **In progress**: slice 1a (change-order signature gate) in review; 1b–1e to follow |
 | 2–9 | Not started. Gusto and historical import remain deferred |
 
 ## Phase 0 (branch `claude/phase-0-foundation`)
@@ -111,3 +111,89 @@ where the message is still raw (see "Remaining").
 - [ ] Sidebar, sign-in, tab title and installed-app name show Planet Ops
 - [ ] Fictional client/request created; one upload works
 - [ ] Each permission test account opens only what PERMISSIONS.md lists
+
+## Phase 1 (in progress)
+
+Delivered as small PRs into `planet-ops-staging`, in this order:
+
+| Slice | Scope | Status |
+| --- | --- | --- |
+| 1a | **Change orders finalize only with the customer's signature on the exact version** (database, API, UI) | PR open |
+| 1b | Quotes & Proposals: line-item quote vs proposal layout (one authoritative total), narrative sections (overview, scope in work order, inclusions, exclusions, assumptions, alternates), nav relabel | Next |
+| 1c | Document revisions: a snapshot per sent version, superseded versions can't be signed; **Request changes** note tied to the revision reviewed, office notice and follow-up task, signing paused until a revision is issued | To do |
+| 1d | `send_pricing` permission (build vs approve/send customer pricing); separate states for customer accepted, company countersigned, deposit received, ready to schedule; job summary of original contract, change orders, revised total, invoiced, paid, remaining | To do |
+| 1e | Convert Quote / Proposal to Job links the exact signed revision; repeat conversion opens the existing job | To do |
+
+Owner inputs still needed: contract terms wording, payment terms, and whether the company must
+countersign. Until then, documents use the existing contract-section library and clearly marked
+placeholders; no legal text is invented.
+
+### 1a: customer signature required for every acceptance, tied to the exact document version
+
+Owner decisions applied (Nov 2026 review): a drawn customer signature is mandatory for quotes,
+proposals and change orders; every acceptance carries the version fingerprint; staff approval never
+stands in for the customer.
+
+- Before: staff could "Mark approved" any quote (a manual approval), drop a quote on "Approved" on the
+  sales board, or "Convert to job" an unsigned quote (it saved a manual approval first). A change
+  order joined its job the same way. A signature was tied to the total only, and the fingerprint was
+  optional outside change orders. The drawing was checked by its PNG header only (a one-pixel image
+  passed), and a signed-in person could call the in-person signing step with made-up details.
+- Now (migration `20261120000100_planet_ops_change_order_signature.sql`, not yet released):
+  - **Customer signature required.** A quote, proposal or change order becomes `approved` only with
+    a customer signature (printed name, drawn signature, server signing time) on its exact version,
+    and becomes a job (`converted`, or `jobs.quote_id`) only from that. Direct status updates, inserts
+    as approved/converted, manual approvals, the convert function and job inserts are all refused
+    otherwise, whoever runs them. Quotes approved by the office before this migration keep their state
+    but can't be converted without a signature. Jobber imports of approved quotes come in as sent.
+  - **Version fingerprint required everywhere.** The client hub and the in-person screen must send
+    the fingerprint of the version they showed (API: 400 without one; database: refused without one,
+    and refused when the document changed since). The version covers lines (names, descriptions,
+    quantities, units, prices, tax, optional/grouped), options offered and their prices, schedule,
+    deposit and payment schedule, discount, tax, promo, contract sections, and the template's terms and
+    signature settings. The customer's own choices are recorded with the signature:
+    `approval.choices` (option, add-ons picked, subtotal, discount, tax, total).
+  - **Original signed document preserved.** `approval.document` keeps the signed version;
+    `approval.fingerprint` its fingerprint; `approval.signed_at` is set by the database. A signed
+    quote, proposal or change order can't be reopened, marked lost, archived, deleted, re-signed or
+    edited; a change is a new revision (for a job, a new change order) signed again.
+  - **Drawn signature validated.** The API decodes the whole PNG (`apps/api/src/lib/drawnSignature.ts`:
+    chunk checksums, image end, decompressed size, row filters) and counts ink. It refuses blank pads,
+    a single tap, one-pixel and tiny images, malformed or truncated files, other formats and typed
+    text; a short real signature passes. The database checks the PNG structure and size too.
+  - **Only the server writes a customer signature** (hub approval; in-person signing through the API
+    with the signed-in seller checked). `sign_quote` is callable by the server only.
+- Interface: "Mark approved" is gone; "Convert to job" / "Add to job" shows only once the customer
+  has signed; the sales board refuses a drop on "Approved"; the roofing and paving flows wait for the
+  signature; the in-person signing screen waits for the version to load and always sends it.
+- Test fixtures: real signature-pad drawings (`apps/api/test/fixtures/signaturePad.ts`, captured from
+  the app's pad in Chromium: full, short, initials, a tap, blank). Database tests sign through
+  `planet_test.sign()` (the server's path) instead of writing approvals directly.
+- Tests: `supabase/tests/planet_ops_change_order_signature_test.sql` covers every staff bypass on
+  quotes and change orders; fabricated signatures; missing, typed, one-pixel, JPEG and truncated
+  drawings and a missing name on both signing paths; missing fingerprints and outdated pages after a
+  same-price scope change, schedule, Contract Terms, Payment Terms, deposit and option-price changes;
+  the recorded choices, server time and preserved document; reopen/lost/delete/edit/re-sign of a
+  signed quote and change order; credit (link) and $0 (in person) change orders; legacy office
+  approvals refused at conversion. API: `drawnSignature.test.ts`, plus hub and in-person endpoint
+  tests for missing fingerprints and blank/tap/one-pixel/truncated/typed signatures, and conversion
+  refusals (`NOT_SIGNED_YET`) for staff and the assistant.
+- Checks (this round): typecheck pass; unit tests api 2582, web 1976, core 1222 pass; `test:db` all
+  pass; `build:server` pass.
+- **Price set on site in the version; total required** (pre-merge review). The "Price adjustment"
+  lines a price set on site writes were left out of the version, and `expected_total` was optional,
+  so an office change to that price didn't make an open page outdated when no total was sent. Now:
+  - the adjustment lines are in the version like any other line, so changing, adding or removing a
+    price set on site is a new version, refused on the customer link and in person, with or without
+    a total;
+  - the customer's own choice of another option as they sign (which takes the shown option's price
+    set on site off) still signs: the version they're held to is the one just before that choice
+    in their own signing step (`private.offered_version`); an office switch of the shown option is
+    a change like any other;
+  - the API requires `expected_total` on both paths (400 without it); credits and $0 still sign.
+  - Tests: `planet_ops_change_order_signature_test.sql` (price changed or removed, stale page on
+    both paths with and without the total, choosing the other option, the shown option at the site
+    price on both paths, an office switch); API hub and in-person tests for a missing or non-number
+    total, a stale total, and credit/$0 totals. Run against the earlier rule, the new database tests
+    fail at "a change to the price set on site is a new version".
+- Countersignature (configurable) is in 1b.

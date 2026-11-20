@@ -234,21 +234,21 @@ insert into public.quote_line_items (company_id, quote_id, name, quantity, unit,
 commit;
 -- The client approves it in the Client Hub (the server, as the service role).
 update public.quotes set status = 'sent', sent_at = now() where id = :'quote';
-update public.quotes set status = 'approved', approved_at = now() where id = :'quote';
+select planet_test.sign(:'quote');
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "b1000000-0000-0000-0000-000000000002", "role": "authenticated"}', true);
 select t16.expect_error(format('update public.quote_line_items set unit_price = 1 where quote_id = %L', :'quote'), 'an approved quote keeps the prices the client approved');
 commit;
 
--- A change order approved, re-opened and approved again joins its job once.
+-- A change order signed by the customer joins its job once. Planet Ops: it then stays as signed, so
+-- re-opening it (to approve it again) is refused (20261120000100_planet_ops_change_order_signature).
 insert into public.quotes (company_id, client_id, title, change_order_for) values (:'co', :'client', 'Add aeration', :'job') returning id as change \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'change', 'Aeration', 1, 'ea', 250);
 update public.quotes set status = 'sent', sent_at = now() where id = :'change';
-update public.quotes set status = 'approved', approved_at = now() where id = :'change';
-update public.quotes set status = 'sent' where id = :'change';
-update public.quotes set status = 'approved', approved_at = now() where id = :'change';
-select t16.check((select count(*) from public.job_line_items where job_id = :'job' and source_quote_id = :'change') = 1, 'a change order approved twice adds its lines to the job once');
+select planet_test.sign(:'change');
+select t16.expect_error(format('update public.quotes set status = ''sent'' where id = %L', :'change'), 'a signed change order can''t be re-opened');
+select t16.check((select count(*) from public.job_line_items where job_id = :'job' and source_quote_id = :'change') = 1, 'a signed change order adds its lines to the job once');
 select t16.check((select status from public.quotes where id = :'change') = 'converted', 'and is marked added to the job');
 
 -- ===== Invoices stay on record ==================================================================

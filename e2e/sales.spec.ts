@@ -71,7 +71,7 @@ test("new client → request → quote → approved in the portal → job", asyn
   await hub.getByRole("button", { name: "Continue to sign" }).click();
   await hub.getByLabel("Your full name").fill("Pat Client");
   // Sign on the pad: a short stroke with the mouse.
-  const signaturePad = hub.getByRole("img", { name: /Sign with your finger or mouse/ });
+  const signaturePad = hub.getByRole("img", { name: /Draw your signature with your finger, mouse or stylus/ });
   await signaturePad.scrollIntoViewIfNeeded();
   const pad = await signaturePad.boundingBox();
   await portal.mouse.move(pad!.x + 30, pad!.y + 80);

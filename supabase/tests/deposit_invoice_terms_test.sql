@@ -36,8 +36,8 @@ commit;
 update public.companies set settings = settings || '{"payment_terms_days": 14, "late_fee": {"type": "flat", "amount": 25, "grace_days": 0}}' where id = :'co';
 
 set role service_role;
-select dit.check(public.approve_hub_quote(:'co', :'patio', null, '{"name": "Uma Upland"}'), 'Uma approves her patio');
-select dit.check(public.approve_hub_quote(:'co', :'pergola', null, '{"name": "Vic Vale"}'), 'and Vic his pergola');
+select dit.check(public.approve_hub_quote(:'co', :'patio', null, planet_test.approval(:'patio', '{"name": "Uma Upland"}')), 'Uma approves her patio');
+select dit.check(public.approve_hub_quote(:'co', :'pergola', null, planet_test.approval(:'pergola', '{"name": "Vic Vale"}')), 'and Vic his pergola');
 select public.hub_deposit_invoice(:'co', :'patio') as uma_deposit \gset
 select public.hub_deposit_invoice(:'co', :'pergola') as vic_deposit \gset
 reset role;

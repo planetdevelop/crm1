@@ -23,6 +23,8 @@ export function dbError(error: PostgrestError | { message: string; code?: string
   if (code === "23503") return new HttpError(400, "Something this refers to no longer exists. Refresh the page and try again.");
   // Our own database functions raise readable messages with 22023.
   if (code === "22023") return new HttpError(400, error.message);
+  // Planet Ops: the document changed after the page signing it was opened (20261120000100).
+  if (code === "CX410") return new HttpError(409, error.message);
   if (code === "23514") return new HttpError(400, "One of the values isn't allowed. Check the form and try again.");
   if (code === "22P02") return new HttpError(400, "Something you entered doesn't look right. Check the form and try again.");
   console.error("Database error", error);

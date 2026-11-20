@@ -76,8 +76,9 @@ select t2.check((select count(*) from public.global_search(:'co', '%_')) = 0, 's
 
 -- ===== Billing v2: deposit, progress, final with credits ======================================
 -- The rate on the quote is what the client approved, so invoices use it.
-update public.quotes set status = 'approved', tax_rate = 0.10 where id = :'q1';
-select public.convert_quote_to_job(:'q1') as job \gset
+update public.quotes set tax_rate = 0.10 where id = :'q1';
+select planet_test.sign(:'q1');
+select public.convert_quote_to_job(planet_test.sign(:'q1')) as job \gset
 select public.create_invoice_for_job(:'job', 'deposit', 100) as inv_dep \gset
 select t2.check((select subtotal || '/' || tax_amount || '/' || total from public.invoices where id = :'inv_dep') = '100.00/0.00/100.00', 'deposit invoice bills the deposit, untaxed');
 select public.create_invoice_for_job(:'job', 'progress', 250) as inv_prog \gset
@@ -150,7 +151,7 @@ select t2.expect_error(format('insert into public.referrals (company_id, referre
 insert into public.quotes (company_id, client_id, title) values (:'co', :'ben', 'Gutters') returning id as q2 \gset
 update public.quotes set status = 'sent' where id = :'q2';
 select t2.check((select status from public.referrals where id = :'ref') = 'quoted', 'referral moves to quoted when the friend gets a quote');
-update public.quotes set status = 'approved' where id = :'q2';
+select planet_test.sign(:'q2');
 select t2.check((select status from public.referrals where id = :'ref') = 'won', 'referral is won when the quote is approved');
 select t2.check((select reward_status from public.referrals where id = :'ref') = 'pending', 'and its credit waits for the friend to pay their first invoice');
 commit;

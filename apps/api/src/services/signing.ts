@@ -21,6 +21,7 @@ import { sendEmail, sendSms } from "../lib/notify";
 import { adminClient, type Db } from "../lib/supabase";
 import { companyAddress } from "./automations";
 import { checkContract, contractInput, freezeContract, freezeOption, initialsImage, isPriced, loadOptions, optionTiers, packageFill, postedId, resolveContract, sectionsHashSchema, type OptionRow } from "./contracts";
+import { isDrawnSignature } from "../lib/drawnSignature";
 import { isDrawnPng, logoImage } from "./logo";
 import { textWithStopLine } from "./stopLine";
 import { noteRefusedText, numberStopped, numberStoppedRefusal, textsOffRefusal, textsOffTo } from "./textsOff";
@@ -38,7 +39,13 @@ export interface SigningScope {
  * A drawn signature: a PNG data URL, as SignaturePad makes it (a few to a few hundred KB), of a size a
  * signature pad makes (logo.ts isDrawnPng). Online (routes/public.ts) and on the iPad alike.
  */
-export const signatureImage = z.string().max(300_000).regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/).refine(isDrawnPng);
+// Planet Ops: the whole drawing is decoded and checked for ink (lib/drawnSignature.ts): a blank pad, a
+// tap, a one-pixel or malformed image, or typed text is refused.
+export const signatureImage = z
+  .string()
+  .max(300_000)
+  .regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/, "Draw your signature with your finger, mouse or stylus. A typed name or another picture can't be used.")
+  .refine(isDrawnSignature, "Draw your signature in the box with your finger, mouse or stylus.");
 
 export const saveSignatureSchema = z.object({ image: signatureImage });
 
@@ -54,8 +61,10 @@ export const signSchema = z.object({
   to: z.string().trim().max(200).optional(),
   /** The option they chose (the one shown on the visit page): required when the quote offers options. */
   option_id: postedId.optional(),
-  /** The total on the paper they signed: it's only signed while the quote still comes to it. */
-  expected_total: z.number().min(0).max(100_000_000).optional(),
+  /** The total on the paper they signed: it's only signed while the quote still comes to it. A credit change order comes to less than nothing. */
+  expected_total: z.number({ error: "This screen is out of date. Open the estimate again to see the latest price, then sign." }).min(-100_000_000).max(100_000_000),
+  /** The version the signing screen showed (public.quote_fingerprint): required, and the database signs only that one. */
+  fingerprint: z.string({ error: "This screen is out of date. Open the estimate again to see the latest version, then sign." }).regex(/^[0-9a-f]{32}$/),
   /** The terms on the paper (core sectionsHash), and the homeowner's initials for the sections that ask. */
   sections_hash: sectionsHashSchema.optional(),
   initials: initialsImage.optional(),
@@ -179,7 +188,7 @@ export async function signQuote(s: SigningScope, id: string, body: SignBody) {
   const money = { taxRate: quote.tax_rate, discountAmount: quote.discount_amount, promo: quote.promo };
   // Without options, {Option} and {Warranty} say the package it was priced from.
   const fill = option ?? (options.length ? null : await packageFill(s.db, s.companyId, quote.roof_package_id));
-  const facts = contractInput({ ...quote, total: body.expected_total ?? quote.total }, quote.client, quote.property, company, template, fill);
+  const facts = contractInput({ ...quote, total: body.expected_total }, quote.client, quote.property, company, template, fill);
   const tier = option ? optionTiers(options, lines, money).get(option.id) : null;
   checkContract(contract, body, { facts, option: option && freezeOption(option, tier) });
   const now = new Date().toISOString();
@@ -190,6 +199,7 @@ export async function signQuote(s: SigningScope, id: string, body: SignBody) {
     signature: body.signature,
     signed_at: now,
     method: "in_person" as const,
+    seen_fingerprint: body.fingerprint,
     selected_line_ids: lines.filter((l) => l.optional && countsOn(l, quote.option_id)).map((l) => l.id),
     company: companySignature ? { name: signer || company.name, user_id: s.userId, signature: companySignature, signed_at: now } : null,
     // The template as it was signed, so later changes to it (or another default) don't change the terms above the signatures.
@@ -200,17 +210,21 @@ export async function signQuote(s: SigningScope, id: string, body: SignBody) {
   // the option they chose and still comes to the total on the paper, then approves it with the
   // amounts. So two people signing at once can't both win, and an office change in between isn't
   // signed by mistake.
-  const { data: amounts, error } = await s.db.rpc("sign_quote", {
+  // Planet Ops: only the server records a customer's signature (20261120000100): this person's access
+  // and the drawn signature are checked above, and loadQuote found the quote in their company.
+  const { data: amounts, error } = await adminClient(s.env).rpc("sign_quote", {
     p_quote: id,
     p_approval: asJson(approval),
     ...(option ? { p_option: option.id } : {}),
-    ...(body.expected_total !== undefined ? { p_expected_total: body.expected_total } : {}),
+    p_expected_total: body.expected_total,
   });
   if (error) throw dbError(error);
   if (!amounts) {
     const current = must(await s.db.from("quotes").select("status").eq("id", id).eq("company_id", s.companyId).maybeSingle(), "We couldn't find that estimate. It may have been deleted.");
     throw OPEN.includes(current.status) ? new HttpError(409, CHANGED) : notOpen(current.status);
   }
+  // The person who had it signed becomes its salesperson if it had none (sign_quote did, as them, before).
+  await s.db.from("quotes").update({ salesperson_id: s.userId }).eq("id", id).eq("company_id", s.companyId).is("salesperson_id", null);
   if (body.save_signature && body.company_signature) await keepSignature(s, body.company_signature);
 
   // The person signed in gets the office's copy of the link; only a copy that goes out to the client's own email is theirs.

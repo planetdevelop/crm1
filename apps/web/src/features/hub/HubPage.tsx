@@ -916,6 +916,8 @@ function OpenQuote({ token, data, onChanged, printing }: { token: string; data: 
         signature: signature ?? undefined,
         ...(offers && optionId ? { option_id: optionId } : {}),
         expected_total: totals.total,
+        // Planet Ops: always the version this page showed; without one, the server says to reload it.
+        fingerprint: data.fingerprint ?? undefined,
         ...(contract?.hash ? { sections_hash: contract.hash } : {}),
         ...(initials && asking.length ? { initials } : {}),
       }),
@@ -1143,7 +1145,7 @@ function OpenQuote({ token, data, onChanged, printing }: { token: string; data: 
                   <Field label="Your full name" requiredMessage="Enter your full name, as you'd sign it."><input className="input" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={120} autoComplete="name" /></Field>
                   <div className="field">
                     <span>Your signature</span>
-                    <SignaturePad value={signature} onChange={setSignature} label="Sign with your finger or mouse" />
+                    <SignaturePad value={signature} onChange={setSignature} label="Draw your signature with your finger, mouse or stylus" />
                   </div>
                   <label className="checkbox">
                     <input type="checkbox" checked={agree} onChange={(e) => setAgreed(e.target.checked ? agreeKey : null)} />

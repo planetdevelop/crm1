@@ -10,19 +10,15 @@ import { DEFAULT_TEMPLATE, type TemplateSettings } from "@crewtavo/core/document
 import { DEFAULT_RANGE, optionsRange, priceRange } from "@crewtavo/core/estimates";
 import { optionBaseTotal, optionTotals, quoteTotals } from "@crewtavo/core/money";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { approvalContract } from "../src/features/documents/build";
 import { approvalSignatures, quoteContract, readApproval, signedContract, signedTemplate } from "../src/features/documents/data";
-import { moveRefusal } from "../src/features/pipeline/PipelinePage";
+import { CUSTOMER_SIGNS, moveRefusal } from "../src/features/pipeline/PipelinePage";
 import { listPrice, shownWords, sortOptions, withOptionLines, type QuoteOptionRow } from "../src/features/quotes/options";
 import {
   approvalOption,
-  approveSteps,
   contractFor,
   depositCap,
-  firstChoice,
-  needsChoice,
   offersOptions,
-  officeApproval,
-  optionChoices,
   paperDocument,
   printedOption,
   quoteToSend,
@@ -190,76 +186,27 @@ describe("the deposit", () => {
   });
 });
 
-describe("which option did they choose?", () => {
-  it("is asked before an open quote with options is approved or made a job", () => {
-    expect(needsChoice("sent", true)).toBe(true);
-    expect(needsChoice("draft", true)).toBe(true);
-    expect(needsChoice("changes_requested", true)).toBe(true);
-    expect(needsChoice("approved", true)).toBe(false);
-    expect(needsChoice("sent", false)).toBe(false);
-  });
-
+describe("a quote that offers options", () => {
   it("knows a quote offers options from its lines too, while its options are still being read", () => {
     expect(offersOptions(options, lines)).toBe(true);
     expect(offersOptions([], lines)).toBe(true);
     expect(offersOptions(options, lines.slice(0, 2))).toBe(true);
     expect(offersOptions([], lines.slice(0, 2))).toBe(false);
   });
-
-  const unpriced = option("dddddddd-0000-4000-8000-000000000004", "Not measured yet", 3);
-  const withUnpriced = [options[1]!, options[2]!, unpriced];
-
-  it("offers every option in order with its tier word and price, and only the priced ones can be chosen", () => {
-    const choices = optionChoices(withUnpriced, lines, quote);
-    expect(choices.map((c) => [c.option.name, c.tier, c.priced])).toEqual([
-      ["Architectural shingle", "Good", true],
-      ["Designer shingle", "Better", true],
-      // Measured later: no price yet, so it's last.
-      ["Not measured yet", "Best", false],
-    ]);
-    expect(choices[1]!.total).toBe(optionTotals(lines, B, A, money).total);
-    expect(optionChoices(options, lines, quote).map((c) => c.tier)).toEqual(["Good", "Better", "Best"]);
-  });
-
-  it("starts on the option shown first, or on none so one is picked on purpose", () => {
-    const choices = optionChoices(withUnpriced, lines, quote);
-    expect(firstChoice(choices, A)).toBe(A);
-    expect(firstChoice(choices, B)).toBe(B);
-    // Shown first but not priced yet: nothing is picked for them.
-    expect(firstChoice(choices, unpriced.id)).toBeNull();
-    expect(firstChoice(choices, null)).toBeNull();
-    expect(firstChoice([], B)).toBeNull();
-  });
-
-  const open = (status: string, option_id: string | null = A, change_order_for: string | null = null) => ({ status, option_id, change_order_for });
-
-  it("shows the option they chose, approves it, then makes the job", () => {
-    expect(approveSteps(open("sent"), B, true)).toEqual(["show", "approve", "convert"]);
-    expect(approveSteps(open("changes_requested"), B, false)).toEqual(["show", "approve"]);
-    // The one shown already: nothing to switch.
-    expect(approveSteps(open("draft"), A, true)).toEqual(["approve", "convert"]);
-    // A quote without options.
-    expect(approveSteps(open("sent", null), null, false)).toEqual(["approve"]);
-  });
-
-  it("only makes the job once it's approved, whichever option is picked again", () => {
-    expect(approveSteps(open("approved", B), A, true)).toEqual(["convert"]);
-    expect(approveSteps(open("approved", B), null, false)).toEqual([]);
-  });
-
-  it("adds a change order to its job as it's approved", () => {
-    expect(approveSteps(open("sent", null, "job-1"), null, true)).toEqual(["approve"]);
-    expect(approveSteps(open("approved", null, "job-1"), null, true)).toEqual([]);
-  });
-
-  it("won't approve a quote that's lost, archived or a job already", () => {
-    expect(approveSteps(open("lost"), B, false)).toBeNull();
-    expect(approveSteps(open("archived"), B, true)).toBeNull();
-    expect(approveSteps(open("converted"), A, true)).toBeNull();
-  });
 });
 
-describe("the approval kept when the office marks it approved", () => {
+// Planet Ops: the office can't mark a quote approved any more (only the customer's drawn signature
+// approves one), but quotes the office marked approved before it still read and print as they did.
+const officeApproval = (input: { name: string; template: typeof template; option: QuoteOptionRow | null; tier: string | null; contract: ReturnType<typeof quoteContract> }) => ({
+  name: input.name,
+  method: "manual" as const,
+  template: { ...input.template },
+  option: input.option ? approvalOption(input.option, input.tier) : null,
+  contract: approvalContract(input.contract),
+  initials: null,
+});
+
+describe("an approval the office kept before Planet Ops", () => {
   const better = options.find((o) => o.id === B)!;
   const total = optionTotals(lines, B, A, money).total;
   const contract = quoteContract(contractFor(quote, template, better, total), business, library);
@@ -365,9 +312,10 @@ describe("sending the range", () => {
 });
 
 describe("the sales board and the quote list", () => {
-  it("won't mark a quote with options approved from the board", () => {
-    expect(moveRefusal({ kind: "quote", options: 3 }, "won")).toBe("Open the quote to pick the option they chose.");
-    expect(moveRefusal({ kind: "quote", options: 0 }, "won")).toBeNull();
+  it("won't mark a quote approved from the board: the customer signs it", () => {
+    // Planet Ops: only the customer's signature approves a quote, with or without options.
+    expect(moveRefusal({ kind: "quote", options: 3 }, "won")).toBe(CUSTOMER_SIGNS);
+    expect(moveRefusal({ kind: "quote", options: 0 }, "won")).toBe(CUSTOMER_SIGNS);
     expect(moveRefusal({ kind: "quote", options: 2 }, "lost")).toBeNull();
     expect(moveRefusal({ kind: "request", options: 0 }, "draft")).toBeNull();
   });

@@ -10,6 +10,7 @@ import { assistantRefusal } from "@crewtavo/core";
 import { templateSettings } from "@crewtavo/core/documents";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../src/env";
+import { NOT_SIGNED_YET } from "../src/services/sales";
 
 const invites = vi.hoisted(() => ({ calls: [] as unknown[] }));
 vi.mock("../src/services/team", async (original) => ({
@@ -503,20 +504,16 @@ describe("quotes that offer options", () => {
     expect(writes(sent)).toEqual([]);
   });
 
-  it("become a job straight from sent with the contract they were sent, approved by the assistant", async () => {
+  it("don't become a job before the customer signs, whatever the assistant asks (Planet Ops)", async () => {
     const { db, sent } = supabase();
     offering(db, { option_id: null, options: [] });
     const stubbed = globalThis.fetch;
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) =>
       String(input).includes("/rest/v1/rpc/convert_quote_to_job") ? (sent.push({ method: "POST", table: "rpc/convert_quote_to_job", body: null }), Response.json("job-1")) : stubbed(input, init),
     );
-    expect(await call("full", "convert_quote_to_job", { quote_id: QUOTE })).toEqual({ job_id: "job-1" });
-    const [approve, convert] = writes(sent);
-    expect(approve).toMatchObject({ method: "PATCH", table: "quotes", body: { approval: { name: "Assistant", method: "manual", template, option: null, initials: null } } });
-    expect(approve!.body.approval.contract.sections.map((s: Row) => s.body)).toEqual(["<p>$17,300.00 for , Dana Whitfield.</p>"]);
-    // The approval only: the database turns it into a job (and a change order joins its job) in one step.
-    expect(approve!.body).not.toHaveProperty("status");
-    expect(convert).toMatchObject({ table: "rpc/convert_quote_to_job" });
+    expect(await call("full", "convert_quote_to_job", { quote_id: QUOTE })).toEqual({ error: NOT_SIGNED_YET });
+    // Nothing is approved on the customer's behalf, and no job is made.
+    expect(writes(sent)).toEqual([]);
   });
 
   it("keep the deposit no more than the cheapest option's price", async () => {

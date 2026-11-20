@@ -65,7 +65,7 @@ update public.quotes set title = 'Pool opening, spring' where id = :'q_req';
 select tqd.check((select status = 'new' from public.requests where id = :'req') and (select status = 'assessment_scheduled' from public.requests where id = :'booked'),
   'while a draft made by itself sits, and is edited, its request is as it came in: new, or booked for its assessment');
 update public.quotes set status = 'sent', sent_at = now() where id in (:'q_req', :'q_archived', :'q_by_hand');
-update public.quotes set status = 'approved', approved_at = now() where id = :'q_booked';
+select planet_test.sign(:'q_booked');
 select tqd.check((select status = 'quoted' from public.requests where id = :'req') and (select status = 'quoted' from public.requests where id = :'booked'),
   'sending that quote, or approving it, marks the request Quoted');
 select tqd.check((select status = 'archived' from public.requests where id = :'archived'), 'an archived request stays archived');

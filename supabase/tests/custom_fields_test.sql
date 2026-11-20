@@ -97,7 +97,7 @@ select t_cf.expect_error(format('update public.properties set custom_fields = %L
 insert into public.quotes (company_id, client_id, property_id, title, custom_fields)
 values (:'co', :'client', :'home', 'Fennel heater swap', '{"permit": "P-100", "unit": "Furnace", "quote_note": "Side gate", "volume": 18000, "gone": "not a field"}') returning id as quote \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit_price) values (:'co', :'quote', 'Fennel heater', 1, 2400);
-select public.convert_quote_to_job(:'quote') as job \gset
+select public.convert_quote_to_job(planet_test.sign(:'quote')) as job \gset
 select t_cf.check((select custom_fields = '{"permit": "P-100", "unit": "Furnace"}' from public.jobs where id = :'job'),
   'a quote''s values go to its job when the field is on both, as the same type: ' || (select custom_fields::text from public.jobs where id = :'job'));
 update public.jobs set custom_fields = custom_fields || '{"permit": "P-101"}' where id = :'job';

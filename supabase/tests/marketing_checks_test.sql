@@ -177,7 +177,7 @@ insert into public.quotes (company_id, client_id, title) values (:'co', :'quinn'
 insert into public.quotes (company_id, client_id, title) values (:'co', :'quinn', 'Gate') returning id as q_gone \gset
 update public.quotes set status = 'sent', sent_at = now() where id in (:'q_waiting', :'q_approved', :'q_gone');
 select tmc.check((select count(*) = 3 from public.automation_runs where rule_id = :'followup' and status = 'pending'), 'three quotes sent: three follow-ups queued');
-update public.quotes set status = 'approved' where id = :'q_approved';
+select planet_test.sign(:'q_approved');
 delete from public.quotes where id = :'q_gone';
 select tmc.check(private.campaign_waiting(:'followup') = 1,
   'only the quote still awaiting a response counts as waiting: not one approved since, nor one deleted');

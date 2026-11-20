@@ -44,7 +44,8 @@ export default async function teardown() {
   await del("time_entries", "job_id", jobs);
   await del("visits", "id", visits);
   await del("jobs", "id", jobs);
-  await del("quotes", "id", quotes);
+  // Planet Ops: a quote the customer signed is kept as signed and can't be deleted on its own
+  // (20261120000100); it goes with its client below, as deleting the client cascades to it.
   await del("requests", "id", requests);
   const subjects = [...clients, ...jobs, ...quotes, ...requests, ...invoices, ...visits];
   await del("automation_runs", "subject_id", subjects);

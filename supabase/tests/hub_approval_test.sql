@@ -43,7 +43,7 @@ update public.quotes set status = 'sent', sent_at = now() where id = :'fence';
 -- And a change order to a job, with an option.
 insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'Old deck') returning id as old_quote \gset
 insert into public.quote_line_items (company_id, quote_id, name, unit_price, taxable) values (:'co', :'old_quote', 'Repair', 500, false);
-select public.convert_quote_to_job(:'old_quote') as job \gset
+select public.convert_quote_to_job(planet_test.sign(:'old_quote')) as job \gset
 insert into public.quotes (company_id, client_id, title, change_order_for) values (:'co', :'client', 'Change order: stairs', :'job') returning id as change \gset
 insert into public.quote_line_items (company_id, quote_id, name, unit_price, taxable) values (:'co', :'change', 'Stairs', 600, false);
 insert into public.quote_line_items (company_id, quote_id, name, unit_price, taxable, optional, selected) values (:'co', :'change', 'Handrail', 150, false, true, false) returning id as handrail \gset
@@ -59,8 +59,8 @@ rollback;
 
 -- ===== The approval that counts picks the options =============================================
 set role service_role;
-select t53.check(not public.approve_hub_quote(gen_random_uuid(), :'quote', array[:'lighting']::uuid[], '{"name": "Mallory"}'), 'another company''s link approves nothing');
-select t53.check(public.approve_hub_quote(:'co', :'quote', array[:'lighting']::uuid[], '{"name": "Ana Smith", "ip": "203.0.113.9"}'), 'the client approves the quote');
+select t53.check(not public.approve_hub_quote(gen_random_uuid(), :'quote', array[:'lighting']::uuid[], planet_test.approval(:'quote', '{"name": "Mallory"}')), 'another company''s link approves nothing');
+select t53.check(public.approve_hub_quote(:'co', :'quote', array[:'lighting']::uuid[], planet_test.approval(:'quote', '{"name": "Ana Smith", "ip": "203.0.113.9"}')), 'the client approves the quote');
 reset role;
 select t53.check((select status = 'approved' and approved_at is not null from public.quotes where id = :'quote'), 'it''s approved');
 select t53.check((select not selected from public.quote_line_items where id = :'railing') and (select selected from public.quote_line_items where id = :'lighting'), 'with the options the client picked');
@@ -72,7 +72,7 @@ select t53.check((select (data ->> 'total')::numeric = 1200 from public.activity
 
 -- A second approval at the same time waits for the first, then finds the quote approved.
 set role service_role;
-select t53.check(not public.approve_hub_quote(:'co', :'quote', array[:'railing']::uuid[], '{"name": "Second Tab"}'), 'a second approval doesn''t count');
+select t53.check(not public.approve_hub_quote(:'co', :'quote', array[:'railing']::uuid[], planet_test.approval(:'quote', '{"name": "Second Tab"}')), 'a second approval doesn''t count');
 reset role;
 select t53.check((select selected from public.quote_line_items where id = :'railing') = false and (select selected from public.quote_line_items where id = :'lighting'), 'and doesn''t change the options that were approved');
 select t53.check((select approval ->> 'name' = 'Ana Smith' and total = 1200 from public.quotes where id = :'quote'), 'or the approval and its total');
@@ -80,14 +80,14 @@ select t53.check((select approval ->> 'name' = 'Ana Smith' and total = 1200 from
 -- The office took the quote back while the client had it open.
 update public.quotes set status = 'draft' where id = :'fence';
 set role service_role;
-select t53.check(not public.approve_hub_quote(:'co', :'fence', '{}', '{"name": "Ana Smith"}'), 'a quote the office took back can''t be approved');
+select t53.check(not public.approve_hub_quote(:'co', :'fence', '{}', planet_test.approval(:'fence', '{"name": "Ana Smith"}')), 'a quote the office took back can''t be approved');
 reset role;
 select t53.check((select selected from public.quote_line_items where id = :'gate'), 'and its options stay as the office left them');
 select t53.check((select status = 'draft' and approval is null from public.quotes where id = :'fence'), 'and it stays a draft');
 
 -- ===== A change order joins its job with the options picked ===================================
 set role service_role;
-select t53.check(public.approve_hub_quote(:'co', :'change', array[:'handrail']::uuid[], '{"name": "Ana Smith"}'), 'the client approves a change order');
+select t53.check(public.approve_hub_quote(:'co', :'change', array[:'handrail']::uuid[], planet_test.approval(:'change', jsonb_build_object('name', 'Ana Smith', 'signed_at', '2026-05-01T12:00:00Z', 'signature', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'seen_fingerprint', public.quote_fingerprint(:'change')))), 'the client approves a change order');
 reset role;
 select t53.check((select status = 'converted' from public.quotes where id = :'change'), 'it''s added to its job');
 select t53.check((select count(*) = 2 and sum(unit_price) = 750 from public.job_line_items where job_id = :'job' and source_quote_id = :'change'), 'with the option the client picked');

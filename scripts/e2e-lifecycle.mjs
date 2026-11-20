@@ -222,9 +222,30 @@ step("4. The quote goes to the customer, who approves it online");
       const booking = await publicApi("POST", `/public/forms/${slug}/${form.slug}/promo`, { code });
       check(booking.status === 200 && booking.body.offer === "10% off: E2E test", "a booking form checks the code and describes the offer", booking.body);
     }
-    const approve = await publicApi("POST", `/hub/${mail.token}/approve`, { name: "Pat Customer" });
-    check(approve.status === 200 && approve.body.status === "approved", "the customer approves with their name", approve.body);
-    const again = await publicApi("POST", `/hub/${mail.token}/approve`, { name: "Pat Customer" });
+    // Planet Ops: a typed name alone never signs; the customer draws their signature too.
+    const typed = await publicApi("POST", `/hub/${mail.token}/approve`, { name: "Pat Customer" });
+    check(typed.status === 400, "a typed name alone doesn't approve it", typed.body);
+    // A short signature drawn on the app's own signature pad (the API's test fixture).
+    const pads = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../apps/api/test/fixtures/signaturePad.ts"), "utf8");
+    const pad = (name) => pads.match(new RegExp(`${name} =\\s*"([^"]+)"`))[1];
+    const drawn = pad("PAD_SHORT");
+    // The version the customer's page shows: only that one is signed.
+    const page = await publicApi("GET", `/hub/${mail.token}`);
+    const fingerprint = page.body.fingerprint;
+    // And the total it shows, which the page sends too (required).
+    const shownTotal = Number(page.body.quote?.total);
+    check(/^[0-9a-f]{32}$/.test(fingerprint ?? ""), "the customer's page carries the version it shows", page.body.fingerprint);
+    const blank = await publicApi("POST", `/hub/${mail.token}/approve`, { name: "Pat Customer", signature: pad("PAD_BLANK"), fingerprint, expected_total: shownTotal });
+    check(blank.status === 400, "a blank signature pad doesn't approve it", blank.body);
+    const unversioned = await publicApi("POST", `/hub/${mail.token}/approve`, { name: "Pat Customer", signature: drawn, expected_total: shownTotal });
+    check(unversioned.status === 400, "a signature without the page's version doesn't approve it", unversioned.body);
+    const office = await api(ops, "POST", `/quotes/${quoteId}/convert`);
+    check(office.status === 409, "the office can't make it a job before the customer signs", office.body);
+    const untotalled = await publicApi("POST", `/hub/${mail.token}/approve`, { name: "Pat Customer", signature: drawn, fingerprint });
+    check(untotalled.status === 400, "a signature without the total the page showed doesn't approve it", untotalled.body);
+    const approve = await publicApi("POST", `/hub/${mail.token}/approve`, { name: "Pat Customer", signature: drawn, fingerprint, expected_total: shownTotal });
+    check(approve.status === 200 && approve.body.status === "approved", "the customer approves with their name and drawn signature", approve.body);
+    const again = await publicApi("POST", `/hub/${mail.token}/approve`, { name: "Pat Customer", signature: drawn, fingerprint, expected_total: shownTotal });
     check(again.status === 409, "an approved quote can't be approved twice", again.status);
   }
   const notified = await eventually(async () => {
@@ -527,7 +548,8 @@ async function cleanUp() {
   await del("time_entries", "job_id", jobs);
   await del("visits", "id", visits);
   await del("jobs", "id", jobs);
-  await del("quotes", "id", quotes);
+  // Planet Ops: a quote the customer signed is kept as signed and can't be deleted on its own
+  // (20261120000100); it goes with its client below, as deleting the client cascades to it.
   await del("requests", "id", requests);
   await del("automation_runs", "subject_id", subjects);
   await del("activity", "subject_id", subjects);

@@ -44,8 +44,8 @@ begin
   insert into public.quotes (company_id, client_id, title, tax_rate) values (v_co, p_client, 'Weekly mowing', 0.05) returning id into v_quote;
   insert into public.quote_line_items (company_id, quote_id, name, quantity, unit_price, taxable, sort) values (v_co, v_quote, 'Mowing', 1, p_price, true, 0);
   if p_code is not null then perform public.apply_promo_code('quote', v_quote, p_code); end if;
-  update public.quotes set status = 'approved', approved_at = now() where id = v_quote;
-  v_job := public.convert_quote_to_job(v_quote);
+  perform planet_test.sign(v_quote);
+  v_job := public.convert_quote_to_job(planet_test.sign(v_quote));
   update public.jobs set kind = 'recurring', recurrence_rule = 'FREQ=WEEKLY;BYDAY=MO', billing_mode = 'per_visit', starts_on = '2026-06-01' where id = v_job;
   return v_job;
 end $$;
@@ -78,8 +78,8 @@ begin
   insert into public.quote_line_items (company_id, quote_id, name, quantity, unit_price, taxable, sort) values
     (v_co, v_quote, 'Mowing', 1, 40, true, 0), (v_co, v_quote, 'Bagging', 1, 10, false, 1);
   perform public.apply_promo_code('quote', v_quote, 'WEEKLY25');
-  update public.quotes set status = 'approved', approved_at = now() where id = v_quote;
-  v_job := public.convert_quote_to_job(v_quote);
+  perform planet_test.sign(v_quote);
+  v_job := public.convert_quote_to_job(planet_test.sign(v_quote));
   update public.jobs set kind = 'recurring', recurrence_rule = 'FREQ=WEEKLY;BYDAY=MO', billing_mode = 'per_visit', starts_on = '2026-06-01' where id = v_job;
   return v_job;
 end $$;
@@ -237,8 +237,8 @@ select tpo.expect_error(format('update public.job_line_items set discount_key = 
 insert into public.quotes (company_id, client_id, title, tax_rate, deposit_amount) values (:'co', :'mo', 'Patio', 0.05, 200) returning id as patio_quote \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit_price, taxable) values (:'co', :'patio_quote', 'Patio', 1, 1000, true);
 select public.apply_promo_code('quote', :'patio_quote', 'WEEKLY25');
-update public.quotes set status = 'approved', approved_at = now() where id = :'patio_quote';
-select public.convert_quote_to_job(:'patio_quote') as patio \gset
+select planet_test.sign(:'patio_quote');
+select public.convert_quote_to_job(planet_test.sign(:'patio_quote')) as patio \gset
 select public.create_invoice_for_job(:'patio', 'deposit') as deposit \gset
 select public.create_invoice_for_job(:'patio', 'progress', 300) as progress \gset
 select tpo.check(tpo.off(:'deposit') = 0 and tpo.off(:'progress') = 0, 'a deposit and progress billing don''t take the code');
@@ -369,8 +369,8 @@ insert into public.quotes (company_id, client_id, title, tax_rate) values (:'co'
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit_price, taxable, sort) values
   (:'co', :'split_quote', 'Mowing', 1, 40, true, 0), (:'co', :'split_quote', 'Bagging', 1, 10, false, 1);
 select public.apply_promo_code('quote', :'split_quote', 'WEEKLY25');
-update public.quotes set status = 'approved', approved_at = now() where id = :'split_quote';
-select public.convert_quote_to_job(:'split_quote') as job25 \gset
+select planet_test.sign(:'split_quote');
+select public.convert_quote_to_job(planet_test.sign(:'split_quote')) as job25 \gset
 update public.jobs set kind = 'recurring', recurrence_rule = 'FREQ=WEEKLY;BYDAY=MO', billing_mode = 'per_visit', starts_on = '2026-06-01' where id = :'job25';
 select tpo.mowed(:'job25', '2026-06-01');
 select tpo.bill(:'job25') as t3 \gset
@@ -458,8 +458,8 @@ select set_config('request.jwt.claims', '{"sub": "b9f50000-0000-0000-0000-000000
 insert into public.quotes (company_id, client_id, title, tax_rate) values (:'co', :'mo', 'Driveway', 0.05) returning id as drive_quote \gset
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit_price, taxable) values (:'co', :'drive_quote', 'Driveway', 1, 1000, true);
 select public.apply_promo_code('quote', :'drive_quote', 'WEEKLY25');
-update public.quotes set status = 'approved', approved_at = now() where id = :'drive_quote';
-select public.convert_quote_to_job(:'drive_quote') as drive \gset
+select planet_test.sign(:'drive_quote');
+select public.convert_quote_to_job(planet_test.sign(:'drive_quote')) as drive \gset
 update public.jobs set retainage_pct = 10 where id = :'drive';
 select public.create_invoice_for_job(:'drive') as drive_final \gset
 delete from public.invoice_line_items where invoice_id = :'drive_final' and discount_quote_id is not null;
@@ -496,7 +496,7 @@ select tpo.bill(:'job24') as w4 \gset
 select tpo.check(tpo.off(:'w4') = 25 and tpo.job_off(:'job24') = 25, 'the next invoice takes it');
 commit;
 
--- ===== Never doubled: a change order approved again, a quote deleted ===============================
+-- ===== Never doubled: a signed change order, a quote deleted ===============================
 begin;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "b9f50000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
@@ -505,24 +505,30 @@ insert into public.quotes (company_id, client_id, title, tax_rate, change_order_
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit_price, taxable) values (:'co', :'edging', 'Edging', 1, 20, true);
 select public.apply_promo_code('quote', :'edging', 'CO10');
 update public.quotes set status = 'sent', sent_at = now() where id = :'edging';
-update public.quotes set status = 'approved', approved_at = now() where id = :'edging';
+commit;
+-- The customer signs it (the server records the signature: 20261120000100).
+select planet_test.sign(:'edging');
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub": "b9f50000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
 select tpo.check((select discount_billing = 'once' and discount_key = :'edging' from public.job_line_items where job_id = :'job16' and name = 'Change order discount'),
   'a change order''s code is once per job too, keyed by the change order');
 select tpo.mowed(:'job16', '2026-06-01');
 select tpo.bill(:'job16') as r1 \gset
 select tpo.check(tpo.off(:'r1') = 35 and tpo.figures(:'r1') = '25.00/1.25/26.25', 'the first invoice takes the job''s code and the change order''s');
 select tpo.send(:'r1');
-update public.quotes set status = 'sent' where id = :'edging';
-update public.quotes set status = 'approved', approved_at = now() where id = :'edging';
-select tpo.check((select count(*) = 1 from public.job_line_items where job_id = :'job16' and name = 'Change order discount'), 'approved again, its discount is on the job once');
+-- Planet Ops: a signed change order stays as signed, so it can't be re-opened to approve it again.
+select tpo.expect_error(format('update public.quotes set status = ''sent'' where id = %L', :'edging'), 'a signed change order can''t be re-opened');
+select tpo.check((select count(*) = 1 from public.job_line_items where job_id = :'job16' and name = 'Change order discount'), 'its discount is on the job once');
 select tpo.mowed(:'job16', '2026-06-08');
 select tpo.bill(:'job16') as r2 \gset
 select tpo.check(tpo.off(:'r2') = 0 and tpo.figures(:'r2') = '60.00/3.00/63.00', 'and it isn''t taken off again');
--- The quote the job came from deleted: the job still knows its code came off.
+-- Planet Ops: the quote the job came from was signed by the customer, so it's kept as signed and
+-- can't be deleted (20261120000100); the job still knows its code came off.
 select quote_id as job16_quote from public.jobs where id = :'job16' \gset
-delete from public.quotes where id = :'job16_quote';
+select tpo.expect_error(format('delete from public.quotes where id = %L', :'job16_quote'), 'the signed quote the job came from can''t be deleted');
 select tpo.mowed(:'job16', '2026-06-15');
-select tpo.check(tpo.off(tpo.bill(:'job16')) = 0, 'a deleted quote doesn''t bring the code back');
+select tpo.check(tpo.off(tpo.bill(:'job16')) = 0, 'and the code doesn''t come off again');
 commit;
 
 -- ===== A referral credit on the same invoice ======================================================
@@ -628,11 +634,11 @@ insert into public.quotes (company_id, client_id, title, tax_rate) values (:'co'
 insert into public.quote_line_items (company_id, quote_id, name, quantity, unit_price, taxable) values (:'co', :'sq', 'Mowing', 1, 40, true);
 select public.apply_promo_code('quote', :'sq', 'SIGNED5');
 select tpo.check((select promo_every_visit is null from public.quotes where id = :'sq'), 'an open quote follows its code''s setting');
-update public.quotes set status = 'approved', approved_at = now() where id = :'sq';
+select planet_test.sign(:'sq');
 select tpo.check((select promo_every_visit from public.quotes where id = :'sq'), 'approved, it keeps the rule the client signed');
 update public.promo_codes set every_visit = false where id = :'signed5';
 select tpo.check((select promo_every_visit from public.quotes where id = :'sq'), 'the code switched afterwards doesn''t change it');
-select public.convert_quote_to_job(:'sq') as sjob \gset
+select public.convert_quote_to_job(planet_test.sign(:'sq')) as sjob \gset
 select tpo.check((select discount_billing = 'every_visit' from public.job_line_items where job_id = :'sjob' and discount_key is not null), 'and the job takes the rule the client approved');
 select public.set_job_discount_billing(:'sjob', :'sq', false);
 select tpo.check((select promo_every_visit and status = 'converted' from public.quotes where id = :'sq'), 'nor does switching the job change what the quote says');
@@ -647,8 +653,8 @@ select public.apply_promo_code('quote', :'dq2', 'DELME10');
 delete from public.promo_codes where id = :'delme';
 select tpo.check((select promo_code_id is null and discount_amount = 10 and promo_every_visit = false from public.quotes where id = :'dq'),
   'a deleted code leaves its discount and its rule on a quote still using it');
-update public.quotes set status = 'approved', approved_at = now() where id = :'dq';
-select public.convert_quote_to_job(:'dq') as djob \gset
+select planet_test.sign(:'dq');
+select public.convert_quote_to_job(planet_test.sign(:'dq')) as djob \gset
 update public.jobs set kind = 'recurring', recurrence_rule = 'FREQ=WEEKLY;BYDAY=MO', billing_mode = 'per_visit', starts_on = '2026-06-01' where id = :'djob';
 select tpo.check((select discount_billing = 'once' from public.job_line_items where job_id = :'djob' and unit_price < 0), 'its job takes it off once');
 select tpo.mowed(:'djob', '2026-06-01');
@@ -794,13 +800,19 @@ select id as co10 from public.promo_codes where company_id = :'co' and code = 'C
 create function tpo.old_job(p_co uuid, p_client uuid, p_promo uuid, p_promo_sort integer default 100000) returns uuid language plpgsql as $$
 declare v_quote uuid; v_job uuid;
 begin
-  insert into public.quotes (company_id, client_id, title, tax_rate, status, promo_code_id) values (p_co, p_client, 'Old mowing', 0.05, 'converted', p_promo) returning id into v_quote;
+  insert into public.quotes (company_id, client_id, title, tax_rate, status, promo_code_id) values (p_co, p_client, 'Old mowing', 0.05, 'sent', p_promo) returning id into v_quote;
+  perform planet_test.sign(v_quote);
+  update public.quotes set status = 'converted', converted_at = now() where id = v_quote;
   insert into public.jobs (company_id, client_id, quote_id, title, kind, recurrence_rule, billing_mode)
   values (p_co, p_client, v_quote, 'Old mowing', 'recurring', 'FREQ=WEEKLY;BYDAY=MO', 'per_visit') returning id into v_job;
   insert into public.job_line_items (company_id, job_id, name, quantity, unit, unit_price, taxable, sort) values
     (p_co, v_job, 'Mowing', 1, 'ea', 40, true, 0), (p_co, v_job, 'Promo code WEEKLY25', 1, 'ea', -25, true, p_promo_sort);
   return v_job;
 end $$;
+-- Jobs, quotes and change orders made before Planet Ops' signature rule (20261120000100), as old
+-- instances hold them: accepted and linked without a customer signature. The rule applies from now on.
+alter table public.quotes disable trigger c_customer_signature_to_accept;
+alter table public.jobs disable trigger job_quote_signed;
 select tpo.old_job(:'co', :'mo', :'weekly25') as old1 \gset
 select tpo.mowed(:'old1', '2026-05-04');
 select tpo.bill(:'old1') as o1a \gset
@@ -842,6 +854,7 @@ select tpo.bill(:'old7') as o7a \gset
 update public.invoice_line_items set unit_price = -10 where invoice_id = :'o7a' and name = 'Promo code WEEKLY25';
 -- A one-off job whose final draft had the code taken off and put on the invoice itself instead.
 insert into public.quotes (company_id, client_id, title, tax_rate, status, promo_code_id) values (:'co', :'mo', 'Old patio', 0.05, 'converted', :'weekly25') returning id as old8_quote \gset
+select planet_test.sign(:'old8_quote');
 insert into public.jobs (company_id, client_id, quote_id, title) values (:'co', :'mo', :'old8_quote', 'Old patio') returning id as old8 \gset
 insert into public.job_line_items (company_id, job_id, name, quantity, unit, unit_price, taxable, sort) values
   (:'co', :'old8', 'Patio', 1, 'ea', 500, true, 0), (:'co', :'old8', 'Promo code WEEKLY25', 1, 'ea', -25, true, 100000);
@@ -905,6 +918,8 @@ select tpo.old_job(:'co', :'mo', null) as old15 \gset
 delete from public.job_line_items where job_id = :'old15' and name like 'Promo code %';
 insert into public.quotes (company_id, client_id, title, status, change_order_for) values (:'co', :'mo', 'Edging', 'converted', :'old15') returning id as co_typed5 \gset
 insert into public.quotes (company_id, client_id, title, status, change_order_for, promo_code_id) values (:'co', :'mo', 'Hedges', 'converted', :'old15', :'co10') returning id as co_code5 \gset
+alter table public.quotes enable trigger c_customer_signature_to_accept;
+alter table public.jobs enable trigger job_quote_signed;
 insert into public.job_line_items (company_id, job_id, name, quantity, unit, unit_price, taxable, sort, source_quote_id) values
   (:'co', :'old15', 'Change order discount', 1, 'ea', -10, true, 100000, :'co_typed5'), (:'co', :'old15', 'Change order discount', 1, 'ea', -30, true, 100001, :'co_code5');
 select tpo.mowed(:'old15', '2026-05-04');

@@ -10,6 +10,7 @@ import { HttpError } from "../src/lib/http";
 import { clientLink, linksReplaced, readClientLink } from "../src/lib/links";
 import { StripeError } from "../src/services/stripe";
 import { drawnPng } from "./fixtures/drawn";
+import { ONE_PIXEL, PAD_BLANK, PAD_DOT, PAD_SHORT } from "./fixtures/signaturePad";
 
 // A stand-in for the service-role client the Client Hub uses: tables of rows that the usual filters
 // narrow down, and selects that return only the columns asked for (json paths like settings->branding
@@ -182,8 +183,18 @@ const S = { roof: "s-roof", tear: "s-tear", edge: "s-edge", deck: "s-deck", chim
 type HubLink = { t: "quote" | "invoice" | "client"; id: string; pv?: 1; via?: "office"; old?: true };
 const tokenFor = async ({ old, ...link }: HubLink) =>
   (await clientLink(env, "https://ops.example.com", { c: ROOFER, ...(old || link.pv || link.via ? {} : { own: 1 as const }), ...link })).split("/hub/")[1]!;
+// Planet Ops: an approval comes from a page that showed a version (its fingerprint); a test that
+// wants it missing says fingerprint: null.
+const PAGE_FINGERPRINT = "0123456789abcdef0123456789abcdef";
+// The page also sends the total it showed (required): a test that leaves it out gets the quote's
+// total as the database has it, and one that wants it missing says expected_total: null.
+const pageTotal = () => Number(state.tables.quotes?.find((q) => q.id === QUOTE)?.total ?? 0);
+const withFingerprint = (path: string, body: unknown) =>
+  path === "/approve" && body && typeof body === "object"
+    ? { ...("fingerprint" in body ? {} : { fingerprint: PAGE_FINGERPRINT }), ...("expected_total" in body ? {} : { expected_total: pageTotal() }), ...body }
+    : body;
 const hub = async (link: HubLink, path = "", body?: unknown) =>
-  app.request(`/api/hub/${await tokenFor(link)}${path}`, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Forwarded-For": "203.0.113.7" }, body: JSON.stringify(body) }, env);
+  app.request(`/api/hub/${await tokenFor(link)}${path}`, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Forwarded-For": "203.0.113.7" }, body: JSON.stringify(withFingerprint(path, body)) }, env);
 
 const line = (id: string, service_id: string | null, name: string, values: Row = {}) => ({
   id, company_id: ROOFER, quote_id: QUOTE, option_id: null, service_id, name, description: null, quantity: 1, unit: "ea", unit_price: 0, unit_cost: 0, taxable: true,
@@ -331,6 +342,30 @@ describe("a price range in the Client Hub", () => {
     const approve = await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG });
     expect(approve.status).toBe(200);
     expect(state.calls.some((c) => c.name === "approve_hub_quote")).toBe(true);
+  });
+
+  it("is signed only with a drawing and the exact version the page showed (Planet Ops)", async () => {
+    roofer({ exact_sent_at: "2026-10-24T15:00:00Z" });
+    state.rpcs.approve_hub_quote = () => ({ data: true, error: null });
+    const refused = async (body: Record<string, unknown>) => {
+      const res = await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG, ...body });
+      expect(res.status, JSON.stringify(body).slice(0, 60)).toBe(400);
+    };
+    // No version, or not one the server gave: the page is out of date.
+    await refused({ fingerprint: null });
+    await refused({ fingerprint: undefined });
+    await refused({ fingerprint: "latest" });
+    // Not a drawing: missing, a typed name, a blank pad, only a tap, a one-pixel or broken image.
+    await refused({ signature: null });
+    await refused({ signature: "Dana Whitfield" });
+    await refused({ signature: PAD_BLANK });
+    await refused({ signature: PAD_DOT });
+    await refused({ signature: ONE_PIXEL });
+    await refused({ signature: PAD_SHORT.slice(0, PAD_SHORT.length - 40) });
+    expect(state.calls.some((c) => c.name === "approve_hub_quote")).toBe(false);
+    // A short real signature is fine, and the version the page showed goes to the database to check.
+    expect((await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PAD_SHORT })).status).toBe(200);
+    expect(state.calls.find((c) => c.name === "approve_hub_quote")?.args).toMatchObject({ p_approval: { seen_fingerprint: PAGE_FINGERPRINT, signature: PAD_SHORT } });
   });
 
   it("shows the exact price once it's priced on site", async () => {
@@ -930,14 +965,18 @@ describe("approving an estimate with options", () => {
     expect((await res.json()).error).toBe("The price changed. Please look it over again.");
     expect(approvalArgs().p_expected_total).toBe(15000);
 
-    state.calls = [];
-    const old = await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG, option_id: GOOD });
-    expect((await old.json()).error).toBe("This quote can't be approved anymore.");
-    expect(Object.keys(approvalArgs())).not.toContain("p_expected_total");
   });
 
-  it("fills in the total their choices come to when the page didn't send one", async () => {
-    await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG, option_id: GOOD, selected_line_ids: [L.vent] });
+  it("needs the total the page showed (Planet Ops): a request without it isn't signed", async () => {
+    state.rpcs.approve_hub_quote = () => ({ data: true, error: null });
+    for (const missing of [{ expected_total: null }, { expected_total: undefined }, { expected_total: "15413" }]) {
+      const res = await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG, option_id: GOOD, selected_line_ids: [L.vent], ...missing });
+      expect(res.status, JSON.stringify(missing)).toBe(400);
+    }
+    expect(state.calls.some((c) => c.name === "approve_hub_quote")).toBe(false);
+    // With it, the terms say that total and the database checks it.
+    await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG, option_id: GOOD, selected_line_ids: [L.vent], expected_total: 15413 });
+    expect(approvalArgs().p_expected_total).toBe(15413);
     const contract = (approvalArgs().p_approval as Row).contract as { sections: Row[] };
     expect(contract.sections[0]!.body).toBe("<p>The price is $15,413.00. Make checks out to Summit Roofing.</p>");
   });
@@ -992,7 +1031,7 @@ describe("approving an estimate with options", () => {
     const res = await hub({ t: "quote", id: QUOTE }, "/approve", { name: "Dana Whitfield", signature: PNG, selected_line_ids: [L.gutter] });
     expect(res.status).toBe(200);
     const args = approvalArgs();
-    expect(Object.keys(args).sort()).toEqual(["p_approval", "p_company", "p_quote", "p_selected"]);
+    expect(Object.keys(args).sort()).toEqual(["p_approval", "p_company", "p_expected_total", "p_quote", "p_selected"]);
     expect(args.p_selected).toEqual([L.gutter]);
     expect(args.p_approval).toMatchObject({ option: null, contract: { terms: "Thanks, Dana Whitfield.", sections: [] }, initials: null });
   });
