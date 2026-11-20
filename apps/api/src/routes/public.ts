@@ -971,18 +971,36 @@ publicRoutes.post("/hub/:token/promo", async (c) => {
       throw new HttpError(409, "The options on this estimate changed. Please look it over again.");
     }
     choice = { ...(body.option_id ? { p_option: body.option_id } : {}), ...(body.selected_line_ids ? { p_selected: body.selected_line_ids } : {}) };
+    // Planet Ops 1c: not while the office is preparing an updated version (it would go out with it).
+    if ((await hubVersion(admin, l.c, l.id, null)).revising) throw new HttpError(409, REVISING);
   }
   const { data, error } = await admin.rpc("apply_promo_code", { p_kind: kind, p_id: l.id, p_code: body.code, ...choice });
   if (error) throw dbError(error);
+  if (kind === "quote") await issuePromoVersion(admin, l.id);
   return c.json(data as Record<string, unknown>);
 });
+
+/** Planet Ops 1c: the office is preparing an updated version, so the customer's link waits for it. */
+const REVISING = "This is being updated. You'll get the new version shortly.";
+
+/**
+ * Planet Ops 1c: a promo code the customer applies or removes on their link is their own change, so
+ * the quote as it now is becomes the version their page shows and signs (issued as "promo"; it
+ * answers no change request).
+ */
+async function issuePromoVersion(admin: ReturnType<typeof adminClient>, quoteId: string) {
+  const { error } = await admin.rpc("issue_quote_version", { p_quote: quoteId, p_via: "promo" });
+  if (error) throw dbError(error);
+}
 
 publicRoutes.delete("/hub/:token/promo", async (c) => {
   // Like putting one on: each change to what's owed is a new Stripe invoice for an invoice.
   if (!(await allow(c.env, `promo:${clientIp(c)}`, 10, 10 * 60))) throw new HttpError(429, "Too many tries. Wait a few minutes and try again.");
   const { l, admin, kind } = await hubDocument(c);
+  if (kind === "quote" && (await hubVersion(admin, l.c, l.id, null)).revising) throw new HttpError(409, REVISING);
   const { error } = await admin.rpc("remove_promo_code", { p_kind: kind, p_id: l.id });
   if (error) throw dbError(error);
+  if (kind === "quote") await issuePromoVersion(admin, l.id);
   return c.json({ ok: true });
 });
 

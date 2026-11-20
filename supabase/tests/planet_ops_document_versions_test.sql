@@ -138,6 +138,12 @@ select tpo_dv.expect_error(format('select tpo_dv.in_person_signs(%L, %L)', :'quo
 -- A second request is kept too.
 select tpo_dv.asks(:'co', :'quote', 'Also, can you start after the 15th?', 'b0000000-0000-4000-8000-000000000002', :'draft_fp') as req2 \gset
 select tpo_dv.check((select count(*) from public.quote_change_requests where quote_id = :'quote') = 2, 'a second request is kept as well');
+-- A promo code the customer applies on their link issues the quote as it now is ('promo'), and
+-- answers no change request: signing stays paused.
+select public.issue_quote_version(:'quote', 'promo') is not null as promo \gset
+select tpo_dv.check((select status from public.quotes where id = :'quote') = 'changes_requested'
+                    and (select count(*) from public.quote_change_requests where quote_id = :'quote' and resolved_at is null) = 2,
+  'a customer''s promo code leaves the change requests open and signing paused');
 -- Only the server records a request; nobody signed in writes or rewrites one.
 begin;
 set local role authenticated;
