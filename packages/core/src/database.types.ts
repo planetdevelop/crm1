@@ -1796,6 +1796,42 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"follow_up_tasks": {
+                  Row: {
+                    "assigned_to": string | null,"body": string | null,"company_id": string,"created_at": string,"done_at": string | null,"done_by": string | null,"due_on": string | null,"id": string,"link": string | null,"related_id": string | null,"related_type": string | null,"source": string,"source_id": string,"title": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "assigned_to"?: string | null,"body"?: string | null,"company_id": string,"created_at"?: string,"done_at"?: string | null,"done_by"?: string | null,"due_on"?: string | null,"id"?: string,"link"?: string | null,"related_id"?: string | null,"related_type"?: string | null,"source": string,"source_id": string,"title": string
+                  }
+                  Update: {
+                    "assigned_to"?: string | null,"body"?: string | null,"company_id"?: string,"created_at"?: string,"done_at"?: string | null,"done_by"?: string | null,"due_on"?: string | null,"id"?: string,"link"?: string | null,"related_id"?: string | null,"related_type"?: string | null,"source"?: string,"source_id"?: string,"title"?: string
+                  }
+                  Relationships: []
+                },"quote_change_requests": {
+                  Row: {
+                    "client_id": string | null,"company_id": string,"created_at": string,"id": string,"identity": NonNullable<Json>,"message": string,"proposed_change_order_id": string | null,"quote_id": string,"request_key": string,"resolved_at": string | null,"resolved_by": string | null,"resolved_version_id": string | null,"responded_at": string | null,"responded_by": string | null,"response": string | null,"seen_fingerprint": string | null,"signed_agreement": boolean,"version_id": string | null,"version_number": number | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "client_id"?: string | null,"company_id": string,"created_at"?: string,"id"?: string,"identity"?: NonNullable<Json>,"message": string,"proposed_change_order_id"?: string | null,"quote_id": string,"request_key": string,"resolved_at"?: string | null,"resolved_by"?: string | null,"resolved_version_id"?: string | null,"responded_at"?: string | null,"responded_by"?: string | null,"response"?: string | null,"seen_fingerprint"?: string | null,"signed_agreement"?: boolean,"version_id"?: string | null,"version_number"?: number | null
+                  }
+                  Update: {
+                    "client_id"?: string | null,"company_id"?: string,"created_at"?: string,"id"?: string,"identity"?: NonNullable<Json>,"message"?: string,"proposed_change_order_id"?: string | null,"quote_id"?: string,"request_key"?: string,"resolved_at"?: string | null,"resolved_by"?: string | null,"resolved_version_id"?: string | null,"responded_at"?: string | null,"responded_by"?: string | null,"response"?: string | null,"seen_fingerprint"?: string | null,"signed_agreement"?: boolean,"version_id"?: string | null,"version_number"?: number | null
+                  }
+                  Relationships: []
+                },"quote_versions": {
+                  Row: {
+                    "company_id": string,"discount_amount": number | null,"document": NonNullable<Json>,"fingerprint": string,"id": string,"issued_at": string,"issued_by": string | null,"issued_via": string,"number": number,"presentation": string | null,"quote_id": string,"signed_at": string | null,"subtotal": number | null,"superseded_at": string | null,"superseded_by": string | null,"tax_amount": number | null,"total": number | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"discount_amount"?: number | null,"document": NonNullable<Json>,"fingerprint": string,"id"?: string,"issued_at"?: string,"issued_by"?: string | null,"issued_via": string,"number": number,"presentation"?: string | null,"quote_id": string,"signed_at"?: string | null,"subtotal"?: number | null,"superseded_at"?: string | null,"superseded_by"?: string | null,"tax_amount"?: number | null,"total"?: number | null
+                  }
+                  Update: {
+                    "company_id"?: string,"discount_amount"?: number | null,"document"?: NonNullable<Json>,"fingerprint"?: string,"id"?: string,"issued_at"?: string,"issued_by"?: string | null,"issued_via"?: string,"number"?: number,"presentation"?: string | null,"quote_id"?: string,"signed_at"?: string | null,"subtotal"?: number | null,"superseded_at"?: string | null,"superseded_by"?: string | null,"tax_amount"?: number | null,"total"?: number | null
+                  }
+                  Relationships: []
                 },"notifications": {
                   Row: {
                     "body": string | null,"company_id": string,"created_at": string,"deliver_after": string | null,"delivered_at": string | null,"delivery": NonNullable<Json>,"delivery_attempts": number,"delivery_error": string | null,"delivery_failed_at": string | null,"delivery_locked_until": string | null,"delivery_token": string | null,"id": string,"kind": string,"link": string | null,"read_at": string | null,"title": string,"user_id": string
@@ -5213,6 +5249,15 @@ isOneToOne: false
                            },
 "quote_exact_sent":
 { Args: { "p_quote": string }; Returns: undefined
+                           },
+"issue_quote_version":
+{ Args: { "p_quote": string,"p_via"?: string }; Returns: string
+                           },
+"request_quote_changes":
+{ Args: { "p_company": string,"p_identity"?: Json,"p_message": string,"p_quote": string,"p_request_key": string,"p_seen": string | null }; Returns: Json
+                           },
+"respond_to_change_request":
+{ Args: { "p_request": string,"p_response": string }; Returns: undefined
                            },
 "quote_fingerprint":
 { Args: { "p_quote": string }; Returns: string

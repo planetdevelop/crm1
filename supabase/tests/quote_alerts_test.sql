@@ -87,6 +87,8 @@ commit;
 select tqa.check(tqa.count(:'big') = 6, 'sending it again after the changes tells nobody again');
 set role service_role;
 update public.quotes set status = 'changes_requested' where id = :'big';
+-- Planet Ops 1c: signing waits until the office makes it available again.
+select tqa.check(public.issue_quote_version(:'big') is not null, 'the office sends it again after the second request');
 select tqa.check(public.approve_hub_quote(:'co', :'big', null, planet_test.approval(:'big', '{"name": "Lee Lopez"}')), 'Lee approves it');
 reset role;
 select tqa.check(tqa.count(:'big') = 9 and tqa.told(:'big') like '%ora@oak.test: Lee Lopez approved quote #% for $25,000.00 | New roof.%',

@@ -640,6 +640,8 @@ select t1070.check(array(
   -- Invoicing a payment of a quote's schedule early: owners, admins and the office with invoices only (it checks), never a sub.
   'invoice_installment(uuid)',
   'invoice_summary(uuid, date)',
+  -- Planet Ops 1c: issuing a document version again (resend / make available): people who sell only.
+  'issue_quote_version(uuid, text)',
   -- The checklists a job's items bring up: a sub's, for the jobs of their own visits (as job_scope).
   'job_checklists(uuid)',
   -- What's on a job to log materials against, by name and unit: the office's and the crew's, never a sub's.
@@ -681,7 +683,9 @@ select t1070.check(array(
   'remove_quote_option(uuid, uuid)', 'remove_referral_credit(uuid)',
   -- Renewing tags or an inspection sticker: runs as the caller, and only equipment managers can change them, never a sub.
   'renew_equipment_document(uuid, date, text, uuid)',
-  'request_manual_charges(uuid, uuid[], numeric[])', 'review_stats(uuid)',
+  'request_manual_charges(uuid, uuid[], numeric[])',
+  -- Planet Ops 1c: the office's reply to a customer's change request: people who sell only.
+  'respond_to_change_request(uuid, text)', 'review_stats(uuid)',
   -- Saving a read receipt as an expense: runs as the caller, so a sub can no more add one this way than any other.
   'save_read_expense(jsonb, jsonb, uuid)',
   'search_sops(uuid, text, integer, boolean)', 'send_sub_offer(uuid, timestamp with time zone)',

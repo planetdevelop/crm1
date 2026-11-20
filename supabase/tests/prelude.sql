@@ -87,6 +87,10 @@ language plpgsql security definer as $fn$
 declare v_claims text := current_setting('request.jwt.claims', true);
 begin
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  -- Planet Ops 1c: the customer signs the version issued to them, as the office sends it.
+  if to_regprocedure('private.issue_version(uuid,text)') is not null then
+    perform private.issue_version(p_quote, 'sent');
+  end if;
   update public.quotes
      set status = 'approved', approved_at = now(),
          approval = jsonb_build_object('name', p_name, 'signed_at', now(), 'signature', planet_test.drawn(),
@@ -100,8 +104,12 @@ grant execute on all functions in schema planet_test to anon, authenticated, ser
 -- The approval the client hub sends for a customer signing on their link: what the test gives (the
 -- printed name, the add-ons...), with the drawing, a signing time and the fingerprint of the page.
 create function planet_test.approval(p_quote uuid, p_given jsonb default '{}') returns jsonb
-language plpgsql stable security definer as $fn$
+language plpgsql security definer as $fn$
 begin
+  -- Planet Ops 1c: the page shows the version the office issued; issue it as it is now.
+  if to_regprocedure('private.issue_version(uuid,text)') is not null then
+    perform private.issue_version(p_quote, 'sent');
+  end if;
   return jsonb_build_object('name', 'Test Customer', 'signed_at', now()) || coalesce(p_given, '{}')
       || jsonb_build_object('signature', planet_test.drawn(), 'seen_fingerprint', private.quote_fingerprint(p_quote));
 end $fn$;

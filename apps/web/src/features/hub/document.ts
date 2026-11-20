@@ -148,6 +148,12 @@ export type HubContract =
   | { kind: "signed"; terms: string; sections: ApprovalContract["sections"]; initials: { image: string; signed_at: string | null } | null };
 export interface QuoteView {
   kind: "quote";
+  /** Planet Ops 1c: the office is preparing an updated version; the page shows only that (no draft content is sent). */
+  revising?: boolean;
+  /** Planet Ops 1c: the version this page shows (or the one signed). */
+  version?: { number: number; issued_at: string } | null;
+  /** Planet Ops 1c: the customer's own change request still open. */
+  change_request?: { message: string; created_at: string; version_number: number | null } | null;
   /** Planet Ops: the version this page shows, sent back as it's signed so a page opened before a change can't sign. Null once signed. */
   fingerprint?: string | null;
   drawings?: HubDrawing[];

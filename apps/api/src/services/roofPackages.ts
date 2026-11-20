@@ -652,6 +652,12 @@ export async function setSitePrice(db: Db, companyId: string, quoteId: string, b
     const { error: noteError } = await db.from("messages").insert({ company_id: companyId, client_id: quote.client_id, channel: "note", direction: "internal", body: note, related_type: "quote", related_id: quoteId });
     if (noteError) throw dbError(noteError);
   }
+  // Planet Ops 1c: a price set on site is agreed with the homeowner there, so on an estimate that's
+  // with them it's issued as the version their link shows and signs (not a draft revision).
+  if (quote.status === "sent") {
+    const { error: issueError } = await db.rpc("issue_quote_version", { p_quote: quoteId, p_via: "site_price" });
+    if (issueError) throw dbError(issueError);
+  }
   const totals = must(await db.from("quotes").select("subtotal, discount_amount, tax_amount, total").eq("id", quoteId).eq("company_id", companyId).maybeSingle());
   return { subtotal: Number(totals.subtotal), discount_amount: Number(totals.discount_amount), tax_amount: Number(totals.tax_amount), total: Number(totals.total) };
 }

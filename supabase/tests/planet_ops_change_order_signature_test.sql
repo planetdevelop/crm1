@@ -159,6 +159,8 @@ select tpo_co.check(public.quote_fingerprint(:'quote') <> :'qv5', 'an offered op
 select tpo_co.check((select status = 'sent' and approval is null from public.quotes where id = :'quote'), 'no outdated page signed anything');
 
 -- ===== The customer signs the version they saw: the original signed document is kept =========
+-- The office sends the revised quote (Planet Ops 1c: only an issued version signs on the link).
+select tpo_co.check(public.issue_quote_version(:'quote') is not null, 'the office sends the revised quote');
 select public.quote_fingerprint(:'quote') as qv6 \gset
 update public.quote_line_items set selected = true where id = :'addon';
 select tpo_co.check(public.quote_fingerprint(:'quote') = :'qv6', 'ticking an add-on is the customer''s choice, not a new version');
@@ -225,6 +227,7 @@ select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, null)', :'co'
 update public.quote_line_items set description = 'Break out and haul the slab and the walkway' where id = :'add_line';
 select tpo_co.expect_error(format('select tpo_co.hub_signs(%L, %L, %L)', :'co', :'add', :'cv1'), 'nor from a page showing an older version (same price)', '%changed after it was opened%');
 select tpo_co.check(not exists (select 1 from public.job_line_items where source_quote_id = :'add'), 'nothing was added to the job');
+select tpo_co.check(public.issue_quote_version(:'add') is not null, 'the office sends the revised change order (Planet Ops 1c)');
 select tpo_co.check(tpo_co.hub_signs(:'co', :'add', public.quote_fingerprint(:'add')), 'the customer signs the change order they saw');
 select tpo_co.check((select status from public.quotes where id = :'add') = 'converted', 'it''s finalized and added to the job');
 select tpo_co.check((select count(*) from public.job_line_items where source_quote_id = :'add' and unit_price = 2500) = 1, 'its line is on the job once');

@@ -90,6 +90,7 @@ import { AddOptionsDialog, QuoteOptions } from "./QuoteOptions";
 import { QuoteSections } from "./QuoteSections";
 import { DraftedCallout } from "./DraftedCallout";
 import { DocumentTypeChoice, ProposalCard } from "./ProposalCard";
+import { VersionsCard, versionsKey } from "./VersionsCard";
 import { PaymentScheduleCard } from "./PaymentSchedule";
 import { DiscountRows } from "./PromoRow";
 import { SendDialog } from "./SendDialog";
@@ -308,6 +309,8 @@ export function QuotePage() {
     queryClient.invalidateQueries({ queryKey: ["quote", id] });
     queryClient.invalidateQueries({ queryKey: quoteOptionsKey(id) });
     queryClient.invalidateQueries({ queryKey: ["quotes", session.company.id] });
+    // Planet Ops 1c: a save can make a draft revision, and a send issues a version.
+    queryClient.invalidateQueries({ queryKey: versionsKey(id) });
   };
   const update = useMutation({
     meta: {
@@ -565,7 +568,7 @@ export function QuotePage() {
           <div className="grow">
             <div>{q.client?.display_name ?? "The client"} asked for changes</div>
             {changeRequest && <div className="pre-wrap small" style={{ fontWeight: 400, marginTop: 4 }}>“{changeRequest.body}”</div>}
-            <div className="small" style={{ fontWeight: 400, marginTop: 4 }}>Update the quote, then resend it.</div>
+            <div className="small" style={{ fontWeight: 400, marginTop: 4 }}>Signing is paused. Update it and send it again (a new version), or send it again as it is to make it available to sign. The request and its follow-up are below.</div>
           </div>
         </div>
       )}
@@ -645,6 +648,7 @@ export function QuotePage() {
           </div>
           <MessageCard value={q.message} editable={editable} onEdit={save.edited} onUnchanged={unchanged} onSave={(message) => saveField({ message })} />
           {!isTemplate && <ProposalCard quote={q} editable={editable} onEdit={save.edited} onUnchanged={unchanged} onSave={(patch) => saveField(patch)} />}
+          {!isTemplate && <VersionsCard quoteId={q.id} status={q.status} canSell={canSell} onResend={() => setDialog("send")} />}
           {canSell && !isTemplate && <PlansCard scope={{ kind: "quote", id: q.id, propertyId: q.property?.id ?? null }} />}
         </div>
         <aside className="narrow stack">
