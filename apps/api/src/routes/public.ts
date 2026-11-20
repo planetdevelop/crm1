@@ -353,6 +353,29 @@ const signedCard = (o: FrozenOption) => ({
 });
 
 /**
+ * Planet Ops 1c: the version of a quote the customer's link stands on: the one they signed, else
+ * the current one issued to them; whether the document now differs from it (a draft revision the
+ * office hasn't sent); and their latest change request still open.
+ */
+async function hubVersion(admin: ReturnType<typeof adminClient>, companyId: string, quoteId: string, approval: unknown) {
+  const signedId = approval && typeof approval === "object" && !Array.isArray(approval) ? (approval as Record<string, unknown>).version_id : null;
+  const [versions, live, requests] = await Promise.all([
+    admin.from("quote_versions").select("id, number, fingerprint, issued_at, superseded_at, signed_at").eq("company_id", companyId).eq("quote_id", quoteId).order("number", { ascending: false }).limit(20),
+    signedId ? Promise.resolve({ data: null }) : admin.rpc("quote_fingerprint", { p_quote: quoteId }),
+    admin.from("quote_change_requests").select("message, created_at, version_number, resolved_at").eq("company_id", companyId).eq("quote_id", quoteId).is("resolved_at", null).order("created_at", { ascending: false }).limit(1),
+  ]);
+  const rows = (versions.data ?? []) as Array<{ id: string; number: number; fingerprint: string; issued_at: string; superseded_at: string | null; signed_at: string | null }>;
+  const current = typeof signedId === "string" ? rows.find((v) => v.id === signedId) : rows.find((v) => !v.superseded_at && !v.signed_at);
+  const fingerprint = typeof live.data === "string" ? live.data : null;
+  const open = ((requests.data ?? []) as Array<{ message: string; created_at: string; version_number: number | null }>)[0] ?? null;
+  return {
+    version: current ? { number: current.number, issued_at: current.issued_at } : null,
+    revising: Boolean(current && fingerprint && !signedId && current.fingerprint !== fingerprint),
+    request: open ? { message: open.message, created_at: open.created_at, version_number: open.version_number } : null,
+  };
+}
+
+/**
  * Map drawings the office chose to show on this quote or invoice: the sizes, and whether there's a
  * picture (served by /hub/:token/drawings/:id, never as a storage link).
  */
@@ -417,6 +440,17 @@ publicRoutes.get("/hub/:token", async (c) => {
     // A quote template (no client) never reaches the Client Hub, not even as a preview.
     if (!quote.client_id) throw new HttpError(404, "Quote not found.");
     const signed = quote.status === "approved" || quote.status === "converted";
+    // Planet Ops 1c: the version issued to the customer, and whether the office has changed the
+    // document since without sending it (a draft revision). A draft revision is never shown or
+    // signed on the customer's link: they see that an updated version is on its way.
+    const issued = await hubVersion(admin, l.c, quote.id, signed ? quote.approval : null);
+    if (!signed && !l.pv && issued.revising) {
+      const home = await homeLink(c, l.c, quote.client_id, l);
+      return c.json({
+        kind: "quote", revising: true, preview: false, home, company, fingerprint: null, version: issued.version, change_request: issued.request,
+        quote: { id: quote.id, number: quote.number, status: quote.status, title: quote.title, presentation: quote.presentation, client_id: quote.client_id, change_order_for: quote.change_order_for, client: quote.client ? { display_name: quote.client.display_name } : null, property: quote.property, range: null, lines: [], options: [], total: null, approval: null },
+      });
+    }
     const [lineRows, options, drawings, template, roofPackage, home, fields, reviews] = await Promise.all([
       // The formula only tells the server which line is the tear-off; it's never sent.
       admin.from("quote_line_items").select("id, option_id, service_id, name, description, quantity, unit, unit_price, taxable, optional, selected, option_group, sort, formula").eq("company_id", l.c).eq("quote_id", quote.id).order("sort"),
@@ -543,6 +577,9 @@ publicRoutes.get("/hub/:token", async (c) => {
     return c.json({
       kind: "quote",
       fingerprint: typeof fingerprint === "string" ? fingerprint : null,
+      // Planet Ops 1c: which version this is, and the customer's own open change request.
+      version: issued.version,
+      change_request: issued.request,
       company,
       template,
       contract,
@@ -830,17 +867,38 @@ publicRoutes.post("/hub/:token/request-changes", async (c) => {
   const l = await link(c);
   if (l.t !== "quote") throw new HttpError(400, "Only quotes can have changes requested.");
   if (l.pv) throw new HttpError(400, "A preview can't ask for changes. Only the client's own link can.");
-  const body = await readJson(c, z.object({ message: z.string().trim().min(3).max(2000) }));
+  // Planet Ops 1c: the note as typed, the version the page showed, and a key the page made for this
+  // request, so a retry or a double tap saves it once (request_quote_changes).
+  const body = await readJson(
+    c,
+    z.object({
+      message: z.string().min(3).max(4000).refine((m) => m.trim().length >= 3, "Tell us what you'd like changed."),
+      request_key: z.uuid().optional(),
+      fingerprint: z.string().regex(/^[0-9a-f]{32}$/).nullish(),
+    }),
+  );
   const admin = adminClient(c.env);
   const quote = must(await admin.from("quotes").select("client_id, status").eq("company_id", l.c).eq("id", l.id).maybeSingle(), "Quote not found.");
-  if (quote.status !== "sent") throw new HttpError(409, "This quote isn't waiting for a response.");
-  await admin.from("messages").insert({
-    company_id: l.c, client_id: quote.client_id, channel: "note", direction: "in", status: "received",
-    subject: "Changes requested", body: body.message, related_type: "quote", related_id: l.id, sent_by: null,
+  if (!["sent", "changes_requested", "approved", "converted"].includes(quote.status)) throw new HttpError(409, "This quote isn't waiting for a response.");
+  const { data, error } = await admin.rpc("request_quote_changes", {
+    p_company: l.c,
+    p_quote: l.id,
+    p_message: body.message,
+    p_request_key: body.request_key ?? crypto.randomUUID(),
+    p_seen: body.fingerprint ?? null,
+    p_identity: { link: l.via === "office" ? "office" : l.own ? "own" : "client", ip: clientIp(c) },
   });
-  await admin.from("quotes").update({ status: "changes_requested" }).eq("id", l.id);
-  kickAutomations(c, l.c);
-  return c.json({ status: "changes_requested" });
+  if (error) throw error.code === "22023" ? new HttpError(409, error.message) : dbError(error);
+  const result = (data ?? {}) as { id?: string; status?: string; duplicate?: boolean; change_order_id?: string | null };
+  // The note on the client's timeline too, as before (once: a retry adds nothing).
+  if (!result.duplicate) {
+    await admin.from("messages").insert({
+      company_id: l.c, client_id: quote.client_id, channel: "note", direction: "in", status: "received",
+      subject: "Changes requested", body: body.message, related_type: "quote", related_id: l.id, sent_by: null,
+    });
+    kickAutomations(c, l.c);
+  }
+  return c.json({ status: result.status ?? quote.status, request_id: result.id ?? null, signed: ["approved", "converted"].includes(quote.status) });
 });
 
 /**
@@ -913,18 +971,36 @@ publicRoutes.post("/hub/:token/promo", async (c) => {
       throw new HttpError(409, "The options on this estimate changed. Please look it over again.");
     }
     choice = { ...(body.option_id ? { p_option: body.option_id } : {}), ...(body.selected_line_ids ? { p_selected: body.selected_line_ids } : {}) };
+    // Planet Ops 1c: not while the office is preparing an updated version (it would go out with it).
+    if ((await hubVersion(admin, l.c, l.id, null)).revising) throw new HttpError(409, REVISING);
   }
   const { data, error } = await admin.rpc("apply_promo_code", { p_kind: kind, p_id: l.id, p_code: body.code, ...choice });
   if (error) throw dbError(error);
+  if (kind === "quote") await issuePromoVersion(admin, l.id);
   return c.json(data as Record<string, unknown>);
 });
+
+/** Planet Ops 1c: the office is preparing an updated version, so the customer's link waits for it. */
+const REVISING = "This is being updated. You'll get the new version shortly.";
+
+/**
+ * Planet Ops 1c: a promo code the customer applies or removes on their link is their own change, so
+ * the quote as it now is becomes the version their page shows and signs (issued as "promo"; it
+ * answers no change request).
+ */
+async function issuePromoVersion(admin: ReturnType<typeof adminClient>, quoteId: string) {
+  const { error } = await admin.rpc("issue_quote_version", { p_quote: quoteId, p_via: "promo" });
+  if (error) throw dbError(error);
+}
 
 publicRoutes.delete("/hub/:token/promo", async (c) => {
   // Like putting one on: each change to what's owed is a new Stripe invoice for an invoice.
   if (!(await allow(c.env, `promo:${clientIp(c)}`, 10, 10 * 60))) throw new HttpError(429, "Too many tries. Wait a few minutes and try again.");
   const { l, admin, kind } = await hubDocument(c);
+  if (kind === "quote" && (await hubVersion(admin, l.c, l.id, null)).revising) throw new HttpError(409, REVISING);
   const { error } = await admin.rpc("remove_promo_code", { p_kind: kind, p_id: l.id });
   if (error) throw dbError(error);
+  if (kind === "quote") await issuePromoVersion(admin, l.id);
   return c.json({ ok: true });
 });
 

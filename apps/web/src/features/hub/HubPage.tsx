@@ -393,6 +393,8 @@ function ProposalScope({ data, total }: { data: QuoteView; total: number }) {
 }
 
 function QuoteHub({ token, data, onChanged, printing, onPrint }: { token: string; data: QuoteView; onChanged: () => void; printing: boolean; onPrint: () => void }) {
+  // Planet Ops 1c: the office is preparing an updated version; the draft is never shown or signed here.
+  if (data.revising) return <Revising data={data} />;
   if (data.quote.status === "approved" || data.quote.status === "converted") return <SignedQuote token={token} data={data} printing={printing} onPrint={onPrint} />;
   // A price range that was turned down (marked lost or archived) keeps its exact price off the page.
   if (data.quote.total == null) {
@@ -842,8 +844,76 @@ function SignedQuote({ token, data, printing, onPrint }: { token: string; data: 
       {(q.portal_fields?.length ?? 0) > 0 && <section className="card card-pad"><HubFieldList fields={q.portal_fields} /></section>}
       <HubDrawings token={token} drawings={data.drawings} />
       <HubReviews reviews={data.reviews} />
+      {!data.preview && <SignedChangeRequest token={token} data={data} />}
       {printing && <PrintableDocument {...doc} />}
     </>
+  );
+}
+
+/** The kind of document, as the customer reads it. */
+const documentWord = (data: QuoteView) => (data.quote.change_order_for ? "change order" : data.quote.presentation === "proposal" ? "proposal" : "quote");
+
+/** Planet Ops 1c: an updated version is being prepared; the one sent stays theirs until then. */
+function Revising({ data }: { data: QuoteView }) {
+  const word = documentWord(data);
+  return (
+    <div className="card card-pad stack-sm" style={{ textAlign: "center", justifyItems: "center", padding: 28 }} data-planet-ops="revising">
+      <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: "var(--tracking-tight)" }}>An updated {word} is on its way</h2>
+      <p className="muted" style={{ margin: 0, maxWidth: 460 }}>
+        {data.company.name} is updating this {word}{data.version ? ` (version ${data.version.number} was the last one sent)` : ""}. You'll get the new version to review and sign as soon as it's ready.
+      </p>
+      {data.change_request && <ChangesAsked data={data} />}
+    </div>
+  );
+}
+
+/** The customer's own open change request: what they wrote and when. */
+function ChangesAsked({ data }: { data: QuoteView }) {
+  const r = data.change_request;
+  const tz = hubZone(data.company);
+  return (
+    <div className="callout" role="status" data-planet-ops="changes-requested">
+      <Icon name="messages" size={20} />
+      <div className="grow stack-xs">
+        <div><strong>You asked for changes{r ? ` on ${formatDate(dateIn(r.created_at, tz))}` : ""}.</strong> Signing is paused until {data.company.name} sends the updated version.</div>
+        {r && <p className="pre-wrap" style={{ margin: 0 }}>“{r.message}”</p>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Planet Ops 1c: a signed agreement stays as signed. A change the customer asks for is logged against
+ * it, and the business prepares a change order for them to review and sign.
+ */
+function SignedChangeRequest({ token, data }: { token: string; data: QuoteView }) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [requestKey] = useState(() => crypto.randomUUID());
+  const send = useMutation({ meta: { inline: true }, mutationFn: () => hubFetch(`${token}/request-changes`, { message: note, request_key: requestKey }) });
+  if (send.isSuccess) {
+    return <Done title="Request sent">Your signed {documentWord(data)} stays as it is. {data.company.name} will review your note and send you a change order to review and sign.</Done>;
+  }
+  if (!open) {
+    return (
+      <div className="no-print" style={{ justifySelf: "center" }}>
+        <Button variant="ghost" icon="messages" onClick={() => setOpen(true)}>Request a change</Button>
+      </div>
+    );
+  }
+  return (
+    <section className="card card-pad stack no-print">
+      <h2 className="hub-step-title">Request a change</h2>
+      <p className="muted small" style={{ margin: 0 }}>Your signed {documentWord(data)} stays as signed. Anything that changes comes to you as a change order to review and sign.</p>
+      <form className="stack-sm" onSubmit={(e: FormEvent) => { e.preventDefault(); send.mutate(); }}>
+        <Field label="What would you like changed?" requiredMessage="Tell us what you'd like changed."><textarea className="textarea" value={note} onChange={(e) => setNote(e.target.value)} required minLength={3} maxLength={4000} /></Field>
+        <FormError error={send.error} />
+        <div className="hub-step-actions">
+          <Button type="submit" size="lg" icon="send" loading={send.isPending}>Send request</Button>
+          <Button size="lg" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+        </div>
+      </form>
+    </section>
   );
 }
 
@@ -882,6 +952,8 @@ function OpenQuote({ token, data, onChanged, printing }: { token: string; data: 
   const [notice, setNotice] = useState<string | null>(null);
   const [changes, setChanges] = useState("");
   const [mode, setMode] = useState<"approve" | "changes">("approve");
+  // Planet Ops 1c: one key per request, so a retry or a double tap saves it once.
+  const [requestKey] = useState(() => crypto.randomUUID());
   const heading = useRef<HTMLHeadingElement>(null);
   const [stampedAt] = useState(() => new Date().toISOString());
 
@@ -959,7 +1031,8 @@ function OpenQuote({ token, data, onChanged, printing }: { token: string; data: 
       requestAnimationFrame(() => heading.current?.focus());
     },
   });
-  const requestChanges = useMutation({ meta: { inline: true }, mutationFn: () => hubFetch(`${token}/request-changes`, { message: changes.trim() }), onSuccess: onChanged });
+  // The note as typed, with the version this page shows (Planet Ops 1c).
+  const requestChanges = useMutation({ meta: { inline: true }, mutationFn: () => hubFetch(`${token}/request-changes`, { message: changes, request_key: requestKey, fingerprint: data.fingerprint ?? null }), onSuccess: onChanged });
 
   /** On to another step, read from its top. What they go on to sign is what they've reviewed. */
   const goTo = (next: HubStep) => {
@@ -1042,18 +1115,28 @@ function OpenQuote({ token, data, onChanged, printing }: { token: string; data: 
       <HubReviews reviews={data.reviews} />
 
       {requestChanges.isSuccess ? (
-        <Done title="Request sent">{data.company.name} will review your notes and follow up with an updated quote.</Done>
+        <Done title="Request sent">{data.company.name} has your note and will send you an updated version to review. Signing this one is paused until then.</Done>
       ) : !waiting && !data.preview ? (
         <>
           {offers && <OptionsCompared options={options} optionId={q.option_id ?? null} />}
           {offers && lineCard}
           <div className="card card-pad muted">This quote is no longer open. Contact {data.company.name} if you have questions.</div>
         </>
+      ) : q.status === "changes_requested" && mode !== "changes" && !data.preview ? (
+        // Planet Ops 1c: after a change request, signing waits for the version the office sends.
+        <>
+          <ChangesAsked data={data} />
+          {offers && <OptionsCompared options={options} optionId={q.option_id ?? null} />}
+          {lineCard}
+          <div className="hub-step-actions no-print">
+            <Button size="lg" variant="ghost" icon="messages" onClick={() => setMode("changes")}>Add to your request</Button>
+          </div>
+        </>
       ) : mode === "changes" ? (
         <section className="card card-pad stack no-print">
           <h2 className="hub-step-title">Request changes</h2>
           <form className="stack-sm" onSubmit={(e: FormEvent) => { e.preventDefault(); requestChanges.mutate(); }}>
-            <Field label="What would you like changed?" requiredMessage="Tell us what you'd like changed, and we'll update the quote."><textarea className="textarea" value={changes} onChange={(e) => setChanges(e.target.value)} required minLength={3} maxLength={2000} placeholder="Could you add the side walkway? Can we start after the 15th?" /></Field>
+            <Field label="What would you like changed?" requiredMessage="Tell us what you'd like changed, and we'll update the quote."><textarea className="textarea" value={changes} onChange={(e) => setChanges(e.target.value)} required minLength={3} maxLength={4000} placeholder="Could you add the side walkway? Can we start after the 15th?" /></Field>
             <FormError error={requestChanges.error} />
             <div className="hub-step-actions">
               <Button type="submit" size="lg" icon="send" loading={requestChanges.isPending}>Send request</Button>
@@ -1064,7 +1147,6 @@ function OpenQuote({ token, data, onChanged, printing }: { token: string; data: 
       ) : (
         <>
           {expired && <div className="callout callout-warning"><Icon name="clock" size={20} /><div className="grow">This quote's valid-until date has passed. You can still approve it, and {data.company.name} will confirm the price.</div></div>}
-          {q.status === "changes_requested" && <div className="callout"><Icon name="messages" size={20} /><div className="grow">You've asked for changes. {data.company.name} may send an updated quote, or you can approve this one as it is.</div></div>}
 
           {steps.length > 1 && (
             <ol className="hub-steps no-print" aria-label="Steps">

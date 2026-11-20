@@ -492,6 +492,83 @@ describe("the crew on the client's home page", () => {
   });
 });
 
+describe("versions and change requests (Planet Ops 1c)", () => {
+  beforeEach(() => roofer({ range_low: null, range_high: null, range_sent_at: null }));
+  const issued = (fingerprint: string, number = 1) => {
+    state.tables.quote_versions = [{ id: `v${number}`, company_id: ROOFER, quote_id: QUOTE, number, fingerprint, issued_at: "2026-11-20T15:00:00Z", superseded_at: null, signed_at: null }];
+  };
+
+  it("shows which version the customer is looking at", async () => {
+    issued(PAGE_FINGERPRINT, 2);
+    state.rpcs.quote_fingerprint = () => ({ data: PAGE_FINGERPRINT, error: null });
+    const body = await (await hub({ t: "quote", id: QUOTE })).json();
+    expect(body.version).toEqual({ number: 2, issued_at: "2026-11-20T15:00:00Z" });
+    expect(body.revising).toBeUndefined();
+    expect(body.quote.lines.length).toBeGreaterThan(0);
+  });
+
+  it("never shows a draft revision the office hasn't sent: only that an update is coming", async () => {
+    issued(PAGE_FINGERPRINT);
+    state.rpcs.quote_fingerprint = () => ({ data: "ffffffffffffffffffffffffffffffff", error: null });
+    const body = await (await hub({ t: "quote", id: QUOTE })).json();
+    expect(body).toMatchObject({ kind: "quote", revising: true, fingerprint: null, version: { number: 1 } });
+    expect(body.quote).toMatchObject({ id: QUOTE, number: 1042, lines: [], options: [], total: null });
+    // It says which kind of document is coming (a proposal reads "An updated proposal").
+    expect(body.quote).toHaveProperty("presentation");
+    // No priced line, total, terms or message of the draft goes to the customer.
+    expect(JSON.stringify(body)).not.toMatch(/18304|unit_price|contract_terms|payment_terms/);
+    // The office's preview still shows the document as it is.
+    const preview = await (await hub({ t: "quote", id: QUOTE, pv: 1 })).json();
+    expect(preview.revising).toBeUndefined();
+    expect(preview.quote.lines.length).toBeGreaterThan(0);
+  });
+
+  it("saves the note as typed, with the version the page showed and a key that makes a retry the same request", async () => {
+    let n = 0;
+    state.rpcs.request_quote_changes = () => ({ data: { id: "req-1", status: "changes_requested", duplicate: n++ > 0, change_order_id: null }, error: null });
+    const note = "  Could you leave the garage standing?\nThanks!  ";
+    const key = "00000000-0000-4000-8000-00000000c0de";
+    const first = await hub({ t: "quote", id: QUOTE }, "/request-changes", { message: note, request_key: key, fingerprint: PAGE_FINGERPRINT });
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({ status: "changes_requested", request_id: "req-1", signed: false });
+    expect(state.calls.find((c) => c.name === "request_quote_changes")?.args).toMatchObject({
+      p_company: ROOFER, p_quote: QUOTE, p_message: note, p_request_key: key, p_seen: PAGE_FINGERPRINT, p_identity: { link: "own", ip: expect.any(String) },
+    });
+    expect((state.tables.messages ?? []).filter((m) => m.subject === "Changes requested")).toHaveLength(1);
+    // A retry (the same key): saved once, nothing added to the timeline again.
+    await hub({ t: "quote", id: QUOTE }, "/request-changes", { message: note, request_key: key, fingerprint: PAGE_FINGERPRINT });
+    expect((state.tables.messages ?? []).filter((m) => m.subject === "Changes requested")).toHaveLength(1);
+  });
+
+  it("needs a note, and takes requests on a signed agreement too (logged against it, never reopening it)", async () => {
+    expect((await hub({ t: "quote", id: QUOTE }, "/request-changes", { message: "  " })).status).toBe(400);
+    expect(state.calls.some((c) => c.name === "request_quote_changes")).toBe(false);
+    state.tables.quotes![0]!.status = "converted";
+    state.rpcs.request_quote_changes = () => ({ data: { id: "req-2", status: "converted", duplicate: false, change_order_id: "co-9" }, error: null });
+    const res = await hub({ t: "quote", id: QUOTE }, "/request-changes", { message: "Please also remove the shed." });
+    expect(await res.json()).toEqual({ status: "converted", request_id: "req-2", signed: true });
+    expect(state.tables.quotes![0]!.status).toBe("converted");
+    // A preview can't ask.
+    expect((await hub({ t: "quote", id: QUOTE, pv: 1 }, "/request-changes", { message: "From the office" })).status).toBe(400);
+  });
+});
+
+describe("a promo code the customer applies (Planet Ops 1c)", () => {
+  beforeEach(() => roofer({ range_low: null, range_high: null, range_sent_at: null }));
+  it("is issued as the version their page shows, and waits while the office prepares an update", async () => {
+    state.tables.quote_versions = [{ id: "v1", company_id: ROOFER, quote_id: QUOTE, number: 1, fingerprint: PAGE_FINGERPRINT, issued_at: "2026-11-20T15:00:00Z", superseded_at: null, signed_at: null }];
+    state.rpcs.quote_fingerprint = () => ({ data: PAGE_FINGERPRINT, error: null });
+    state.rpcs.apply_promo_code = () => ({ data: { discount_amount: 100 }, error: null });
+    expect((await hub({ t: "quote", id: QUOTE }, "/promo", { code: "SAVE100" })).status).toBe(200);
+    expect(state.calls.find((c) => c.name === "issue_quote_version")?.args).toEqual({ p_quote: QUOTE, p_via: "promo" });
+    // The office changed it meanwhile without sending: no code until the update is sent.
+    state.calls = [];
+    state.rpcs.quote_fingerprint = () => ({ data: "ffffffffffffffffffffffffffffffff", error: null });
+    expect((await hub({ t: "quote", id: QUOTE }, "/promo", { code: "SAVE100" })).status).toBe(409);
+    expect(state.calls.some((c) => c.name === "apply_promo_code" || c.name === "issue_quote_version")).toBe(false);
+  });
+});
+
 describe("a proposal on the customer's page (Planet Ops 1b)", () => {
   it("carries its layout, its sections and both terms, so the page shows them", async () => {
     roofer({ range_low: null, range_high: null, range_sent_at: null, presentation: "proposal", narrative: { overview: "TEST overview", scope: "1. Demolish" }, contract_terms: "TEST contract terms", payment_terms: "TEST payment terms" });

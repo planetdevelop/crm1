@@ -310,7 +310,7 @@ rollback;
 -- Every function an assistant's tools call with the person's token (apps/api/test/assistants.test.ts
 -- reads these two lists and checks them against the tools). One that writes must be listed for its
 -- area, or it runs in a request that can't write and always fails. The rest only answer.
-\set writes '{apply_price_change,convert_quote_to_job,create_invoice_for_job,duplicate_quote,edit_invoice,merge_clients,merge_company_settings,quote_exact_sent,remove_late_fee,set_checklist_services,set_weather_rules,undo_price_change}'
+\set writes '{apply_price_change,convert_quote_to_job,create_invoice_for_job,duplicate_quote,edit_invoice,issue_quote_version,merge_clients,merge_company_settings,quote_exact_sent,remove_late_fee,set_checklist_services,set_weather_rules,undo_price_change}'
 \set reads '{campaign_audience,campaign_results,client_duplicates,dashboard,job_pay_costs,marketing_summary,price_change_history,price_change_preview,promo_code_usage,quote_send_problem,review_stats,search_sops,social_photos}'
 select t530.check((select bool_and(exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = f)) from unnest((:'writes'::text[]) || (:'reads'::text[])) f),
   'every function the tools call is there');

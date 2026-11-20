@@ -123,7 +123,7 @@ Delivered as small PRs into `planet-ops-staging`. Three kinds of evidence are ke
 | 1a | Every acceptance needs the customer's drawn signature on the exact version; no staff bypass | Merged, PR #2 (`a0d5d8e`) | Yes: CI green on `42b2bb6` and on the merge | Deployed (web bundle has the 1a/1b screens; health ok). Not exercised by hand: no staging sign-in available to Claude |
 | 1b | Line-item quote / proposal layouts, separate Contract and Payment Terms, configurable countersignature, nav relabel | Merged, PR #3 (`ad1c0fc`) | Yes: CI green on `d9c4b09` and on the merge | Deployed; not exercised by hand (as above) |
 | 1b+ | Document type chosen first (New Quote / Proposal), shown at the top of a draft; Edit / Preview kept apart from it | Branch `claude/phase-1b-creation-choice` | Unit tests; browser test `e2e/proposals.spec.ts` (CI) | Not yet |
-| 1c | Document versions (snapshot per issued version, supersession) and customer Request changes | To do | | |
+| 1c | Document versions (snapshot per issued version, supersession) and customer Request changes | Branch `claude/phase-1c-revisions` (stacked on 1b+) | `planet_ops_document_versions_test.sql`, API hub tests, browser test `e2e/change-requests.spec.ts` (CI) | Not yet |
 | 1d | `send_pricing` permission; accepted / countersigned / deposit / ready states; job contract summary | To do | | |
 | 1e | Convert the exact signed revision to a job; retry- and race-safe; job-created handoff | To do | | |
 
@@ -248,3 +248,50 @@ stands in for the customer.
   `apps/web/test/planetOpsProposals.test.ts`; PDF tests for both layouts.
 - Owner input still needed: the approved Contract Terms and Payment Terms wording (enter it in
   Settings → Quotes and payments), and whether to turn the countersignature on.
+
+### 1c: document versions and customer change requests
+
+Migration `20261121000100_planet_ops_document_versions.sql` (not yet released).
+
+- **Versions** (`quote_versions`): every issue to the customer keeps an immutable copy of the whole
+  offered document (`private.quote_version`: scope, lines, options and prices, schedule, deposit
+  and payment schedule, Contract Terms, Payment Terms, section words, template terms), its
+  fingerprint, totals, number in sequence, who issued it and how (sent, signed in person, priced on
+  site). Issued on send (status to sent, a resend, the exact price or the range sent again), by
+  `issue_quote_version` (resend / make available again), by a price set on site on a sent estimate,
+  and by in-person signing. A new version supersedes the pending one; versions can't be edited or
+  deleted; later default, template or price-list changes don't touch them. Documents already with
+  customers got their current version as version 1 (`existing`).
+- **Draft revisions**: editing a sent document changes nothing for the customer. Their link keeps
+  the issued version; the API shows only "An updated … is on its way" (no draft content is sent),
+  and the database refuses a link signature on anything but the current issued version. The quote
+  page shows "Draft revision, not sent" with "Send the update".
+- **Signing**: on the link, only the current issued version (never superseded, never an unsent
+  draft); in person, the screen's document is issued as it's signed. The approval records
+  `version_id` / `version_number`; the version records `signed_at`.
+- **Change requests** (`quote_change_requests`, `request_quote_changes`, server only): the note
+  exactly as typed, the client, which link (own / office copy) and IP, the server's time, and the
+  version reviewed (by the page's fingerprint). A request key from the page makes retries one
+  request. A pending quote, proposal or change order becomes "Changes requested" and signing pauses
+  (link and in person) until the office sends it again: a revision (new version) or the same version
+  made available again; sending answers open requests and closes their follow-ups. A request on a
+  signed agreement leaves it untouched, is logged against the signed version and, for an active
+  job, starts a proposed change order (a draft). Each request creates one follow-up task
+  (`follow_up_tasks`, unique per request) for the document's salesperson (else the office) and an
+  in-app notification (the existing automation tells the office on "Changes requested"). The office
+  replies once per request (`respond_to_change_request`); replies and requests are kept as history.
+- **Customer page**: "Request changes" beside approval (note "What would you like changed?",
+  "Send request", confirmation); after a request, the note and "signing is paused" instead of the
+  signing steps, with "Add to your request"; a signed agreement offers "Request a change".
+- **Office page**: Versions and change requests card (versions with View of each copy, requests with
+  version, reply, follow-up and Mark done, "Send it again" while paused).
+- Tests: `supabase/tests/planet_ops_document_versions_test.sql` (issue on send, immutability,
+  defaults changing later, draft revision not signable, supersession, retried and repeated requests,
+  follow-up and notification, signing paused on both paths, reply, revision sent and signed, every
+  version kept, a proposal and a change order taking requests, in-person issue on signing, a request
+  on a signed agreement making a proposed change order), API hub tests (version shown, draft
+  revision hidden, note as typed with key and version, signed agreement request), and
+  `e2e/change-requests.spec.ts` (portal request → paused → office reply → revision hidden → sent
+  as version 2 → signed). Existing database tests send their documents before signing
+  (`planet_test.sign` / `planet_test.approval` issue the version, as the office does).
+
