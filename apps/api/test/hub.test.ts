@@ -551,6 +551,22 @@ describe("versions and change requests (Planet Ops 1c)", () => {
   });
 });
 
+describe("a promo code the customer applies (Planet Ops 1c)", () => {
+  beforeEach(() => roofer({ range_low: null, range_high: null, range_sent_at: null }));
+  it("is issued as the version their page shows, and waits while the office prepares an update", async () => {
+    state.tables.quote_versions = [{ id: "v1", company_id: ROOFER, quote_id: QUOTE, number: 1, fingerprint: PAGE_FINGERPRINT, issued_at: "2026-11-20T15:00:00Z", superseded_at: null, signed_at: null }];
+    state.rpcs.quote_fingerprint = () => ({ data: PAGE_FINGERPRINT, error: null });
+    state.rpcs.apply_promo_code = () => ({ data: { discount_amount: 100 }, error: null });
+    expect((await hub({ t: "quote", id: QUOTE }, "/promo", { code: "SAVE100" })).status).toBe(200);
+    expect(state.calls.find((c) => c.name === "issue_quote_version")?.args).toEqual({ p_quote: QUOTE, p_via: "promo" });
+    // The office changed it meanwhile without sending: no code until the update is sent.
+    state.calls = [];
+    state.rpcs.quote_fingerprint = () => ({ data: "ffffffffffffffffffffffffffffffff", error: null });
+    expect((await hub({ t: "quote", id: QUOTE }, "/promo", { code: "SAVE100" })).status).toBe(409);
+    expect(state.calls.some((c) => c.name === "apply_promo_code" || c.name === "issue_quote_version")).toBe(false);
+  });
+});
+
 describe("a proposal on the customer's page (Planet Ops 1b)", () => {
   it("carries its layout, its sections and both terms, so the page shows them", async () => {
     roofer({ range_low: null, range_high: null, range_sent_at: null, presentation: "proposal", narrative: { overview: "TEST overview", scope: "1. Demolish" }, contract_terms: "TEST contract terms", payment_terms: "TEST payment terms" });
