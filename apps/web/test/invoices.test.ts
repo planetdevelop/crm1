@@ -422,11 +422,16 @@ describe("a charge waiting for the office's OK", () => {
 // the database closes the charge and the invoice goes to the client to pay. The company here has
 // autopay on, with the starter $500 limit.
 describe("an invoice over the limit for the client's bank account", () => {
+  // Read before the invoice's due date (2026-11-10), as above: past it the page adds a "past due"
+  // note ("10 days past due" on 2026-11-20), which isn't what this checks.
   beforeEach(() => {
     company.settings = { autopay: { enabled: true, max_amount: 500 } };
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-01T15:00:00Z"));
   });
   afterEach(() => {
     company.settings = {};
+    vi.useRealTimers();
   });
 
   const WHY = "$600.00 is over the $500 limit, and a bank account is never charged more than its limit, so Chase ending 6789 wasn&#x27;t charged.";

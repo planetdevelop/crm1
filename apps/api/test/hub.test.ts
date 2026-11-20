@@ -513,6 +513,8 @@ describe("versions and change requests (Planet Ops 1c)", () => {
     const body = await (await hub({ t: "quote", id: QUOTE })).json();
     expect(body).toMatchObject({ kind: "quote", revising: true, fingerprint: null, version: { number: 1 } });
     expect(body.quote).toMatchObject({ id: QUOTE, number: 1042, lines: [], options: [], total: null });
+    // It says which kind of document is coming (a proposal reads "An updated proposal").
+    expect(body.quote).toHaveProperty("presentation");
     // No priced line, total, terms or message of the draft goes to the customer.
     expect(JSON.stringify(body)).not.toMatch(/18304|unit_price|contract_terms|payment_terms/);
     // The office's preview still shows the document as it is.

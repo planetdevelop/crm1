@@ -448,7 +448,7 @@ publicRoutes.get("/hub/:token", async (c) => {
       const home = await homeLink(c, l.c, quote.client_id, l);
       return c.json({
         kind: "quote", revising: true, preview: false, home, company, fingerprint: null, version: issued.version, change_request: issued.request,
-        quote: { id: quote.id, number: quote.number, status: quote.status, title: quote.title, client_id: quote.client_id, change_order_for: quote.change_order_for, client: quote.client ? { display_name: quote.client.display_name } : null, property: quote.property, range: null, lines: [], options: [], total: null, approval: null },
+        quote: { id: quote.id, number: quote.number, status: quote.status, title: quote.title, presentation: quote.presentation, client_id: quote.client_id, change_order_for: quote.change_order_for, client: quote.client ? { display_name: quote.client.display_name } : null, property: quote.property, range: null, lines: [], options: [], total: null, approval: null },
       });
     }
     const [lineRows, options, drawings, template, roofPackage, home, fields, reviews] = await Promise.all([
