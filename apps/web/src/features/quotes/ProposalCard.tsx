@@ -11,7 +11,7 @@
  * outdated, and once signed it stays as signed (20261120000100, 20261120000200). This is the
  * customer-facing document only; internal costs and markup belong to Estimating (Phase 3).
  */
-import { NARRATIVE_MAX, NARRATIVE_SECTIONS, PRESENTATION_LABELS, PRESENTATIONS, TERMS_MAX, isPresentation, proposalSettings, readNarrative, type NarrativeKey, type Presentation } from "@crewtavo/core/proposals";
+import { NARRATIVE_MAX, NARRATIVE_SECTIONS, PRESENTATION_HINTS, PRESENTATION_LABELS, PRESENTATIONS, TERMS_MAX, isPresentation, proposalSettings, readNarrative, type NarrativeKey, type Presentation } from "@crewtavo/core/proposals";
 import type { Json } from "@crewtavo/core/database";
 import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -25,6 +25,48 @@ export interface ProposalFields {
 }
 
 export type ProposalPatch = { presentation?: Presentation; narrative?: Exclude<Json, null>; contract_terms?: string | null; payment_terms?: string | null };
+
+/**
+ * The document type, chosen first: a line-item quote or a proposal. It's a choice about what the
+ * customer receives, kept apart from how the office looks at it while editing (Edit / Preview).
+ * `value`/`onChange` as a form control (the new-document dialog); `editable` false shows it as
+ * text (a sent or signed document keeps the type it went out as).
+ */
+export function DocumentTypeChoice({ value, onChange, editable = true, compact = false }: { value: Presentation; onChange: (p: Presentation) => void; editable?: boolean; compact?: boolean }) {
+  const name = useId();
+  // Shown chosen at once, while the quote saves (and back in step with it once it's read again).
+  const [shown, setShown] = useState(value);
+  useEffect(() => setShown(value), [value]);
+  const choose = (p: Presentation) => {
+    if (p === shown) return;
+    setShown(p);
+    onChange(p);
+  };
+  if (!editable) {
+    return (
+      <div className="row wrap" style={{ gap: 8, alignItems: "baseline" }} data-planet-ops="document-type">
+        <span className="muted small">Document type</span>
+        <strong>{PRESENTATION_LABELS[value]}</strong>
+      </div>
+    );
+  }
+  return (
+    <fieldset className="stack-xs" style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }} data-planet-ops="document-type">
+      <legend className="strong small" style={{ padding: 0, marginBottom: 6 }}>Document type</legend>
+      <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))" }}>
+        {PRESENTATIONS.map((p) => (
+          <label key={p} className="card card-pad" style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer", padding: compact ? 10 : undefined, borderColor: shown === p ? "var(--accent, #1C50E4)" : undefined, boxShadow: shown === p ? "0 0 0 1px var(--accent, #1C50E4)" : undefined }}>
+            <input type="radio" name={name} value={p} checked={shown === p} onChange={() => choose(p)} style={{ marginTop: 3 }} />
+            <span className="stack-xs">
+              <strong>{PRESENTATION_LABELS[p]}</strong>
+              {!compact && <span className="muted small">{PRESENTATION_HINTS[p]}</span>}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
 
 /** A text area that saves when it loses focus, as the message to the client does. */
 function SavedText({ label, hint, value, max, rows = 4, editable, onEdit, onUnchanged, onSave }: { label: string; hint?: string; value: string; max: number; rows?: number; editable: boolean; onEdit: () => void; onUnchanged: () => void; onSave: (v: string) => void }) {
@@ -74,23 +116,13 @@ export function ProposalCard({ quote, editable, onEdit, onUnchanged, onSave }: {
   return (
     <div className="card card-pad stack" data-planet-ops="customer-document">
       <div className="row wrap" style={{ justifyContent: "space-between", gap: 12 }}>
-        <strong>Customer document</strong>
-        {editable ? (
-          <span className="segmented" role="group" aria-label="Layout">
-            {PRESENTATIONS.map((p) => (
-              <button key={p} type="button" aria-pressed={presentation === p} onClick={() => presentation !== p && onSave({ presentation: p })}>
-                {PRESENTATION_LABELS[p]}
-              </button>
-            ))}
-          </span>
-        ) : (
-          <span className="muted small">{PRESENTATION_LABELS[presentation]}</span>
-        )}
+        <strong>{presentation === "proposal" ? "Proposal sections and terms" : "Terms"}</strong>
+        <span className="muted small">{PRESENTATION_LABELS[presentation]}</span>
       </div>
       <p className="muted small" style={{ margin: 0 }}>
         {presentation === "proposal"
-          ? "The customer sees the sections below and one total, without priced lines. The total is the same as the line-item quote's."
-          : "The customer sees the priced lines and their total. Switch to a proposal to show a narrative scope and one total instead; prices, scope and terms stay as they are."}
+          ? "The customer sees these sections and one total, without priced lines. The total is the same as the line items come to. Change the document type at the top of the page."
+          : "The customer sees the priced lines and their total, then these terms. Change the document type at the top of the page."}
       </p>
 
       {presentation === "proposal" &&

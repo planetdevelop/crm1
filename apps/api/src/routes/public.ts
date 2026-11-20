@@ -555,6 +555,9 @@ publicRoutes.get("/hub/:token", async (c) => {
       reviews,
       quote: {
         id: quote.id, number: quote.number, status: quote.status, title: quote.title, message: quote.message,
+        // Planet Ops 1b: the layout, the proposal's sections and both terms, as the office set them
+        // (signed, the page prints them from the copy kept with the signature).
+        presentation: quote.presentation, narrative: quote.narrative, contract_terms: quote.contract_terms, payment_terms: quote.payment_terms,
         subtotal: exact ? quote.subtotal : null,
         discount_amount: exact ? quote.discount_amount : null,
         tax_rate: quote.tax_rate,

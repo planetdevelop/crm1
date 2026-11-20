@@ -23,6 +23,12 @@ export const PRESENTATION_LABELS: Record<Presentation, string> = {
   proposal: "Proposal",
 };
 
+/** What each layout shows the customer, for choosing one when a document is made or edited. */
+export const PRESENTATION_HINTS: Record<Presentation, string> = {
+  line_items: "Priced line items: what each service is, how much, and its price, with the total.",
+  proposal: "A narrative scope (overview, work in order, inclusions, exclusions) and one clear total, without priced lines.",
+};
+
 export const isPresentation = (value: unknown): value is Presentation => value === "line_items" || value === "proposal";
 
 /** The proposal's sections, in the order they print. */

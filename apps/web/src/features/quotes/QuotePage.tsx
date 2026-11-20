@@ -12,7 +12,7 @@
  * the option records.
  */
 import { changeOrderBlocker, isCustomerSignature } from "@crewtavo/core/changeOrders";
-import { proposalSettings, signatureState } from "@crewtavo/core/proposals";
+import { isPresentation, proposalSettings, signatureState } from "@crewtavo/core/proposals";
 import { depositFor } from "@crewtavo/core/contracts";
 import { shownCustomFields } from "@crewtavo/core/customFields";
 import { usesDepth } from "@crewtavo/core/formulas";
@@ -89,7 +89,7 @@ import { depthLines, lineDepths, type DepthLine } from "./depths";
 import { AddOptionsDialog, QuoteOptions } from "./QuoteOptions";
 import { QuoteSections } from "./QuoteSections";
 import { DraftedCallout } from "./DraftedCallout";
-import { ProposalCard } from "./ProposalCard";
+import { DocumentTypeChoice, ProposalCard } from "./ProposalCard";
 import { PaymentScheduleCard } from "./PaymentSchedule";
 import { DiscountRows } from "./PromoRow";
 import { SendDialog } from "./SendDialog";
@@ -597,12 +597,29 @@ export function QuotePage() {
 
       <div className="two-col">
         <div className="wide stack-lg">
+          {/* Planet Ops: the document type comes first, apart from how it's looked at (Edit / Preview). */}
+          {!isTemplate && (
+            <div className="card card-pad stack-sm">
+              <DocumentTypeChoice value={isPresentation(q.presentation) ? q.presentation : "line_items"} editable={editable} compact={!editable} onChange={(presentation) => saveField({ presentation })} />
+              {editable && <span className="muted small">Switching keeps the prices, total, proposal sections, Contract Terms and Payment Terms. Only what the customer sees changes.</span>}
+            </div>
+          )}
           {/* Without options there's no bar: they're offered from the lines' add row instead. */}
           <QuoteOptions quote={q} options={options} lines={q.lines} viewing={viewing} onView={setViewing} mode="office" onChanged={refresh} panelId={panelId} invite={false} />
           <div className="stack-sm">
-            <div className="segmented" role="group" aria-label="Show the estimate as" style={{ justifySelf: "start" }}>
-              <button type="button" aria-pressed={view === "lines"} aria-controls={panelId} onClick={() => setView("lines")}>Lines</button>
-              <button type="button" aria-pressed={view === "paper"} aria-controls={panelId} onClick={() => setView("paper")}>Paper</button>
+            <div className="row wrap" style={{ gap: 10, alignItems: "center" }}>
+              {/* How the office looks at it, not what the customer gets: that's the document type above. */}
+              <div className="segmented" role="group" aria-label="View" style={{ justifySelf: "start" }}>
+                <button type="button" aria-pressed={view === "lines"} aria-controls={panelId} onClick={() => setView("lines")}>Edit</button>
+                <button type="button" aria-pressed={view === "paper"} aria-controls={panelId} onClick={() => setView("paper")}>Preview</button>
+              </div>
+              <span className="muted small">
+                {view === "paper"
+                  ? "As it prints and as the customer sees it."
+                  : q.presentation === "proposal"
+                    ? "Line items set the price. The customer sees the proposal and its total, not these priced lines."
+                    : "Line items, as the customer sees them priced."}
+              </span>
             </div>
             <div id={panelId} role={offers ? "tabpanel" : undefined} aria-label={viewedRow ? viewedRow.name : undefined}>
               {view === "lines" && (
