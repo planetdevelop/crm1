@@ -217,7 +217,9 @@ async function quote(client, title, status, lines, extra = {}) {
   // written by the server (the database refuses one from a signed-in user), as the Client Hub does.
   if (approved) {
     const seen = await must(db.rpc("quote_fingerprint", { p_quote: q.id }), `version ${title}`);
-    const approval = { name: client, signed_at: new Date().toISOString(), signature: DRAWN, seen_fingerprint: seen, method: "in_person" };
+    // With the amounts it's signed at, as sign_quote and approve_hub_quote record them.
+    const amounts = await must(db.from("quotes").select("subtotal, discount_amount, tax_amount, total").eq("id", q.id).single(), `amounts ${title}`);
+    const approval = { name: client, signed_at: new Date().toISOString(), signature: DRAWN, seen_fingerprint: seen, method: "in_person", ...amounts };
     await must(admin.from("quotes").update({ status, approval, ...extra }).eq("id", q.id), `sign ${title}`);
   }
   return q.id;
