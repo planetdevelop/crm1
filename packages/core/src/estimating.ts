@@ -221,7 +221,7 @@ export function calculateEstimate(lines: readonly EstimateLineInput[], pricing: 
     risks.push(mul(base, pct(l.risk_pct, "Risk %", { line: i })));
     if (l.fuel_for) {
       const target = lines.find((x) => x.key && x.key === l.fuel_for);
-      if (target?.includes_fuel) warnings.push({ line: i, field: "Fuel", message: `${target.name}'s rate already includes fuel: this line may charge it twice` });
+      if (target?.includes_fuel) warnings.push({ line: i, field: "Fuel", message: `Fuel may be counted twice: ${target.name || "that equipment"}'s rate already includes fuel, and "${l.name || "this line"}" adds fuel for it. Remove this line, or untick "Rate already includes fuel" if the rate doesn't. (A warning only: the estimate can still be saved and approved.)` });
     }
   });
   if (!lines.some((l) => l.section === "contingency")) warnings.push({ field: "Contingency", message: "No contingency line (the bid workbook says to always include one)" });

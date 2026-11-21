@@ -263,7 +263,7 @@ begin
         nullif(v_line ->> 'notes', ''));
     exception
       when check_violation or not_null_violation then
-        raise exception 'Line % has a value that isn''t allowed: it needs a name and a section, counts, hours, days, weights and volumes can''t be negative, and only an "Other" line can be a credit.', v_sort using errcode = '22023';
+        raise exception 'Line % has a value that isn''t allowed: it needs a name, a section and a unit the estimate knows; counts, hours, days, weights and volumes can''t be negative; only an "Other" line can be a credit.', v_sort using errcode = '22023';
       when invalid_text_representation or numeric_value_out_of_range or datatype_mismatch then
         raise exception 'Line % has a number or a yes/no that isn''t valid.', v_sort using errcode = '22023';
     end;
