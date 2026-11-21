@@ -35,7 +35,7 @@ test("pipeline settings: a template is offered in the contact log; a custom stag
   const request = must(await data.db.from("requests").insert({ company_id: data.id, client_id: client.id, title: `${client.name} demolition`, source: "phone" }).select("id").single(), "request");
   await page.goto(`/requests/${request.id}`);
   const activity = page.locator("[data-planet-ops=request-activity]");
-  await activity.getByLabel("Template", { exact: true }).selectOption({ label: name });
+  await activity.getByLabel(/^Template/).selectOption({ label: name });
   await expect(activity.getByLabel("What was said")).toHaveValue(/questions about the proposal/);
 
   // Report and pricing history.
