@@ -81,9 +81,9 @@ export function PipelinePage() {
     <>
       <BackLink to="/requests">Requests</BackLink>
       <PageHeader title="Sales pipeline" />
-      <div className="tabs" role="tablist" aria-label="Sales pipeline" style={{ marginBottom: 16 }}>
+      <div className="tabs" role="group" aria-label="Sales pipeline" style={{ marginBottom: 16 }}>
         {TABS.map((t) => (
-          <button key={t.key} type="button" role="tab" className="tab" aria-selected={tab === t.key} aria-pressed={tab === t.key} onClick={() => setParams(t.key === "requests" ? {} : { view: t.key }, { replace: true })}>{t.label}</button>
+          <button key={t.key} type="button" className="tab" aria-pressed={tab === t.key} onClick={() => setParams(t.key === "requests" ? {} : { view: t.key }, { replace: true })}>{t.label}</button>
         ))}
       </div>
       {tab === "requests" && <RequestPipeline />}
