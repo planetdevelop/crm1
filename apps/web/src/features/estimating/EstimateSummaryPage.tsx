@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { BackLink, PageHeader } from "@/components/ui/PageHeader";
 import { DetailSkeleton } from "@/components/ui/Skeleton";
 import { PageError } from "@/components/ui/States";
-import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
+import { formatDate, formatDateTime, formatMoneyCents } from "@/lib/format";
 import { useSummary } from "./Handoff";
 
 // Links in a sentence are underlined, not told apart by color alone (WCAG link-in-text-block).
@@ -83,11 +83,11 @@ export function EstimateSummaryPage() {
                     <td>{UNIT_LABELS[l.unit as keyof typeof UNIT_LABELS] ?? String(l.unit)}</td>
                     {s.costs_visible && (
                       <>
-                        <td className="num tabular">{l.unit_cost === null || l.unit_cost === undefined ? "No rate" : formatMoney(Number(l.unit_cost))}</td>
+                        <td className="num tabular">{l.unit_cost === null || l.unit_cost === undefined ? "No rate" : formatMoneyCents(Number(l.unit_cost))}</td>
                         <td className="small">{rate ? `${rate.name} from ${rate.effective_from ? formatDate(rate.effective_from) : "—"}` : "Typed"}</td>
-                        <td className="num tabular">{formatMoney(Number(l.base ?? 0))}</td>
-                        <td className="num tabular">{formatMoney(Number(l.risk ?? 0))}{l.risk_pct ? <span className="muted small"> ({pct(Number(l.risk_pct))})</span> : null}</td>
-                        <td className="num tabular">{formatMoney(Number(l.price ?? 0))}</td>
+                        <td className="num tabular">{formatMoneyCents(Number(l.base ?? 0))}</td>
+                        <td className="num tabular">{formatMoneyCents(Number(l.risk ?? 0))}{l.risk_pct ? <span className="muted small"> ({pct(Number(l.risk_pct))})</span> : null}</td>
+                        <td className="num tabular">{formatMoneyCents(Number(l.price ?? 0))}</td>
                       </>
                     )}
                   </tr>
@@ -97,14 +97,14 @@ export function EstimateSummaryPage() {
           </table>
           {s.costs_visible && v.totals && (
             <dl className="kv">
-              <dt>Base cost</dt><dd className="tabular">{formatMoney(v.totals.base_cost)}</dd>
-              <dt>Risk reserve</dt><dd className="tabular">{formatMoney(v.totals.risk_reserve)}</dd>
+              <dt>Base cost</dt><dd className="tabular">{formatMoneyCents(v.totals.base_cost)}</dd>
+              <dt>Risk reserve</dt><dd className="tabular">{formatMoneyCents(v.totals.risk_reserve)}</dd>
               <dt>Pricing method</dt><dd>{v.pricing_method === "margin" ? `Target margin ${pct(v.pricing_pct)}` : `Markup ${pct(v.pricing_pct)} on the subtotal`}</dd>
-              <dt>Markup</dt><dd className="tabular">{formatMoney(v.totals.markup_amount)}</dd>
-              <dt>Owner pay</dt><dd>{v.owner_pay_method === "percent_of_price" ? `${pct(v.owner_pct)} of the price before owner pay: ${formatMoney(v.totals.owner_pay)}` : "None"}</dd>
+              <dt>Markup</dt><dd className="tabular">{formatMoneyCents(v.totals.markup_amount)}</dd>
+              <dt>Owner pay</dt><dd>{v.owner_pay_method === "percent_of_price" ? `${pct(v.owner_pct)} of the price before owner pay: ${formatMoneyCents(v.totals.owner_pay)}` : "None"}</dd>
               {v.burden_pct ? <><dt>Labor burden</dt><dd>{pct(v.burden_pct)} on labor whose rate excludes it</dd></> : null}
-              <dt><strong>Calculated selling price</strong></dt><dd className="tabular strong">{formatMoney(v.totals.selling_price)} <span className="muted small">(calculated; not a price sent)</span></dd>
-              <dt>Profit if the reserve isn't used</dt><dd className="tabular">{formatMoney(v.totals.markup_amount + v.totals.risk_reserve)}</dd>
+              <dt><strong>Calculated selling price</strong></dt><dd className="tabular strong">{formatMoneyCents(v.totals.selling_price)} <span className="muted small">(calculated; not a price sent)</span></dd>
+              <dt>Profit if the reserve isn't used</dt><dd className="tabular">{formatMoneyCents(v.totals.markup_amount + v.totals.risk_reserve)}</dd>
             </dl>
           )}
         </section>
@@ -119,7 +119,7 @@ export function EstimateSummaryPage() {
                   <td>{x.status}</td>
                   <td>{x.saved_at ? formatDate(x.saved_at) : "—"}</td>
                   <td>{x.approved_at ? formatDate(x.approved_at) : "—"}</td>
-                  {s.costs_visible && <><td className="num tabular">{x.base_cost === undefined || x.base_cost === null ? "—" : formatMoney(x.base_cost)}</td><td className="num tabular">{x.selling_price === undefined || x.selling_price === null ? "—" : formatMoney(x.selling_price)}</td></>}
+                  {s.costs_visible && <><td className="num tabular">{x.base_cost === undefined || x.base_cost === null ? "—" : formatMoneyCents(x.base_cost)}</td><td className="num tabular">{x.selling_price === undefined || x.selling_price === null ? "—" : formatMoneyCents(x.selling_price)}</td></>}
                   <td className="small">{x.revision_reason ?? ""}</td>
                 </tr>
               ))}
@@ -133,8 +133,8 @@ export function EstimateSummaryPage() {
                 {s.documents.map((q) => (
                   <tr key={q.quote_id}>
                     <td><Link to={`/quotes/${q.quote_id}`} style={U}>{q.presentation === "proposal" ? "Proposal" : "Quote"} #{q.number}</Link> <span className="muted small">from v{q.from_version ?? "—"}, {q.status}</span></td>
-                    <td>{q.sent.length ? q.sent.map((x) => `${formatMoney(x.total)} on ${formatDate(x.issued_at)} (estimate v${x.estimate_version ?? "—"})`).join("; ") : <span className="muted">Not sent</span>}</td>
-                    <td>{q.accepted ? `${formatMoney(q.accepted.total)}, signed ${formatDate(q.accepted.signed_at)}` : <span className="muted">Not accepted</span>}</td>
+                    <td>{q.sent.length ? q.sent.map((x) => `${formatMoneyCents(x.total)} on ${formatDate(x.issued_at)} (estimate v${x.estimate_version ?? "—"})`).join("; ") : <span className="muted">Not sent</span>}</td>
+                    <td>{q.accepted ? `${formatMoneyCents(q.accepted.total)}, signed ${formatDate(q.accepted.signed_at)}` : <span className="muted">Not accepted</span>}</td>
                   </tr>
                 ))}
               </tbody>

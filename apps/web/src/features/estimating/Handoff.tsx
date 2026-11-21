@@ -17,7 +17,7 @@ import { FormError } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { EmptyState } from "@/components/ui/States";
 import { supabase, unwrap } from "@/lib/api";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatMoneyCents } from "@/lib/format";
 import { can, useSession } from "@/lib/session";
 import { toast } from "@/lib/toast";
 import { canEstimate, estimateKey, type VersionRow } from "./data";
@@ -110,8 +110,8 @@ export function EstimateDocuments({ estimateId }: { estimateId: string }) {
                 <td><Link to={`/quotes/${q.quote_id}`} style={U}>{q.presentation === "proposal" ? "Proposal" : "Quote"} #{q.number}</Link></td>
                 <td>v{q.from_version ?? "—"}</td>
                 <td>{q.status}</td>
-                <td>{q.sent.length ? q.sent.map((s) => `${formatMoney(s.total)} (document v${s.version}, ${formatDate(s.issued_at)})`).join("; ") : <span className="muted">Not sent</span>}</td>
-                <td>{q.accepted ? `${formatMoney(q.accepted.total)} on ${formatDate(q.accepted.signed_at)}` : <span className="muted">—</span>}</td>
+                <td>{q.sent.length ? q.sent.map((s) => `${formatMoneyCents(s.total)} (document v${s.version}, ${formatDate(s.issued_at)})`).join("; ") : <span className="muted">Not sent</span>}</td>
+                <td>{q.accepted ? `${formatMoneyCents(q.accepted.total)} on ${formatDate(q.accepted.signed_at)}` : <span className="muted">—</span>}</td>
               </tr>
             ))}
           </tbody>
@@ -174,9 +174,9 @@ export function EstimateLink({ quote }: { quote: { id: string; status: string; e
               <thead><tr><th>Now (version {diff.from_version ?? "—"} or edited)</th><th className="num" /><th>After (version {diff.to_version})</th><th className="num" /></tr></thead>
               <tbody>
                 {Array.from({ length: Math.max(diff.current.length, diff.proposed.length) }, (_, i) => (
-                  <tr key={i}><td>{diff.current[i]?.name ?? ""}</td><td className="num tabular">{diff.current[i] ? formatMoney(diff.current[i].amount) : ""}</td><td>{diff.proposed[i]?.name ?? ""}</td><td className="num tabular">{diff.proposed[i] ? formatMoney(diff.proposed[i].amount) : ""}</td></tr>
+                  <tr key={i}><td>{diff.current[i]?.name ?? ""}</td><td className="num tabular">{diff.current[i] ? formatMoneyCents(diff.current[i].amount) : ""}</td><td>{diff.proposed[i]?.name ?? ""}</td><td className="num tabular">{diff.proposed[i] ? formatMoneyCents(diff.proposed[i].amount) : ""}</td></tr>
                 ))}
-                <tr><td><strong>Subtotal</strong></td><td className="num tabular strong">{formatMoney(diff.current_subtotal)}</td><td><strong>Subtotal</strong></td><td className="num tabular strong">{formatMoney(diff.proposed_subtotal)}</td></tr>
+                <tr><td><strong>Subtotal</strong></td><td className="num tabular strong">{formatMoneyCents(diff.current_subtotal)}</td><td><strong>Subtotal</strong></td><td className="num tabular strong">{formatMoneyCents(diff.proposed_subtotal)}</td></tr>
               </tbody>
             </table>
             <FormError error={apply.error} />
