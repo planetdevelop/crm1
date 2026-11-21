@@ -25,6 +25,7 @@ import { PlansCard } from "../plans/PlansCard";
 import { readyDraft } from "../quotes/DraftedCallout";
 import { VisitDialog, type VisitInput } from "../schedule/VisitDialog";
 import { askedFor, BookAskedTime } from "./AskedTime";
+import { PipelineCard, RequestActivity, requestPipelineKey } from "./PipelinePanel";
 import { memberName, requestSource, useTeam } from "./RequestsPage";
 
 export function RequestPage() {
@@ -55,6 +56,7 @@ export function RequestPage() {
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["request", id] });
     queryClient.invalidateQueries({ queryKey: ["requests", session.company.id] });
+    queryClient.invalidateQueries({ queryKey: requestPipelineKey(id) });
   };
   const toQuote = useMutation({
     meta: { success: "Quote started from this request", tone: "quote" },
@@ -256,9 +258,13 @@ export function RequestPage() {
               </div>
             </section>
           )}
+
+          {/* Planet Ops Phase 2: contacts, follow-ups and the pipeline history. */}
+          <RequestActivity requestId={r.id} canSell={canSell} />
         </div>
 
         <aside className="narrow stack">
+          <PipelineCard requestId={r.id} canSell={canSell} />
           <div className="card card-pad stack-sm">
             <strong>Client</strong>
             {r.client && <Link to={`/clients/${r.client.id}`} className="strong">{r.client.display_name}</Link>}
@@ -266,10 +272,10 @@ export function RequestPage() {
             {r.client?.phone && <ContactLine icon="phone" href={`tel:${r.client.phone}`}>{r.client.phone}</ContactLine>}
             <dl className="kv" style={{ marginTop: 8 }}>
               <dt>Property</dt><dd>{r.property ? addressLine(r.property) : "—"}</dd>
-              <dt>Salesperson</dt>
+              <dt>Owner</dt>
               <dd>
                 {canSell ? (
-                  <select className="select input-sm" aria-label="Salesperson" value={r.assigned_to ?? ""} disabled={assign.isPending || team.isPending} onChange={(e) => assign.mutate(e.target.value || null)}>
+                  <select className="select input-sm" aria-label="Owner" value={r.assigned_to ?? ""} disabled={assign.isPending || team.isPending} onChange={(e) => assign.mutate(e.target.value || null)}>
                     <option value="">Nobody yet</option>
                     {(team.data ?? [])
                       .filter((m) => (m.active && SALES.includes(m.role as Role)) || m.user_id === r.assigned_to)

@@ -365,7 +365,8 @@ merge Phase 1 first (#4 → #5 → #6 → #7), then 2a → 2b → 2c.
 
 | Slice | Scope | Implemented | Automated | Staging (manual) |
 | --- | --- | --- | --- | --- |
-| 2a | Stages, owner/estimator/next action/outcomes per request, history, contacts and pauses, follow-up cadence and templates (data), report and pricing history | Branch `claude/phase-2a-pipeline-model` | `planet_ops_pipeline_test.sql`, core `pipeline.test.ts` (CI runs the full suite) | Not yet |
+| 2a | Stages, owner/estimator/next action/outcomes per request, history, contacts and pauses, follow-up cadence and templates (data), report and pricing history | PR #8, branch `claude/phase-2a-pipeline-model` | `planet_ops_pipeline_test.sql`, core `pipeline.test.ts` (CI runs the full suite) | Not yet |
+| 2b | Pipeline board and list with the filters; the request's pipeline card, contact log, follow-ups and history | Branch `claude/phase-2b-pipeline-screens` (stacked on 2a) | Browser test `e2e/pipeline.spec.ts` (CI), web unit tests | Not yet |
 
 ### 2a: the pipeline's data and rules
 
@@ -417,6 +418,21 @@ Migration `20261122000100_planet_ops_pipeline.sql` (not yet released).
   in (screens, API, assistants); a crew lead sees no history or templates.
 - Shared rules for the screens (`packages/core/src/pipeline.ts`): what Needs first response, Follow-up
   due, Overdue, Waiting on customer, No next action and No owner mean; silence never closes a request.
+
+### 2b: the pipeline's screens
+
+- **Sales pipeline** (`/pipeline`, from Requests → Sales board): a **Requests** tab (the pipeline) and
+  the existing **Quotes** board, unchanged. Requests show as a **board** (one column per active open
+  stage and Nurture, sorted by next-action date, with the quoted value) or a **list** (stage and days
+  in it, owner and estimator, next action and date, last contact, quoted amount), remembered per
+  viewer. Filters: Active, Needs first response, Follow-up due, Overdue, Waiting on customer, No next
+  action, No owner, Decided (30 days), and whose (mine, no owner, a person). Dragging a card moves its
+  request; Lost and Unqualified drop zones ask why. Won isn't a target: it comes with the job.
+- **The request page**: a Sales pipeline card (stage, owner, estimator, last contact, first response,
+  days in stage, the reason once decided, next action and date, requested service, campaign, pause or
+  resume follow-ups) and a Follow-ups and contact history section (open follow-ups with Done and Add,
+  log a call/text/email/note with a template to start from, and the full history: moves, changes,
+  pauses and contacts with who and when). The client card's Salesperson is now Owner.
 
 ## Phase 1 staging acceptance checklist (owner)
 
