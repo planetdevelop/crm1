@@ -70,6 +70,8 @@ export function friendlyDbError(error: DbErrorLike): ApiError {
   if (code === "PGRST301" || code === "PGRST303" || /jwt expired/i.test(raw)) return new ApiError(msg("Your session has expired. Sign in again."), 401, code);
   // Our own database functions raise readable messages (codes 22023, P0001, P0002).
   if (code === "22023" || code === "P0001" || code === "P0002") return new ApiError(raw, code === "P0002" ? 404 : 400, code);
+  // Planet Ops: "someone else saved since you opened it" (a stale save, approval or refresh): say it as written.
+  if (code === "40001" && raw && !/could not serialize|deadlock/i.test(raw)) return new ApiError(raw, 409, code);
   if (/failed to fetch|networkerror|load failed/i.test(raw)) return new ApiError(OFFLINE, 0, "network");
   // Malformed requests won't succeed on retry.
   if (code.startsWith("PGRST") || code.startsWith("42")) {
