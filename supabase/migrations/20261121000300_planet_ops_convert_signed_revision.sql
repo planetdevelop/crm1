@@ -25,27 +25,38 @@ alter table public.jobs add constraint jobs_quote_version_fkey foreign key (comp
 comment on column public.jobs.request_id is 'Planet Ops: the request the job''s quote came from, set as it''s converted.';
 comment on column public.jobs.quote_version_id is 'Planet Ops: the exact version of the quote, proposal or change order the customer signed, which the job was made from.';
 
--- The signed version a job was made from is the database's to set, once, and is never another
--- quote's version, an unsigned one, or a version the signature didn't record:
---   - made with a job (converting is the only way that sets it), it must be the exact version the
---     job's own quote was signed on (quotes.approval ->> 'version_id', its signed_at set), in the
---     job's company, while that quote is signed;
---   - afterwards nobody (the office's screens, the API, an assistant, the server) sets, clears or
---     replaces it, nor moves the job to another quote under it. A job without one (Create Job, or
---     made before versions were kept) stays without one: no signed history is invented for it.
+-- The signed version a job was made from is set only by converting the signed document, once, and
+-- is never another quote's version, an unsigned one, or a version the signature didn't record:
+--   - convert_quote_to_job (below) is the one way it's set: that function runs as its owner, marks
+--     the quote it's converting for the rest of its transaction, and inserts the job with the
+--     version. Anything else that sets it (signed-in staff, the API, an assistant, the server's
+--     service role, even with the right quote and version, or the marker) isn't the function's
+--     owner and is refused. It's also checked to be the exact version the job's own quote was signed
+--     on (quotes.approval ->> 'version_id', signed_at set), in the job's company, while that quote
+--     is signed and not yet converted.
+--   - afterwards nobody sets, clears or replaces it, nor moves the job to another quote under it. A
+--     job without one (Create Job, or made before versions were kept) stays without one: no signed
+--     history is invented for it.
 --   - only when the version itself is gone (its quote or company deleted) does the link go with it.
+-- Whether a version or quote still exists, whatever its reader may see.
+create function private.signed_link_target_exists(p_version uuid, p_quote uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select case when p_version is not null then exists (select 1 from public.quote_versions where id = p_version)
+              else exists (select 1 from public.quotes where id = p_quote) end
+$$;
+-- Runs as whoever is writing (not as its owner), so it can tell the conversion from anyone else.
 create function private.job_signed_version_stays() returns trigger
-language plpgsql security definer set search_path = '' as $$
-declare q public.quotes; v public.quote_versions;
+language plpgsql security invoker set search_path = '' as $$
+declare q public.quotes; v public.quote_versions; v_converter name;
 begin
   if tg_op = 'UPDATE' then
     if old.quote_version_id is not null then
       if new.quote_version_id is distinct from old.quote_version_id
-         and not (new.quote_version_id is null and not exists (select 1 from public.quote_versions where id = old.quote_version_id)) then
+         and not (new.quote_version_id is null and not private.signed_link_target_exists(old.quote_version_id, null)) then
         raise exception 'A job keeps the signed version it was made from.' using errcode = '22023';
       end if;
       if new.quote_id is distinct from old.quote_id
-         and not (new.quote_id is null and not exists (select 1 from public.quotes where id = old.quote_id)) then
+         and not (new.quote_id is null and not private.signed_link_target_exists(null, old.quote_id)) then
         raise exception 'A job made from a signed version stays with the quote it was signed on.' using errcode = '22023';
       end if;
       return new;
@@ -59,19 +70,25 @@ begin
   if new.quote_version_id is null then
     return new;
   end if;
+  select pg_get_userbyid(p.proowner) into v_converter from pg_proc p where p.oid = 'public.convert_quote_to_job(uuid)'::regprocedure;
+  if current_user is distinct from v_converter or new.quote_id is null
+     or current_setting('planet_ops.converting_quote', true) is distinct from new.quote_id::text then
+    raise exception 'A job''s signed version is set only as a signed document is converted.' using errcode = '22023';
+  end if;
   select * into q from public.quotes where id = new.quote_id and company_id = new.company_id;
   select * into v from public.quote_versions where id = new.quote_version_id and company_id = new.company_id;
   if q.id is null or v.id is null or v.quote_id <> q.id then
     raise exception 'A job''s signed version must be a version of its own quote.' using errcode = '22023';
   end if;
-  if v.signed_at is null or q.status not in ('approved', 'converted') or (q.approval ->> 'version_id') is distinct from v.id::text then
+  if v.signed_at is null or q.status <> 'approved' or (q.approval ->> 'version_id') is distinct from v.id::text then
     raise exception 'A job''s signed version must be the exact version its quote was signed on.' using errcode = '22023';
   end if;
   return new;
 end $$;
 create trigger jobs_signed_version_stays before insert or update of quote_version_id, quote_id on public.jobs
   for each row execute function private.job_signed_version_stays();
-revoke execute on function private.job_signed_version_stays() from public;
+revoke execute on function private.signed_link_target_exists(uuid, uuid) from public;
+grant execute on function private.signed_link_target_exists(uuid, uuid) to authenticated, service_role;
 
 -- One job per quote, where that already holds (it does, as convert_quote_to_job makes one); a
 -- database with an old duplicate keeps working and is told so.
@@ -85,14 +102,18 @@ begin
 end $$;
 
 -- As in 20261101000400_quote_schedule.sql, and: converting again returns the job it made; the job
--- records the request and the signed version.
+-- records the request and the signed version. It now runs as its owner, the only one allowed to
+-- link a job to its signed version (above), and checks for itself who may convert: the same people
+-- its quote and job rules let convert before (owners, admins, office and estimators with the sales
+-- area; the server). Anyone else is told the quote isn't found, as before.
 create or replace function public.convert_quote_to_job(p_quote uuid) returns uuid
-language plpgsql security invoker set search_path = '' as $$
+language plpgsql security definer set search_path = '' as $$
 declare q public.quotes; v_job uuid; v_label text; v_today date; v_repeats boolean; v_version uuid;
 begin
   -- Locked while it's converted: a second click or request waits here, then finds the job.
   select * into q from public.quotes where id = p_quote for update;
-  if not found then
+  if not found or ((select auth.uid()) is not null
+                   and not (private.has_role(q.company_id, '{owner,admin,office,estimator}') and private.has_perm(q.company_id, 'sales'))) then
     raise exception 'Quote not found' using errcode = 'P0002';
   end if;
   if q.status = 'converted' then
@@ -119,6 +140,8 @@ begin
 
   v_repeats := q.recurrence_rule is not null;
   select (now() at time zone coalesce(c.timezone, 'UTC'))::date into v_today from public.companies c where c.id = q.company_id;
+  -- Marks this quote as the one being converted, for the guard on the job's signed version.
+  perform set_config('planet_ops.converting_quote', q.id::text, true);
   insert into public.jobs (company_id, client_id, property_id, quote_id, request_id, quote_version_id, title, instructions, kind, recurrence_rule, active_months, starts_on, ends_on, billing_mode)
   values (
     q.company_id, q.client_id, q.property_id, q.id, q.request_id, v_version, q.title, q.message,
@@ -130,6 +153,7 @@ begin
     case when v_repeats then 'per_visit' else 'on_completion' end
   )
   returning id into v_job;
+  perform set_config('planet_ops.converting_quote', '', true);
 
   insert into public.job_line_items (company_id, job_id, service_id, name, description, quantity, unit, unit_price, unit_cost, taxable, sort)
   select company_id, v_job, service_id, name, description, quantity, unit, unit_price, unit_cost, taxable, sort

@@ -262,6 +262,18 @@ step("4. The quote goes to the customer, who approves it online");
 }
 
 step("5. The quote becomes a job");
+{
+  // Signed, not yet converted, no job: a job inserted through the API with its correct quote and
+  // exact signed version is refused. Only converting links a job to the signed version.
+  const signed = must(await owner.db.from("quotes").select("status, approval, request_id, property_id").eq("id", quoteId).single(), "signed quote");
+  check(signed.status === "approved" && signed.approval?.version_id, "the signed quote has its signed version", signed);
+  for (const [who, label] of [[ops, "the operations manager"], [owner, "the owner"]]) {
+    const direct = await who.db.from("jobs").insert({ company_id: companyId, client_id: client.id, property_id: signed.property_id, request_id: signed.request_id, title: "E2E job inserted with the signed version", quote_id: quoteId, quote_version_id: signed.approval.version_id }).select("id");
+    check(direct.error && /set only as a signed document is converted/.test(direct.error.message), `${label} can't insert a job linked to the signed version through the API`, direct);
+  }
+  const none = must(await owner.db.from("jobs").select("id").eq("quote_id", quoteId), "jobs for the quote");
+  check(none.length === 0, "and no job was left behind");
+}
 const convert = await api(ops, "POST", `/quotes/${quoteId}/convert`);
 check(convert.status === 201, "the operations manager converts it to a job", convert.body);
 const jobId = convert.body.job_id;

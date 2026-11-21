@@ -90,11 +90,11 @@ select tpo_cv.expect_error(format('update public.jobs set quote_id = %L where id
 select tpo_cv.expect_error(format('update public.jobs set quote_id = null, quote_version_id = null where id = %L', :'job'),
   'nor unlink both at once');
 select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_id, title, quote_version_id) values (%L, %L, %L, %L)', :'co', :'client', 'No quote, a version', :'other_v2'),
-  'a job with no quote can''t claim a signed version', '%its own quote%');
+  'a job with no quote can''t claim a signed version', '%set only as a signed document is converted%');
 select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_id, title, quote_id, quote_version_id) values (%L, %L, %L, %L, %L)', :'co', :'client', 'Wrong version', :'other', :'v2'),
-  'a job can''t claim another quote''s version', '%its own quote%');
+  'a job can''t claim another quote''s version', '%set only as a signed document is converted%');
 select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_id, title, quote_id, quote_version_id) values (%L, %L, %L, %L, %L)', :'co', :'client', 'Unsigned version', :'other', :'other_v1'),
-  'nor its own quote''s unsigned version', '%exact version%');
+  'nor its own quote''s unsigned version', '%set only as a signed document is converted%');
 update public.jobs set title = 'House demolition (front lot)' where id = :'job';
 commit;
 select tpo_cv.check((select quote_id = :'quote' and quote_version_id = :'v2' and title = 'House demolition (front lot)' from public.jobs where id = :'job'),
@@ -103,6 +103,66 @@ select tpo_cv.check((select quote_id = :'quote' and quote_version_id = :'v2' and
 -- The server (nobody signed in) is held to the same.
 select tpo_cv.expect_error(format('update public.jobs set quote_version_id = %L where id = %L', :'other_v2', :'job'),
   'the server can''t replace it either', '%keeps the signed version%');
+
+-- The exact case: a signed quote, not yet converted and with no job, and a job inserted straight
+-- into the table with its correct quote and exact signed version, every other field valid. Only the
+-- conversion sets that link: staff, staff setting the conversion's marker themselves, the server's
+-- service role and a direct write with nobody signed in are all refused, and nothing is left behind.
+insert into public.quotes (company_id, client_id, property_id, request_id, title) values (:'co', :'client', :'property', :'request', 'Pool demolition') returning id as pool \gset
+insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'pool', 'Remove pool', 1, 'ea', 12000);
+update public.quotes set status = 'sent', sent_at = now() where id = :'pool';
+select planet_test.sign(:'pool');
+select approval ->> 'version_id' as pool_v from public.quotes where id = :'pool' \gset
+select tpo_cv.check((select status = 'approved' from public.quotes where id = :'pool') and not exists (select 1 from public.jobs where quote_id = :'pool')
+                    and (select signed_at is not null from public.quote_versions where id = :'pool_v'),
+  'a fresh signed quote, unconverted, with no job');
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub": "a1000000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
+select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_id, property_id, request_id, title, quote_id, quote_version_id) values (%L, %L, %L, %L, %L, %L, %L)', :'co', :'client', :'property', :'request', 'Pool demolition', :'pool', :'pool_v'),
+  'staff can''t insert a job with its correct quote and exact signed version', '%set only as a signed document is converted%');
+select set_config('planet_ops.converting_quote', :'pool', true);
+select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_id, property_id, request_id, title, quote_id, quote_version_id) values (%L, %L, %L, %L, %L, %L, %L)', :'co', :'client', :'property', :'request', 'Pool demolition', :'pool', :'pool_v'),
+  'not even after setting the conversion''s marker themselves', '%set only as a signed document is converted%');
+commit;
+begin;
+set local role service_role;
+select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_id, property_id, request_id, title, quote_id, quote_version_id) values (%L, %L, %L, %L, %L, %L, %L)', :'co', :'client', :'property', :'request', 'Pool demolition', :'pool', :'pool_v'),
+  'nor the server''s service role', '%set only as a signed document is converted%');
+commit;
+select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_id, property_id, request_id, title, quote_id, quote_version_id) values (%L, %L, %L, %L, %L, %L, %L)', :'co', :'client', :'property', :'request', 'Pool demolition', :'pool', :'pool_v'),
+  'nor a direct write with nobody signed in', '%set only as a signed document is converted%');
+select tpo_cv.check(not exists (select 1 from public.jobs where quote_id = :'pool')
+                    and not exists (select 1 from public.job_folder_provisioning p join public.jobs j on j.id = p.job_id where j.quote_id = :'pool')
+                    and (select status = 'approved' from public.quotes where id = :'pool'),
+  'nothing is left behind: no job, no folder handoff, the quote still signed and unconverted');
+-- Converting it (as staff) still makes the one job, linked, with its lines and handoff.
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub": "a1000000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
+select public.convert_quote_to_job(:'pool') as pool_job \gset
+commit;
+select tpo_cv.check((select client_id = :'client' and property_id = :'property' and request_id = :'request' and quote_id = :'pool' and quote_version_id = :'pool_v' and title = 'Pool demolition' from public.jobs where id = :'pool_job')
+                    and (select count(*) from public.job_line_items where job_id = :'pool_job' and unit_price = 12000) = 1
+                    and (select count(*) from public.job_folder_provisioning where job_id = :'pool_job' and source = 'converted') = 1
+                    and (select status = 'converted' from public.quotes where id = :'pool')
+                    and current_setting('planet_ops.converting_quote', true) is distinct from :'pool',
+  'converting it as staff makes its one job: customer, property, request, quote, exact version, lines and handoff');
+select tpo_cv.check(public.convert_quote_to_job(:'pool') = :'pool_job' and (select count(*) from public.jobs where quote_id = :'pool') = 1, 'and converting again returns it');
+
+-- Who may convert is unchanged: a member without the sales area is told it isn't found.
+insert into auth.users (id, email, raw_user_meta_data) values ('a1000000-0000-0000-0000-000000000009', 'crew@planet-cv.test', '{"full_name": "Test Crew"}');
+insert into public.memberships (company_id, user_id, role) values (:'co', 'a1000000-0000-0000-0000-000000000009', 'crew_lead');
+insert into public.quotes (company_id, client_id, title) values (:'co', :'client', 'Fence demolition') returning id as fence \gset
+insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'fence', 'Remove fence', 1, 'ea', 800);
+update public.quotes set status = 'sent', sent_at = now() where id = :'fence';
+select planet_test.sign(:'fence');
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub": "a1000000-0000-0000-0000-000000000009", "role": "authenticated"}', true);
+select tpo_cv.expect_error(format('select public.convert_quote_to_job(%L)', :'fence'), 'a crew lead can''t convert a signed quote', '%Quote not found%');
+commit;
+select tpo_cv.check(not exists (select 1 from public.jobs where quote_id = :'fence'), 'and no job was made');
 
 -- A job without a link (made before versions were kept) keeps working and gets no invented history.
 insert into public.jobs (company_id, client_id, property_id, title, quote_id) values (:'co', :'client', :'property', 'Barn demolition (older job)', :'other') returning id as legacy \gset
@@ -170,7 +230,7 @@ select set_config('request.jwt.claims', '{"sub": "a1000000-0000-0000-0000-000000
 select tpo_cv.expect_error(format('update public.jobs set quote_version_id = %L where id = %L', :'v2', :'direct'),
   'and staff can''t give a Create Job job a signed version afterwards', '%set only as a signed document is converted%');
 select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_id, title, quote_version_id) values (%L, %L, %L, %L)', :'co', :'client', 'Direct with a version', :'v2'),
-  'nor create one with a signed version', '%its own quote%');
+  'nor create one with a signed version', '%set only as a signed document is converted%');
 commit;
 select tpo_cv.check((select status from public.quotes where id = :'unsigned') = 'draft' and (select approval is null from public.quotes where id = :'unsigned'),
   'and claims nothing was accepted');
