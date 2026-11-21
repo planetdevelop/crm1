@@ -1,5 +1,8 @@
 /**
- * Sales pipeline: open requests and quotes as a board with value and age. Drag a request to
+ * Planet Ops Phase 2: the Sales pipeline. "Requests" is the pipeline itself (RequestPipeline: each
+ * request by its stage, with its owner, next action and filters); "Quotes" is the quote board below.
+ *
+ * The quote board: open requests and quotes as a board with value and age. Drag a request to
  * "Drafting quote" to start a quote, a draft to "Awaiting response" to send it, or anything to "Lost".
  * Planet Ops: a quote reaches "Approved" only when the customer signs it (the database refuses an
  * office approval), so a quote dropped there is refused with how it gets signed. Until it's signed,
@@ -8,7 +11,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type DragEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { confirm } from "@/components/ui/Confirm";
 import { Icon } from "@/components/ui/Icon";
 import { BackLink, PageHeader } from "@/components/ui/PageHeader";
@@ -22,6 +25,7 @@ import { toast, type ToastTone } from "@/lib/toast";
 import { listPrice, withOptionLines } from "../quotes/options";
 import { optionsNote } from "../quotes/QuotesPage";
 import { SendDialog } from "../quotes/SendDialog";
+import { RequestPipeline } from "./RequestPipeline";
 
 interface Card {
   kind: "request" | "quote";
@@ -64,7 +68,31 @@ const COLUMNS: Array<{ key: ColumnKey; label: string; statuses: string[]; kind: 
 
 const daysOld = (iso: string) => Math.floor((Date.now() - Date.parse(iso)) / 86_400_000);
 
+const TABS = [
+  { key: "requests", label: "Requests" },
+  { key: "quotes", label: "Quotes" },
+] as const;
+type Tab = (typeof TABS)[number]["key"];
+
 export function PipelinePage() {
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = TABS.find((t) => t.key === params.get("view"))?.key ?? "requests";
+  return (
+    <>
+      <BackLink to="/requests">Requests</BackLink>
+      <PageHeader title="Sales pipeline" />
+      <div className="tabs" role="group" aria-label="Sales pipeline" style={{ marginBottom: 16 }}>
+        {TABS.map((t) => (
+          <button key={t.key} type="button" className="tab" aria-pressed={tab === t.key} onClick={() => setParams(t.key === "requests" ? {} : { view: t.key }, { replace: true })}>{t.label}</button>
+        ))}
+      </div>
+      {tab === "requests" && <RequestPipeline />}
+      {tab === "quotes" && <QuoteBoard />}
+    </>
+  );
+}
+
+function QuoteBoard() {
   const { company } = useSession();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -161,8 +189,6 @@ export function PipelinePage() {
 
   return (
     <>
-      <BackLink to="/quotes">Quotes</BackLink>
-      <PageHeader title="Sales board" />
       {data.data && (
         <div className="stat-row">
           <div className="card stat"><div className="label">Open quotes</div><div className="value">{formatMoney(openValue)}</div><div className="hint">{cards.filter((c) => c.kind === "quote").length} quotes · {cards.filter((c) => c.kind === "request").length} requests</div></div>
