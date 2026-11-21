@@ -8,7 +8,7 @@ phase's acceptance evidence here.
 | 0: fork/staging baseline, shared records, permissions, Planet Ops name | **Merged** (PR #1). Railway staging exists (owner-confirmed): https://crewtavo-staging.up.railway.app/ |
 | 1: quotes, proposals, terms, signatures, change orders | **In progress**: 1a and 1b merged (PR #2, #3); 1b follow-up, 1c, 1d, 1e in stacked PRs (see Phase 1) |
 | 2: a real sales pipeline | **In progress**: 2a (data, rules, reports) in a PR stacked on Phase 1e (#7); 2b and 2c (screens) stacked on 2a. See Phase 2 |
-| 3: estimating (internal calculator and database) | **In progress**: 3a (data, rates, calculation, privacy) stacked on 2d; 3b (workspace) and 3c (customer-document handoff, summaries, job linkage) stacked on 3a. See Phase 3 |
+| 3: estimating (internal calculator and database) | **Implemented, not yet verified in staging**: 3a (data, rates, calculation, privacy) stacked on 2d; 3b (workspace), 3c (customer-document handoff, summaries, job linkage) and 3d (hardening: the estimate behind each document is kept; reviewed approvals and refreshes; pricing protections) stacked in order. Waiting for owner input on the decisions below. See Phase 3 |
 | 4–9 | Not started. Gusto and historical import remain deferred |
 
 ## Phase 0 (branch `claude/phase-0-foundation`)
@@ -461,7 +461,8 @@ Migration `20261123000100_planet_ops_pipeline_followups.sql` (not yet released).
   the pause closed are reopened as the same follow-ups (due when they were, or today if that day has
   passed); a step the pause kept from being made (the stage was entered while paused) is made, due as
   it would have been, or today. Completed reminders stay completed; reminders from an earlier stage
-  stay closed; manual follow-ups were never closed by a pause. Repeated resumes and retries make
+  stay closed; manual follow-ups were never closed by a pause. The cadence isn't restarted from the day
+  of resuming (re-verified in `planet_ops_pipeline_resume_policy_test.sql`). Repeated resumes and retries make
   nothing twice (each reminder's identity is its stage entry and step). A decided request (Won, Lost,
   Unqualified) can't be resumed by hand (move it back into the pipeline), nor one whose customer opted
   out of messages or texts.
@@ -501,7 +502,7 @@ Migration `20261123000100_planet_ops_pipeline_followups.sql` (not yet released).
 ## Phase 3: Estimating, the internal calculator and database (in progress)
 
 Built on Phase 2d (`claude/phase-2d-pipeline-followups`, PR #11), since Phases 1 and 2 aren't merged:
-merge #4 → #5 → #6 → #7 → #8 → #9 → #10 → #11, then 3a → 3b → 3c.
+merge #4 → #5 → #6 → #7 → #8 → #9 → #10 → #11, then 3a → 3b → 3c → 3d (#12 → #13 → #14 → #15). 3d fixes defects in 3a and 3c: merge it with them, not later.
 
 Reference: [planet-ops/ESTIMATING_MAPPING.md](planet-ops/ESTIMATING_MAPPING.md) (the workbooks read
 cell by cell, the verified calculation order, the issues found, the app's rules, and the parity check).
@@ -510,7 +511,14 @@ cell by cell, the verified calculation order, the issues found, the app's rules,
 | --- | --- | --- | --- | --- |
 | 3a | Estimating areas; rates with effective dates; estimates, versions (draft → approved baseline → revisions), lines; exact totals; cost privacy; one summary record per estimate | PR #12, branch `claude/phase-3a-estimating-model` (stacked on 2d) | `planet_ops_estimating_test.sql`, core `estimating.test.ts`, parity script against the real workbook (local, 44/45 to the cent) | Not yet |
 | 3b | The Estimating tab: list and search, New estimate (from a request or alone), the guided editor (project and site, labor, equipment, disposal and hauling, other costs, pricing review, versions), Settings → Estimating (rates, approval), Start estimate on a request | PR #13, branch `claude/phase-3b-estimating-workspace` (stacked on 3a) | Browser test `e2e/estimating.spec.ts` (CI; includes tablet and phone width checks), web unit tests | Not yet |
-| 3c | Create quote / proposal from an estimate version (unsent draft, prices only); explicit refresh with differences; issued versions and the job keep the exact estimate version; the Estimate Summary; estimator guide | Branch `claude/phase-3c-estimate-handoff` (stacked on 3b) | `planet_ops_estimate_handoff_test.sql`, browser test `e2e/estimate-handoff.spec.ts` (CI; checks the customer's page and data hold nothing internal) | Not yet |
+| 3c | Create quote / proposal from an estimate version (unsent draft, prices only); explicit refresh with differences; issued versions and the job keep the exact estimate version; the Estimate Summary; estimator guide | PR #14, branch `claude/phase-3c-estimate-handoff` (stacked on 3b) | `planet_ops_estimate_handoff_test.sql`, browser test `e2e/estimate-handoff.spec.ts` (CI; checks the customer's page and data hold nothing internal) | Not yet |
+| 3d | Hardening: a document's estimate version is kept exactly (locked when used without approval); approvals, document creation and refreshes act only on what the person reviewed; a preparer can't move hidden pricing; errors don't show costs; links checked; fixed calculation cases in both engines; Phase 2 resume policy verified | PR #15, branch `claude/phase-3d-estimate-hardening` (stacked on 3c) | `planet_ops_estimate_preservation_test.sql` (incl. two-connection concurrency), `planet_ops_estimate_permissions_test.sql`, `planet_ops_estimating_cases_test.sql` + web `estimatingCases.test.ts` (17 shared cases), `planet_ops_pipeline_resume_policy_test.sql`, browser test `e2e/estimate-preservation.spec.ts` (CI) | Not yet |
+
+Status words used here: **implemented** (code in a PR); **automated tests passed** (named tests, locally
+and/or in CI on the PR's final commit); **manually verified in an isolated preview** (only where said:
+this session had no local Supabase for a signed-in preview, so screens were checked by the browser
+tests in CI, not by hand); **not yet verified in staging** (all of Phase 3); **waiting for owner input**
+(the decisions listed below).
 
 ### 3a: data, rates, calculation, privacy
 
@@ -619,23 +627,117 @@ Migration `20261125000100_planet_ops_estimate_handoff.sql` (not yet released).
   No folder is made for an estimate or a quote (tested); no Drive sync runs.
 - **Customer pages**: the hub reads only the document's own columns; the browser test checks the
   customer's page and its data carry no internal line name, note or cost.
-- **Assistants** read estimates under the same rules (rows by role and area; costs only through the
-  costs function with *See estimating costs*); estimating writes aren't among the assistants' write
-  functions, so they can't change estimates.
-- Guide for estimators: [planet-ops/ESTIMATOR_GUIDE.md](planet-ops/ESTIMATOR_GUIDE.md).
+- **Assistants** have no estimating tools: they can't read or change estimates, and the documents
+  they read carry no costs (the quote line's own cost is empty).
+- Guide for estimators: [planet-ops/ESTIMATOR_GUIDE.md](planet-ops/ESTIMATOR_GUIDE.md). First staging walkthrough:
+  [planet-ops/STAGING_WALKTHROUGH_PHASE3.md](planet-ops/STAGING_WALKTHROUGH_PHASE3.md). Phase 4 handoff (planning only):
+  [planet-ops/PHASE4_HANDOFF.md](planet-ops/PHASE4_HANDOFF.md).
+
+### 3d: hardening (defects found in review, fixed and tested)
+
+Migration `20261126000100_planet_ops_estimate_preservation.sql` (not yet released; 3a and 3c's are not
+released either).
+
+- **Defect 1 (reproduced, fixed): the estimate behind a document could change.** With *approval
+  required* switched off, a document could be made from a saved draft, and the draft stayed editable:
+  the document, its issued versions and the job pointed at a version whose scope, quantities, rates
+  and prices could still change. Reproduced through the database functions: a line-item quote made
+  from draft v1 at $4,375; v1 then saved to $7,875; the quote signed and converted (the job linked
+  v1); v1 saved again to $15,250. Now, making or refreshing a document from a draft **locks** that
+  version (status *used for a document*, with when and by whom): it can't be saved or written to
+  (not even directly in the database), later changes are a **revision**, and the document keeps what
+  it was made from. **Locking is not approval**: no approver or approval time is recorded and it
+  doesn't become the baseline; it can be approved later, as it is, by someone with *Approve
+  estimates* (that approval is then recorded for real). With approval required (the default), only
+  approved versions are used, as before. Versions a document already used are locked by the migration.
+- **Defect 2 (fixed): reviewed actions.** Approving now takes the revision the approver was shown
+  (refused, with "reload and review", if someone saved since); making a document from a draft takes
+  the revision the person saw; **Refresh from estimate** takes a token of the differences shown and is
+  refused if the document's lines or scope, or the estimate version, changed since. Making a document
+  locks the version row first, so a save in progress finishes before it reads and none can start
+  after: no document mixes two saves (tested with two database connections; also: a save during
+  document creation waits and is then refused; two simultaneous conversions make one job).
+- **Defect 3 (fixed): retries with other data.** A retried *Create quote / proposal* or *New estimate*
+  with the same key returns the same record; the same key asking for a different version, document
+  type, request, customer or property is refused instead of silently returning the first record.
+- **Defect 4 (fixed): a preparer without cost access could move hidden pricing through the save.**
+  The screen hides costs, but the database accepted a line's **risk %** and **"rate includes burden"**
+  from the payload, and a line's carried cost moved with its id into any section (for example into
+  Labor, where burden applies). Now, without *See estimating costs*: risk % and the burden flag stay
+  as they were (a new line gets the estimate's default risk and its rate's flag), a carried cost stays
+  only with the same line in the same section, the default risk can't be changed, and a newly picked
+  rate must be in effect today (a superseded, cheaper rate is refused; someone with cost access may
+  still pick one on purpose). Picking a current rate works as before.
+- **Defect 5 (fixed): an error could show a hidden cost.** A refused value (a negative count, say)
+  returned PostgreSQL's "failing row" detail, which listed the line's stored unit cost to someone who
+  can't see costs. Saves now name the line and the rule instead.
+- **Links**: an estimate's property must be its customer's; its customer is its request's; its
+  estimator is on the team; another business's customer is refused; a document is refreshed only
+  from an estimate for the document's own customer (a manual quote for customer B can't be filled
+  from customer A's estimate).
+- **Calculation**: 17 fixed, fictional cases (`supabase/tests/estimating_cases.json`) with expected
+  figures worked out apart from the app (Python Decimal, half up) run through both the screens'
+  engine and the database: markup vs target margin; owner pay off, on, and on at 0%; burden on labor
+  whose rate excludes it and not on a fully loaded rate or equipment; overtime as its own hourly
+  rate; equipment with fuel in the rate plus a fuel line (warned, not blocked) and without; gallons vs
+  miles; tons priced with loose CY, container CY and loads stored apart; per-line and default risk;
+  a credit; fractional quantities; half-cent and leftover-cent rounding; all zero; a missing rate and
+  owner pay without its % (incomplete); no contingency (warned). Customer lines add up to the selling
+  price in every case. The database refuses a 100% margin, negative percentages, a negative cost
+  outside Other, unknown units, and numbers that aren't numbers.
+- **What the checks found about claims in earlier reports**: the double-fuel check is a **warning,
+  not a block** (it is now worded to say so and what to do); burden protection relies on each rate or
+  line saying whether it already includes burden (the flag comes from the rate when one is picked);
+  the original approved baseline is part of Phase 3 already, and Phase 4 builds its comparisons on it.
+  The Phase 2 resume policy is as documented in 2d (reminders keep their own due date, or today if
+  overdue; the cadence isn't restarted from the resume date): an earlier summary said otherwise and
+  was wrong. Verified in `planet_ops_pipeline_resume_policy_test.sql`, with the company's date
+  boundary and Won by sales only.
+- **Screens**: the job shows the estimate version it was made from (for people with Estimating), with
+  links to the estimate and its summary. A used version says *used for a customer document, kept exactly as it was (it isn't
+  approved)* and offers Revise; the create dialog says a draft will be locked; the refresh dialog
+  offers *Review the differences again* when refused as stale; the summary shows the original
+  approved estimated cost, the latest estimated cost, and *actual costs, invoices and payments: not
+  tracked here yet (nothing here means $0)*.
+- **Access review**: the estimating tables are reached only through the database (no API route, no
+  export, and no assistant tool reads or writes them); every rule above is enforced there and tested
+  per role: prepare only, prepare + costs, approve without costs, sales without estimating,
+  estimating without send pricing (makes the draft, can't send), crew, another business, nobody
+  signed in.
 
 ### Phase 3 decisions for the owner
 
-- The workbook issues **P1–P9** in [planet-ops/ESTIMATING_MAPPING.md](planet-ops/ESTIMATING_MAPPING.md)
-  §4: per-sq-ft area, travel by mileage vs fuel, the truck-fuel quantity, labels, whether a global
-  risk reserve applies, the OT rate's meaning, contingency as a line or a reserve, and whether owner
-  pay is a cost or profit (the app shows it apart from profit until decided).
-- **Rates**: enter the business's own rates (none are preset; the workbook's are not loaded).
-- **Labor burden**: whether rates are fully loaded or a burden % applies (no default).
-- **Approval**: who approves estimates (owners, admins and General manager by default), and whether
-  approval stays required before a customer document (on by default).
-- **Sales tax** on demolition services: Quotes & Proposals applies the business's tax settings on
-  top of the estimate's selling price.
+Nothing below is decided by the app; until you decide, it does what's described, and says so.
+
+1. **Overtime** (P6). The workbook's note says "half-time OT rate", but its OT cell is a full hourly
+   rate. Today an OT line is its own hourly rate: 2 people × 2 h at a $37.50 OT rate = $150. If OT
+   should be "regular rate + half", say so: then $25 regular → $12.50 extra per OT hour.
+2. **Travel** (P2, P3). Mileage ($/mile × round-trip miles: 84 mi × $0.70 = $58.80), truck fuel
+   (gallons × $/gal: 12.5 gal × $4.899 = $61.24), or both? Today both are possible as separate lines.
+3. **Contingency** (P8). A line you always add (today: warned when missing), the per-line risk %, or
+   both? Example: a $150 contingency line plus 10% risk on a $1,200 sub quote adds $150 + $120.
+4. **Global risk reserve** (P5). The workbook's global % is never used; each line's % is. Should a
+   global % apply on top? Today it only pre-fills new lines' risk.
+5. **Owner pay** (P9). Cost or profit? Today it's added on top of the price before it (10% of $750 =
+   $75) and shown apart from profit and from the sheet margin.
+6. **Price per sq ft** (P1). The workbook divides by the bid date cell (I3) on some rows. The app
+   divides by the estimate's area: $2,184 ÷ 480 sq ft = $4.55/sq ft. Confirm.
+7. **Labels** (P4). "TOTAL PROJECT COST" is the price with markup; "Final Cost" is the bid price. The
+   app says *price before owner pay* and *calculated selling price*. Approve or rename.
+8. **Burden**. Are your labor rates fully loaded (tick *includes burden*), or does a burden % apply
+   (Pricing review)? No default: with neither, labor is priced at the bare rate.
+9. **Approval**. Keep *approval required before a customer document* on (default)? If you switch it
+   off, documents lock the draft they're made from instead (no approval is recorded). Who approves:
+   owners, admins and General manager by default; an approver doesn't need to see costs (the test
+   role does exactly that): should approvers always have cost access?
+10. **Who prepares and who sees costs.** Office and estimator roles prepare and see costs by default;
+    a custom role can prepare without costs. Decide per person: no real employee was given access here.
+11. **Sales tax** on demolition services: Quotes & Proposals adds the business's tax settings on top
+    of the estimate's selling price ($1,050 estimate → the document's total with tax). Confirm the rate
+    and whether demolition is taxable.
+12. **Rates**. None are preset and the workbook's aren't loaded: enter your own (Settings → Estimating).
+13. **Superseded rates**. A preparer can't pick a rate that's no longer in effect; someone with cost
+    access can (for an old estimate). Keep that?
 
 ## Phase 1 staging acceptance checklist (owner)
 
@@ -680,7 +782,7 @@ Run with fictional records once Phase 1 and PRs #8, #9 and the 2c PR are merged 
       reminder appears for the owner.
 - [ ] **Board and list**: each filter (Needs first response, Follow-up due, Overdue, Waiting on
       customer, No next action, No owner, Decided) and the owner filter; drag a card between stages;
-      Lost and Unqualified ask why; Won isn't offered.
+      Lost, Unqualified and Won ask why (Won by hand is a sales call: no job, signature or deposit).
 - [ ] **Request page**: change stage, estimator, next action and date, service, campaign; log a
       call, a text from the customer (follow-ups pause), an internal note; resume follow-ups; add and
       complete a follow-up; the history lists each with who and when.
@@ -716,4 +818,12 @@ Run with fictional records once Phases 1–2 and PRs #12, #13 and the 3c PR are 
       summary now says its copy belongs with the job (not backed up); no folder before the job.
 - [ ] **Summary**: one per estimate after many saves; prints; sent and accepted prices apart from the
       calculated price; a lost bid keeps it with its reason.
+- [ ] **Approval off** (Settings → Estimating): make a document from a saved draft; the estimate says
+      it's used for a document and can't be saved; Revise for changes; the document doesn't move.
+      Switch approval back on afterwards.
+- [ ] **Two people**: open the same estimate in two browsers; save in one, then the other: it asks to
+      reload. Approve from a screen opened before someone saved: it asks to reload and review.
+      Refresh a document, then change it before confirming: it asks to review again.
+- [ ] **Preparer role**: open the estimate as a custom role with *Prepare internal estimates* only;
+      change quantities; the costs and percentages stay as the cost person set them.
 - [ ] Tablet and phone: the estimate editor and summary are usable (physical devices are the owner's).

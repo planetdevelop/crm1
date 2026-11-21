@@ -208,3 +208,31 @@ export function EstimateLink({ quote }: { quote: { id: string; status: string; e
 }
 
 export { estimateKey };
+
+/** On a job: the internal estimate version its signed document was made from (Estimating people only). */
+export function JobEstimateLink({ jobId }: { jobId: string }) {
+  const session = useSession();
+  const allowed = canEstimate(session);
+  const link = useQuery({
+    queryKey: ["job-estimate", jobId],
+    enabled: allowed,
+    queryFn: async () => {
+      const job = unwrap(await supabase().from("jobs").select("estimate_version_id").eq("id", jobId).single()) as { estimate_version_id: string | null };
+      if (!job.estimate_version_id) return null;
+      const v = unwrap(await supabase().from("estimate_versions").select("id, number, status, estimate_id").eq("id", job.estimate_version_id).single());
+      const e = unwrap(await supabase().from("estimates").select("id, number, title").eq("id", v.estimate_id).single());
+      return { version: v, estimate: e };
+    },
+  });
+  if (!allowed || !link.data) return null;
+  const { version, estimate } = link.data;
+  return (
+    <div className="callout callout-info small" style={{ fontWeight: 400 }} data-planet-ops="job-estimate-link">
+      <Icon name="calculator" size={20} />
+      <span>
+        Made from internal estimate <Link to={`/estimates/${estimate.id}?version=${version.id}`} style={U}>#{estimate.number} {estimate.title}</Link>, version {version.number}
+        {version.status === "approved" ? " (approved)" : version.status === "locked" ? " (used for the document; not approved)" : ""}: the version the signed document was made from. See its <Link to={`/estimates/${estimate.id}/summary`} style={U}>summary</Link>.
+      </span>
+    </div>
+  );
+}
