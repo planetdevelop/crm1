@@ -25,6 +25,7 @@ import { toast, type ToastTone } from "@/lib/toast";
 import { listPrice, withOptionLines } from "../quotes/options";
 import { optionsNote } from "../quotes/QuotesPage";
 import { SendDialog } from "../quotes/SendDialog";
+import { PipelineReport, PricingHistory } from "./PipelineReport";
 import { RequestPipeline } from "./RequestPipeline";
 
 interface Card {
@@ -71,6 +72,8 @@ const daysOld = (iso: string) => Math.floor((Date.now() - Date.parse(iso)) / 86_
 const TABS = [
   { key: "requests", label: "Requests" },
   { key: "quotes", label: "Quotes" },
+  { key: "report", label: "Report" },
+  { key: "pricing", label: "Pricing history" },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
 
@@ -88,6 +91,8 @@ export function PipelinePage() {
       </div>
       {tab === "requests" && <RequestPipeline />}
       {tab === "quotes" && <QuoteBoard />}
+      {tab === "report" && <PipelineReport />}
+      {tab === "pricing" && <PricingHistory />}
     </>
   );
 }
