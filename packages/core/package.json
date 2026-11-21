@@ -23,6 +23,7 @@
     "./costCodes": "./src/costCodes.ts",
     "./changeOrders": "./src/changeOrders.ts",
     "./proposals": "./src/proposals.ts",
+    "./pipeline": "./src/pipeline.ts",
     "./chat": "./src/chat.ts",
     "./database": "./src/database.types.ts",
     "./time": "./src/time.ts",
