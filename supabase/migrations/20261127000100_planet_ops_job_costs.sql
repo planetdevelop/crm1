@@ -129,7 +129,7 @@ begin
   if not private.is_member(p_company) then raise exception 'Not found.' using errcode = 'P0002'; end if;
   if p_job is not null and not exists (select 1 from public.jobs j where j.id = p_job and j.company_id = p_company)
      or p_job is not null and (select auth.uid()) is not null and not private.cost_reviewer(p_company)
-        and not exists (select 1 from public.visits v join public.visit_assignees a on a.visit_id = v.id where v.job_id = p_job and a.user_id = (select auth.uid())) then
+        and not exists (select 1 from private.my_visits() v where v.job_id = p_job) then
     raise exception 'That job isn''t one you can add files to.' using errcode = '42501';
   end if;
   if p_path is null or position(p_company::text in p_path) <> 1 then
@@ -366,7 +366,7 @@ declare j public.jobs; t public.disposal_tickets; v_net numeric; v_tons numeric;
 begin
   select * into j from public.jobs where id = p_job;
   if not found or not private.cost_reviewer(j.company_id) then
-    if not (found and private.is_member(j.company_id) and exists (select 1 from public.visits v join public.visit_assignees a on a.visit_id = v.id where v.job_id = p_job and a.user_id = (select auth.uid()))) then
+    if not (found and private.is_member(j.company_id) and exists (select 1 from private.my_visits() v where v.job_id = p_job)) then
       raise exception 'Not found.' using errcode = 'P0002';
     end if;
     if p_cost <> 'none' then raise exception 'Costs are entered by the office (Job costs).' using errcode = '42501'; end if;
@@ -577,8 +577,12 @@ begin
          version = public.pdos_files.version + 1, status = 'pending', attempts = 0, next_attempt_at = now(), last_error = null, updated_at = now();
   return null;
 end $$;
-create trigger pdos_queue_summary after insert or update of job_id, title on public.estimate_summaries
+-- Every change to the summary (a save, an approval, a document, its job) is a new version to copy;
+-- the worker copies the latest one, so a burst of saves is one copy.
+create trigger pdos_queue_summary after insert on public.estimate_summaries
   for each row execute function private.pdos_queue_summary();
+create trigger pdos_queue_summary_change after update on public.estimate_summaries
+  for each row when ((old.job_id, old.title, old.updated_at) is distinct from (new.job_id, new.title, new.updated_at)) execute function private.pdos_queue_summary();
 
 create function private.pdos_queue_document() returns trigger
 language plpgsql security definer set search_path = '' as $$
