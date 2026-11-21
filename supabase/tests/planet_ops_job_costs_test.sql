@@ -163,25 +163,25 @@ select tpo_jc.check((select destination = 'held' from public.pdos_files where so
 -- A lost bid: its summary stays for Jobs Bid.
 select tpo_jc.as(:'owner', format('select public.create_estimate(%L, %L, %L, %L)', :'co', 'a3000000-0000-0000-0000-0000000000e2', 'Barn (lost)', :'req')) as e2 \gset
 select tpo_jc.expect_error(format('select tpo_jc.as(%L, %L)', :'owner', 'select public.pdos_claim()::text'), 'only the server claims backup work', '%permission denied%');
-select public.pdos_claim(50)::text as claim \gset
+select public.pdos_claim(100000)::text as claim \gset
 select tpo_jc.check((select count(*) from jsonb_array_elements(:'claim'::jsonb -> 'folders') f where f ->> 'job_id' = :'job' and f ->> 'folder_name' = '12 Test Way - Garage Demo - ' || extract(year from now())::int) = 1,
   'the job''s folder is claimed with its name: {Project address} - {Project type} - {Year}');
 select tpo_jc.check(not exists (select 1 from jsonb_array_elements(:'claim'::jsonb -> 'files') f where f ->> 'job_id' = :'job')
                     and exists (select 1 from jsonb_array_elements(:'claim'::jsonb -> 'files') f where f ->> 'source_id' = (select id::text from public.estimate_summaries where estimate_id = :'e2')),
   'the job''s files wait for its folders; the lost bid''s summary goes to Jobs Bid now');
 select tpo_jc.check(not exists (select 1 from jsonb_array_elements(:'claim'::jsonb -> 'files') f where f ->> 'source_id' = :'d3'), 'the held ticket isn''t sent anywhere');
-select tpo_jc.check((public.pdos_claim(50) -> 'folders') = '[]'::jsonb, 'claimed work isn''t claimed twice (a second worker gets nothing)');
+select tpo_jc.check((public.pdos_claim(100000) -> 'folders') = '[]'::jsonb, 'claimed work isn''t claimed twice (a second worker gets nothing)');
 -- The folder is made, then Drive fails on a subfolder: what was made is kept, and it's retried later.
 select public.pdos_folder_progress(:'job', '{"folder": "drv-folder-1", "documents": "drv-docs-1"}', false, 'Drive: 503 backend error');
 select tpo_jc.check((select status = 'failed' and steps ->> 'folder' = 'drv-folder-1' and steps ->> 'documents' = 'drv-docs-1' and next_attempt_at > now() and last_error like '%503%' from public.job_folder_provisioning where job_id = :'job'),
   'a partial failure keeps the folder already made and waits to retry');
-select tpo_jc.check((public.pdos_claim(50) -> 'folders') = '[]'::jsonb, 'not before its retry time');
+select tpo_jc.check((public.pdos_claim(100000) -> 'folders') = '[]'::jsonb, 'not before its retry time');
 select tpo_jc.check(tpo_jc.as(:'owner', format('select public.pdos_retry(%L)::text', :'co'))::int >= 1, 'an owner can retry now');
-select public.pdos_claim(50)::text as claim2 \gset
+select public.pdos_claim(100000)::text as claim2 \gset
 select tpo_jc.check((select f -> 'steps' ->> 'folder' = 'drv-folder-1' from jsonb_array_elements(:'claim2'::jsonb -> 'folders') f where f ->> 'job_id' = :'job'), 'the retry resumes with the same folder');
 select public.pdos_folder_progress(:'job', '{"receipts": "drv-rcpt-1", "dump_tickets": "drv-dump-1", "media": "drv-media-1"}', true);
 select tpo_jc.check((select status = 'done' and folder_id = 'drv-folder-1' and media_folder_id = 'drv-media-1' and attempts = 2 from public.job_folder_provisioning where job_id = :'job'), 'done: one folder set, made once');
-select public.pdos_claim(50)::text as claim3 \gset
+select public.pdos_claim(100000)::text as claim3 \gset
 select tpo_jc.check((select count(*) from jsonb_array_elements(:'claim3'::jsonb -> 'files') f where f ->> 'job_id' = :'job') >= 2, 'now the job''s summary and receipt can go');
 select id as sum_file, version as sum_ver from public.pdos_files where source_kind = 'estimate_summary' and estimate_id = :'e1' \gset
 -- The summary changes while it's being copied: the newer version stays pending after this copy.

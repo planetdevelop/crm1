@@ -36,11 +36,12 @@ import { relocatePins } from "./services/properties";
 import { runAutopay } from "./services/bankLimit";
 import { sendScheduledPayments } from "./services/installments";
 import { tidyPlans } from "./integrations/chatgptPlan";
+import { pdosBackup } from "./services/pdosStore";
 
 export const TASKS = [
   "automations", "campaigns", "notify", "outbox", "autopay", "calendars", "recurrence", "followups", "weather", "snow", "address",
   "railway", "hosting", "plans", "trash", "storage", "routes", "website", "reviews", "inactive", "review_sync",
-  "social", "backups", "profits", "installments", "postcards", "pins", "review_tidy", "chatgpt_plans",
+  "social", "backups", "profits", "installments", "postcards", "pins", "review_tidy", "chatgpt_plans", "pdos",
 ] as const;
 export type TaskName = (typeof TASKS)[number];
 
@@ -91,6 +92,8 @@ export const CRON_TASKS: Record<string, TaskName[]> = {
   // ChatGPT plan sign-ins whose person left the team or signed out are signed out at OpenAI and
   // deleted, and sign-ins nobody finished are cleared (integrations/chatgptPlan.ts).
   "7-59/10 * * * *": ["chatgpt_plans"],
+  // Planet Ops: PDOS Google Drive backup and job folders (services/pdosStore.ts), when its credentials are set.
+  "*/3 * * * *": ["pdos"],
 };
 
 export async function runTask(name: TaskName, env: Env): Promise<Record<string, unknown>> {
@@ -138,6 +141,8 @@ export async function runTask(name: TaskName, env: Env): Promise<Record<string, 
     }
     case "trash":
       return purgeTrash(adminClient(env));
+    case "pdos":
+      return pdosBackup(env);
     case "storage":
       return checkStorage(env, adminClient(env));
     case "routes":

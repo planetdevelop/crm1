@@ -628,7 +628,11 @@ select t1070.check(array(
   -- Money added up for Home, Invoices and Deposits (collected_by_day, invoice_summary, stripe_fees): each
   -- runs as the caller, and a sub reads no payments or invoices, so they get nothing or zeros.
   'collected_by_day(uuid, date, date)', 'company_basics(uuid)', 'convert_quote_to_job(uuid)',
-  'create_company(text, text, text)',
+  
+  -- Planet Ops 4: job costs, disposal and PDOS backup (cost_document_duplicates, job_disposal_totals, job_financials, pdos_retry, pdos_status,
+  -- record_disposal_ticket, register_cost_document, review_cost_document, suggest_cost_document): team members (is_member) and the office with
+  -- job costs only (each checks), never a sub.
+  'cost_document_duplicates(uuid, text, text, date, numeric)', 'create_company(text, text, text)',
   -- Planet Ops 3: estimating, people with the estimating areas only (each checks), never a sub.
   'create_estimate(uuid, uuid, text, uuid, uuid, uuid, text, uuid)', 'create_invoice_for_job(uuid, text, numeric, date)', 'create_quote_from_estimate(uuid, text, uuid, integer)', 'dashboard(uuid)',
   -- Deleting a time entry with a reason (20261113001800): runs as the caller, so a sub deletes no more this way than with a plain delete.
@@ -658,8 +662,8 @@ select t1070.check(array(
   -- Planet Ops 1d: a job's contract summary: owners, admins, office and estimators only (raises for anyone else).
   'job_contract_summary(uuid)',
   -- What's on a job to log materials against, by name and unit: the office's and the crew's, never a sub's.
-  'job_estimated_materials(uuid)',
-  'job_material_costs(uuid)', 'job_pay_accept(uuid, uuid[])', 'job_pay_cancel(uuid)', 'job_pay_costs(uuid[])', 'job_pay_covers(uuid, uuid, uuid)', 'job_pay_mark_done(uuid, date)',
+  'job_disposal_totals(uuid)', 'job_estimated_materials(uuid)',
+  'job_financials(uuid)', 'job_material_costs(uuid)', 'job_pay_accept(uuid, uuid[])', 'job_pay_cancel(uuid)', 'job_pay_costs(uuid[])', 'job_pay_covers(uuid, uuid, uuid)', 'job_pay_mark_done(uuid, date)',
   'job_pay_mark_paid(uuid[], text, date, text, numeric)', 'job_pay_start(uuid, uuid, uuid, uuid[])', 'job_pay_suggest(uuid, uuid, uuid, uuid[])',
   'job_pay_unmark_paid(uuid[])', 'job_promo_discounts(uuid)', 'job_scope(uuid)',
   -- Runs with the caller's access: a sub sees the state of their own jobs, from their own visits.
@@ -677,7 +681,7 @@ select t1070.check(array(
   'my_sub_pay_totals(uuid)',
   -- The next request, quote, job and invoice numbers (and set_next_number below): owners and admins only, never a sub.
   'next_numbers(uuid)',
-  'pipeline_pricing_history(uuid, text, text, date, date, uuid, text)', 'pipeline_report(uuid, date, date)',
+  'pdos_retry(uuid)', 'pdos_status(uuid)', 'pipeline_pricing_history(uuid, text, text, date, date, uuid, text)', 'pipeline_report(uuid, date, date)',
   -- Who a postcard goes to, with their addresses: runs as the caller, so the office's clients only, none for a sub.
   'postcard_audience(uuid, jsonb)', 'postcard_audience_summary(uuid, jsonb)',
   -- What postcards brought in: the office with Marketing only (it checks), never a sub.
@@ -692,17 +696,17 @@ select t1070.check(array(
   'quote_fingerprint(uuid)',
   -- Why a quote can't be sent as it is (a payment's date to set, or past): runs as the caller, who reads only the quotes they can see. A sub sees none.
   'quote_send_problem(uuid)',
-  'record_photos(uuid, uuid, uuid)', 'referral_auto_apply(uuid, boolean)', 'referral_credits_for(uuid, uuid)', 'referral_give_credit(uuid)', 'referral_no_reward(uuid)',
+  'record_disposal_ticket(uuid, uuid, jsonb, text, uuid)', 'record_photos(uuid, uuid, uuid)', 'referral_auto_apply(uuid, boolean)', 'referral_credits_for(uuid, uuid)', 'referral_give_credit(uuid)', 'referral_no_reward(uuid)',
   'referral_set_given(uuid)', 'referral_stats(uuid, timestamp with time zone, timestamp with time zone)', 'refresh_quote_from_estimate(uuid, uuid, boolean, text)',
   -- Taking a late fee off an invoice: owners, admins and the office with invoices only (it checks), never a sub.
-  'remove_late_fee(uuid)',
+  'register_cost_document(uuid, text, text, text, text, bigint, uuid)', 'remove_late_fee(uuid)',
   'remove_promo_code(text, uuid)',
   'remove_quote_option(uuid, uuid)', 'remove_referral_credit(uuid)',
   -- Renewing tags or an inspection sticker: runs as the caller, and only equipment managers can change them, never a sub.
   'renew_equipment_document(uuid, date, text, uuid)',
   'request_manual_charges(uuid, uuid[], numeric[])',
   -- Planet Ops 1c: the office's reply to a customer's change request: people who sell only.
-  'respond_to_change_request(uuid, text)', 'review_stats(uuid)',
+  'respond_to_change_request(uuid, text)', 'review_cost_document(uuid, text, jsonb, jsonb)', 'review_stats(uuid)',
   -- Planet Ops 3: estimating, people with the estimating areas only (each checks), never a sub.
   'revise_estimate(uuid, text)', 'save_estimate_version(uuid, integer, jsonb)',
   -- Saving a read receipt as an expense: runs as the caller, so a sub can no more add one this way than any other.
@@ -733,7 +737,7 @@ select t1070.check(array(
   -- Scheduling the snow jobs that reach their trigger: the owner and the office with the schedule area only, never a sub.
   'snow_schedule(uuid, date, jsonb)',
   'social_photos(uuid, timestamp with time zone, uuid, integer, uuid)',
-  'storage_overview(uuid)', 'storage_set_allowance(uuid, uuid, text, bigint)', 'storage_set_limit(uuid, text, bigint, numeric)', 'stripe_fees(uuid, timestamp with time zone)', 'sub_1099_totals(uuid, integer)', 'sub_wc_audit(uuid, date, date)', 'time_entry_places(uuid, uuid[])',
+  'storage_overview(uuid)', 'storage_set_allowance(uuid, uuid, text, bigint)', 'storage_set_limit(uuid, text, bigint, numeric)', 'stripe_fees(uuid, timestamp with time zone)', 'sub_1099_totals(uuid, integer)', 'sub_wc_audit(uuid, date, date)', 'suggest_cost_document(uuid, jsonb)', 'time_entry_places(uuid, uuid[])',
   -- Installs Paving, Roofing or Snow: owners and admins who connect apps only, never a sub.
   'trade_app_set_enabled(uuid, text, boolean)',
   'trash_delete_forever(uuid, jsonb)', 'undo_price_change(uuid, uuid)', 'visit_autopay(uuid)', 'visit_contact(uuid)',
