@@ -77,6 +77,14 @@ export interface Env {
    * web app gets it from /api/config), and works with GOOGLE_CLIENT_ID's Google Cloud project.
    */
   GOOGLE_PICKER_API_KEY?: string;
+  /**
+   * Planet Ops PDOS Drive backup (services/pdos.ts, docs/planet-ops/PDOS_DRIVE_RUNBOOK.md): an OAuth
+   * client and the refresh token of the Google account that owns the PDOS folders. Unset: no backup
+   * runs (files stay pending; the app's own copy is kept).
+   */
+  PDOS_GOOGLE_CLIENT_ID?: string;
+  PDOS_GOOGLE_CLIENT_SECRET?: string;
+  PDOS_GOOGLE_REFRESH_TOKEN?: string;
 
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;

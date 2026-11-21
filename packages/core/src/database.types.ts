@@ -1116,14 +1116,14 @@ isOneToOne: false
                   ]
                 },"expenses": {
                   Row: {
-                    "amount": number,"category": string | null,"company_id": string,"created_at": string,"description": string | null,"equipment_id": string | null,"id": string,"in_line_costs": boolean,"incurred_on": string,"invoice_number": string | null,"job_id": string | null,"line_items": Json | null,"receipt_path": string | null,"receipt_total": number | null,"reimbursable": boolean,"reimbursed_at": string | null,"tax_amount": number | null,"updated_at": string,"user_id": string | null,"vendor": string | null
+                    "amount": number,"category": string | null,"company_id": string,"cost_document_id": string | null,"cost_status": string,"created_at": string,"description": string | null,"equipment_id": string | null,"id": string,"in_line_costs": boolean,"incurred_on": string,"invoice_number": string | null,"job_id": string | null,"line_items": Json | null,"receipt_path": string | null,"receipt_total": number | null,"reimbursable": boolean,"reimbursed_at": string | null,"tax_amount": number | null,"updated_at": string,"user_id": string | null,"vendor": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "amount": number,"category"?: string | null,"company_id": string,"created_at"?: string,"description"?: string | null,"equipment_id"?: string | null,"id"?: string,"in_line_costs"?: boolean,"incurred_on"?: string,"invoice_number"?: string | null,"job_id"?: string | null,"line_items"?: Json | null,"receipt_path"?: string | null,"receipt_total"?: number | null,"reimbursable"?: boolean,"reimbursed_at"?: string | null,"tax_amount"?: number | null,"updated_at"?: string,"user_id"?: string | null,"vendor"?: string | null
+                    "amount": number,"category"?: string | null,"company_id": string,"cost_document_id"?: string | null,"cost_status"?: string,"created_at"?: string,"description"?: string | null,"equipment_id"?: string | null,"id"?: string,"in_line_costs"?: boolean,"incurred_on"?: string,"invoice_number"?: string | null,"job_id"?: string | null,"line_items"?: Json | null,"receipt_path"?: string | null,"receipt_total"?: number | null,"reimbursable"?: boolean,"reimbursed_at"?: string | null,"tax_amount"?: number | null,"updated_at"?: string,"user_id"?: string | null,"vendor"?: string | null
                   }
                   Update: {
-                    "amount"?: number,"category"?: string | null,"company_id"?: string,"created_at"?: string,"description"?: string | null,"equipment_id"?: string | null,"id"?: string,"in_line_costs"?: boolean,"incurred_on"?: string,"invoice_number"?: string | null,"job_id"?: string | null,"line_items"?: Json | null,"receipt_path"?: string | null,"receipt_total"?: number | null,"reimbursable"?: boolean,"reimbursed_at"?: string | null,"tax_amount"?: number | null,"updated_at"?: string,"user_id"?: string | null,"vendor"?: string | null
+                    "amount"?: number,"category"?: string | null,"company_id"?: string,"cost_document_id"?: string | null,"cost_status"?: string,"created_at"?: string,"description"?: string | null,"equipment_id"?: string | null,"id"?: string,"in_line_costs"?: boolean,"incurred_on"?: string,"invoice_number"?: string | null,"job_id"?: string | null,"line_items"?: Json | null,"receipt_path"?: string | null,"receipt_total"?: number | null,"reimbursable"?: boolean,"reimbursed_at"?: string | null,"tax_amount"?: number | null,"updated_at"?: string,"user_id"?: string | null,"vendor"?: string | null
                   }
                   Relationships: [
                     {
@@ -2067,6 +2067,135 @@ isOneToOne: false
       referencedColumns: ["company_id", "id"]
     }
                   ]
+                },"cost_documents": {
+                  Row: {
+                    "category": string | null,"checksum": string,"company_id": string,"document_date": string | null,"document_number": string | null,"duplicate_of": string | null,"file_name": string | null,"id": string,"job_id": string | null,"kind": string,"not_duplicate_reason": string | null,"review_note": string | null,"review_status": string,"reviewed_at": string | null,"reviewed_by": string | null,"size_bytes": number | null,"storage_path": string,"suggested": Json | null,"suggested_at": string | null,"tax_amount": number | null,"total": number | null,"uploaded_at": string,"uploaded_by": string | null,"vendor": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "category"?: string | null,"checksum": string,"company_id": string,"document_date"?: string | null,"document_number"?: string | null,"duplicate_of"?: string | null,"file_name"?: string | null,"id"?: string,"job_id"?: string | null,"kind": string,"not_duplicate_reason"?: string | null,"review_note"?: string | null,"review_status"?: string,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"size_bytes"?: number | null,"storage_path": string,"suggested"?: Json | null,"suggested_at"?: string | null,"tax_amount"?: number | null,"total"?: number | null,"uploaded_at"?: string,"uploaded_by"?: string | null,"vendor"?: string | null
+                  }
+                  Update: {
+                    "category"?: string | null,"checksum"?: string,"company_id"?: string,"document_date"?: string | null,"document_number"?: string | null,"duplicate_of"?: string | null,"file_name"?: string | null,"id"?: string,"job_id"?: string | null,"kind"?: string,"not_duplicate_reason"?: string | null,"review_note"?: string | null,"review_status"?: string,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"size_bytes"?: number | null,"storage_path"?: string,"suggested"?: Json | null,"suggested_at"?: string | null,"tax_amount"?: number | null,"total"?: number | null,"uploaded_at"?: string,"uploaded_by"?: string | null,"vendor"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "cost_documents_company_id_duplicate_of_fkey"
+      columns: ["company_id", "duplicate_of"]
+isOneToOne: false
+      referencedRelation: "cost_documents"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "cost_documents_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    },
+                    {
+      foreignKeyName: "cost_documents_company_id_job_id_fkey"
+      columns: ["company_id", "job_id"]
+isOneToOne: false
+      referencedRelation: "jobs"
+      referencedColumns: ["company_id", "id"]
+    }
+                  ]
+                },"cost_document_events": {
+                  Row: {
+                    "actor_id": string | null,"company_id": string,"created_at": string,"detail": Json,"document_id": string,"id": string,"kind": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_id"?: string | null,"company_id": string,"created_at"?: string,"detail"?: Json,"document_id": string,"id"?: string,"kind": string
+                  }
+                  Update: {
+                    "actor_id"?: string | null,"company_id"?: string,"created_at"?: string,"detail"?: Json,"document_id"?: string,"id"?: string,"kind"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "cost_document_events_company_id_document_id_fkey"
+      columns: ["company_id", "document_id"]
+isOneToOne: false
+      referencedRelation: "cost_documents"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "cost_document_events_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"disposal_tickets": {
+                  Row: {
+                    "company_id": string,"container_capacity_cy": number | null,"cost_document_id": string | null,"created_at": string,"created_by": string | null,"credit_amount": number | null,"direction": string,"driver": string | null,"expense_id": string | null,"facility": string | null,"gross_lb": number | null,"hauler": string | null,"hauling_charge": number | null,"id": string,"is_metal": boolean,"job_id": string,"load_date": string,"material_stream": string | null,"net_lb": number | null,"notes": string | null,"quantity_basis": string,"reported_loose_cy": number | null,"request_key": string,"short_tons": number | null,"tare_lb": number | null,"ticket_number": string | null,"tipping_fee": number | null,"truck": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"container_capacity_cy"?: number | null,"cost_document_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"credit_amount"?: number | null,"direction"?: string,"driver"?: string | null,"expense_id"?: string | null,"facility"?: string | null,"gross_lb"?: number | null,"hauler"?: string | null,"hauling_charge"?: number | null,"id"?: string,"is_metal"?: boolean,"job_id": string,"load_date": string,"material_stream"?: string | null,"net_lb"?: number | null,"notes"?: string | null,"quantity_basis"?: string,"reported_loose_cy"?: number | null,"request_key": string,"short_tons"?: number | null,"tare_lb"?: number | null,"ticket_number"?: string | null,"tipping_fee"?: number | null,"truck"?: string | null
+                  }
+                  Update: {
+                    "company_id"?: string,"container_capacity_cy"?: number | null,"cost_document_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"credit_amount"?: number | null,"direction"?: string,"driver"?: string | null,"expense_id"?: string | null,"facility"?: string | null,"gross_lb"?: number | null,"hauler"?: string | null,"hauling_charge"?: number | null,"id"?: string,"is_metal"?: boolean,"job_id"?: string,"load_date"?: string,"material_stream"?: string | null,"net_lb"?: number | null,"notes"?: string | null,"quantity_basis"?: string,"reported_loose_cy"?: number | null,"request_key"?: string,"short_tons"?: number | null,"tare_lb"?: number | null,"ticket_number"?: string | null,"tipping_fee"?: number | null,"truck"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "disposal_tickets_company_id_cost_document_id_fkey"
+      columns: ["company_id", "cost_document_id"]
+isOneToOne: false
+      referencedRelation: "cost_documents"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "disposal_tickets_company_id_expense_id_fkey"
+      columns: ["company_id", "expense_id"]
+isOneToOne: false
+      referencedRelation: "expenses"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "disposal_tickets_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    },
+                    {
+      foreignKeyName: "disposal_tickets_company_id_job_id_fkey"
+      columns: ["company_id", "job_id"]
+isOneToOne: false
+      referencedRelation: "jobs"
+      referencedColumns: ["company_id", "id"]
+    }
+                  ]
+                },"pdos_files": {
+                  Row: {
+                    "attempts": number,"backed_up_at": string | null,"backed_up_version": number | null,"claimed_at": string | null,"company_id": string,"created_at": string,"destination": string,"drive_file_id": string | null,"drive_parent_id": string | null,"estimate_id": string | null,"file_name": string,"id": string,"job_id": string | null,"last_error": string | null,"next_attempt_at": string,"source_id": string,"source_kind": string,"status": string,"updated_at": string,"version": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "attempts"?: number,"backed_up_at"?: string | null,"backed_up_version"?: number | null,"claimed_at"?: string | null,"company_id": string,"created_at"?: string,"destination": string,"drive_file_id"?: string | null,"drive_parent_id"?: string | null,"estimate_id"?: string | null,"file_name": string,"id"?: string,"job_id"?: string | null,"last_error"?: string | null,"next_attempt_at"?: string,"source_id": string,"source_kind": string,"status"?: string,"updated_at"?: string,"version"?: number
+                  }
+                  Update: {
+                    "attempts"?: number,"backed_up_at"?: string | null,"backed_up_version"?: number | null,"claimed_at"?: string | null,"company_id"?: string,"created_at"?: string,"destination"?: string,"drive_file_id"?: string | null,"drive_parent_id"?: string | null,"estimate_id"?: string | null,"file_name"?: string,"id"?: string,"job_id"?: string | null,"last_error"?: string | null,"next_attempt_at"?: string,"source_id"?: string,"source_kind"?: string,"status"?: string,"updated_at"?: string,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "pdos_files_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    },
+                    {
+      foreignKeyName: "pdos_files_company_id_job_id_fkey"
+      columns: ["company_id", "job_id"]
+isOneToOne: false
+      referencedRelation: "jobs"
+      referencedColumns: ["company_id", "id"]
+    }
+                  ]
                 },"follow_up_tasks": {
                   Row: {
                     "assigned_to": string | null,"body": string | null,"closed_reason": string | null,"company_id": string,"created_at": string,"created_by": string | null,"done_at": string | null,"done_by": string | null,"due_on": string | null,"id": string,"link": string | null,"related_id": string | null,"related_type": string | null,"source": string,"source_id": string,"title": string
@@ -2105,14 +2234,14 @@ isOneToOne: false
                   Relationships: []
                 },"job_folder_provisioning": {
                   Row: {
-                    "attempts": number,"company_id": string,"folder_id": string | null,"folder_name": string | null,"job_id": string,"last_error": string | null,"media_folder_id": string | null,"requested_at": string,"source": string,"status": string,"updated_at": string
+                    "attempts": number,"claimed_at": string | null,"company_id": string,"folder_id": string | null,"folder_name": string | null,"job_id": string,"last_error": string | null,"media_folder_id": string | null,"next_attempt_at": string,"requested_at": string,"source": string,"status": string,"steps": Json,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "attempts"?: number,"company_id": string,"folder_id"?: string | null,"folder_name"?: string | null,"job_id": string,"last_error"?: string | null,"media_folder_id"?: string | null,"requested_at"?: string,"source": string,"status"?: string,"updated_at"?: string
+                    "attempts"?: number,"claimed_at"?: string | null,"company_id": string,"folder_id"?: string | null,"folder_name"?: string | null,"job_id": string,"last_error"?: string | null,"media_folder_id"?: string | null,"next_attempt_at"?: string,"requested_at"?: string,"source": string,"status"?: string,"steps"?: Json,"updated_at"?: string
                   }
                   Update: {
-                    "attempts"?: number,"company_id"?: string,"folder_id"?: string | null,"folder_name"?: string | null,"job_id"?: string,"last_error"?: string | null,"media_folder_id"?: string | null,"requested_at"?: string,"source"?: string,"status"?: string,"updated_at"?: string
+                    "attempts"?: number,"claimed_at"?: string | null,"company_id"?: string,"folder_id"?: string | null,"folder_name"?: string | null,"job_id"?: string,"last_error"?: string | null,"media_folder_id"?: string | null,"next_attempt_at"?: string,"requested_at"?: string,"source"?: string,"status"?: string,"steps"?: Json,"updated_at"?: string
                   }
                   Relationships: []
                 },"notifications": {

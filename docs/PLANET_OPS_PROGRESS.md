@@ -9,7 +9,29 @@ phase's acceptance evidence here.
 | 1: quotes, proposals, terms, signatures, change orders | **In progress**: 1a and 1b merged (PR #2, #3); 1b follow-up, 1c, 1d, 1e in stacked PRs (see Phase 1) |
 | 2: a real sales pipeline | **In progress**: 2a (data, rules, reports) in a PR stacked on Phase 1e (#7); 2b and 2c (screens) stacked on 2a. See Phase 2 |
 | 3: estimating (internal calculator and database) | **Implemented, not yet verified in staging**: 3a (data, rates, calculation, privacy) stacked on 2d; 3b (workspace), 3c (customer-document handoff, summaries, job linkage) and 3d (hardening: the estimate behind each document is kept; reviewed approvals and refreshes; pricing protections) stacked in order. Waiting for owner input on the decisions below. See Phase 3 |
-| 4–9 | Not started. Gusto and historical import remain deferred |
+| 4: job costs, disposal, PDOS files | **Implemented, automated tests passed locally; awaiting CI; not verified in staging**: branch `claude/phase-4-job-costs` (stacked on 3d). See Phase 4 |
+| 5–9 | In progress per the task list below. Gusto and the real historical import remain deferred / last |
+
+## Task list (mirror of the plan board)
+
+Status words: **done** (code + automated tests passed), **awaiting CI**, **needs staging/device check**,
+**in progress**, **pending**, **blocked (owner input)**. Phase branches stack in order.
+
+| # | Task | Branch / PR | Status |
+| --- | --- | --- | --- |
+| 19 | Phase 3d CI on the final commit | #15 `claude/phase-3d-estimate-hardening` | awaiting CI (a real defect found by it, the stale-save message, fixed) |
+| 20 | Phases 1–3 combined-stack lifecycle test; real merge order | — | pending (after #15 green) |
+| 21–23 | Phase 4a–c: cost documents and review, disposal register, job figures | `claude/phase-4-job-costs` | done (DB tests); screens in 4e |
+| 24 | Phase 4d: PDOS Drive worker, folder provisioning, runbook | `claude/phase-4-job-costs` | done (fake-Drive tests); live Drive needs owner credentials |
+| 25 | Phase 4e: screens, browser test, docs, PR | `claude/phase-4-job-costs` | awaiting CI |
+| 26–29 | Phase 5: employee home, tailgates, machine checks, delegated scheduling | `claude/phase-5-field` | pending |
+| 30–32 | Phase 6: classifications, review/audit, payroll prep | `claude/phase-6-time` | pending |
+| 33–36 | Phase 7: integration events, WhatConverts/Zapier, OpenPhone, runbook | `claude/phase-7-integrations` | pending |
+| 37–39 | Phase 8: closeout, benchmarks, ChatGPT estimating tools | `claude/phase-8-closeout` | pending |
+| 40–43 | Phase 9: guides, import workflow, release-candidate acceptance, handoff | — | pending |
+
+Source note: Dot's demolition-only notes were not found in this session's Drive (searched by title
+and text); work follows the approved plan and the Drive SOPs it already cites.
 
 ## Phase 0 (branch `claude/phase-0-foundation`)
 
@@ -827,3 +849,55 @@ Run with fictional records once Phases 1–2 and PRs #12, #13 and the 3c PR are 
 - [ ] **Preparer role**: open the estimate as a custom role with *Prepare internal estimates* only;
       change quantities; the costs and percentages stay as the cost person set them.
 - [ ] Tablet and phone: the estimate editor and summary are usable (physical devices are the owner's).
+
+## Phase 4: job costs, disposal, and the PDOS file record (implemented; not verified in staging)
+
+Branch `claude/phase-4-job-costs`, stacked on 3d (#15). Migration `20261127000100_planet_ops_job_costs.sql`
+(not released). Spec: plan §6 and [planet-ops/PHASE4_HANDOFF.md](planet-ops/PHASE4_HANDOFF.md).
+
+- **Cost documents** (`cost_documents`): every uploaded receipt, supplier invoice, dump ticket or job
+  photo is kept as its original (path, checksum and uploader never change; never deleted; counted as
+  in use so the nightly tidy-up keeps it). The same file uploaded again is the same document (one per
+  SHA-256). Anyone on the job uploads from the field; the office with Job costs reviews. A reader's
+  suggestion (vendor, date, total, category, job) is kept apart from the review; corrections and
+  every review step are in `cost_document_events`.
+- **Review** (`review_cost_document`): approve onto one or more jobs (a split purchase; the jobs'
+  amounts can't exceed the document's total, the rest is excluded), reference only, duplicate of
+  another, or rejected. A repeated review replaces the job shares, never adds. A likely duplicate
+  (same vendor and number, or vendor, date and total) must be marked one or approved with a reason.
+  Shares made from a document can't be edited by hand (review it again).
+- **Cost status** on expenses: committed (not yet a cost), provisional (not reviewed), approved, paid.
+  Existing expenses are approved, as before.
+- **Disposal register** (`disposal_tickets`, `record_disposal_ticket`, `job_disposal_totals`): weight
+  (gross, tare, net, short tons), reported loose CY, nominal container capacity and the load are
+  separate; a metal load's weight can be unknown; delivered fill is apart. A retry or the same ticket
+  number at the same facility is the same ticket. Its charges count in job costs only through one
+  linked expense (made with it, or an existing one linked). Totals count unweighed loads instead of
+  adding zeros; $/ton uses only weighed tickets with a fee.
+- **Job figures** (`job_financials`, the Job costs card on the job): original approved estimate,
+  the job's estimate version, the latest approved revision, actual costs by status and category,
+  disposal, contract value, invoiced, paid; each null ("Not recorded") without evidence.
+- **PDOS Drive record** (`pdos_files`, `job_folder_provisioning`, `services/pdos.ts`): see
+  [planet-ops/PDOS_DRIVE_RUNBOOK.md](planet-ops/PDOS_DRIVE_RUNBOOK.md). Jobs Bid summary before a job
+  (lost bids too); the job's folder set only after Create Job or a signed conversion; the summary
+  moves in keeping its Drive id; retries resume; claims are never double; failures show with a retry.
+  Runs only with the owner's Drive credentials and Settings → PDOS Drive backup switched on.
+- **Screens**: the job's Job costs card (figures, uploads and review, disposal register, backup state),
+  **Cost review** (queue and inbox), **Settings → PDOS Drive backup** (folders, switch, status, retry).
+
+Automated: `planet_ops_job_costs_test.sql` (uploads, dedupe, suggestion vs review, splits, retries,
+duplicates, originals kept, disposal count-once and totals, figures, PDOS queue, naming, claims,
+partial failure, retry, versions), `apps/api/test/pdos.test.ts` (worker vs fake Drive: one folder
+set, resume after partial failure, found-not-remade after a lost result, move with id kept, failure and
+retry, held files, not set up), browser test `e2e/job-costs.spec.ts` (CI). Full `npm run test:db` passed.
+
+Waiting on the owner: Drive credentials and folder ids (runbook); which categories to use; whether
+crew may enter ticket quantities without the office (they can today; costs are office-only).
+
+### Phase 4 staging checklist (owner)
+
+- [ ] Follow the runbook's staging test with test folders (Jobs Bid file, lost bid, conversion makes one
+      folder set, the summary moves, receipts and tickets land, the failure drill retries once).
+- [ ] On a job: upload a receipt twice (one document), correct its category, split it across two jobs.
+- [ ] Record a weighed ticket with charges and a metal load without weight; the totals keep them apart.
+- [ ] The job card shows "Not recorded" where nothing is recorded; crew see none of it.

@@ -33,6 +33,7 @@ import { useSchedulingRights } from "../schedule/myCrews";
 import { handlesSubPay, useJobPays } from "../subs/payData";
 import { ContractSummary } from "./ContractSummary";
 import { JobEstimateLink } from "../estimating/Handoff";
+import { JobCostsPanel } from "../jobcosts/JobCostsPanel";
 import { JobAgreementFacts } from "../quotes/JobAgreementFacts";
 import { ChangeOrders, useStartChangeOrder } from "./ChangeOrders";
 import { closeQuestion } from "./closing";
@@ -519,6 +520,7 @@ export function JobPage() {
           {canSell && <ContractSummary jobId={j.id} requestId={(j as { request_id?: string | null }).request_id ?? null} />}
           {canSell && j.quote && <JobAgreementFacts quoteId={j.quote.id} />}
           <JobEstimateLink jobId={j.id} />
+          <JobCostsPanel jobId={j.id} />
           {canSell && <ChangeOrders jobId={j.id} onStart={() => changeOrder.mutate()} starting={changeOrder.isPending} />}
 
           <PhotosCard jobId={j.id} />
