@@ -281,7 +281,7 @@ function SiteStep({ draft, set, editable, requestId }: { draft: Draft; set: (p: 
           </div>
         ))}
         {editable && <Button size="sm" icon="plus" style={{ justifySelf: "start" }} onClick={() => sc({ files: [...(s.files ?? []), { label: "" }] })}>Add a file link</Button>}
-        {requestId && <span className="muted small">Plans and photos on the request stay on the request: <Link to={`/requests/${requestId}`}>open it</Link>.</span>}
+        {requestId && <span className="muted small">Plans and photos on the request stay on the request: <Link to={`/requests/${requestId}`} style={{ textDecoration: "underline" }}>open it</Link>.</span>}
       </section>
       <AssumptionLog draft={draft} set={set} editable={editable} />
     </>
