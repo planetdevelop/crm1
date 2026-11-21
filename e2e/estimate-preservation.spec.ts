@@ -65,7 +65,7 @@ test("approval off: the document's estimate version is locked, not approved; a s
     const theirs = other.locator("[data-planet-ops=estimate-editor]").getByRole("region", { name: "Labor" }).locator("[data-line]").first();
     await theirs.getByLabel(/^Hours/).fill("9");
     await other.getByRole("button", { name: "Save" }).click();
-    await expect(other.getByRole("alert").filter({ hasText: /Someone else saved this estimate since you opened it/ })).toBeVisible();
+    await expect(other.locator(".form-error").filter({ hasText: /Someone else saved this estimate since you opened it/ })).toBeVisible();
     const saved = must(await data.db.from("estimate_lines").select("hours").eq("version_id", v2).eq("key", "crew").single(), "saved line");
     expect(Number(saved.hours)).toBe(6);
     expect(must(await data.db.from("quote_line_items").select("unit_price").eq("quote_id", quoteId), "unchanged").map((l) => Number(l.unit_price)).sort((a, b) => a - b)).toEqual([192, 288]);
