@@ -606,7 +606,7 @@ select t1070.check(array(
   'apply_promo_code(text, uuid, text, uuid, uuid[])',
   'apply_quote_options(uuid, jsonb, text, uuid[], jsonb)', 'apply_referral_credit(uuid, uuid)', 'approve_autopay_charge(uuid)',
   -- Planet Ops 3: estimating, people with the estimating areas only (each checks), never a sub.
-  'approve_estimate_version(uuid, text)',
+  'approve_estimate_version(uuid, integer, text)',
   -- The company's switch for AI assistants, for the person's own assistant: on for anyone signed in
   -- themselves, and a business someone only subs for isn't counted (and tells them nothing).
   'assistant_switch()',
@@ -630,7 +630,7 @@ select t1070.check(array(
   'collected_by_day(uuid, date, date)', 'company_basics(uuid)', 'convert_quote_to_job(uuid)',
   'create_company(text, text, text)',
   -- Planet Ops 3: estimating, people with the estimating areas only (each checks), never a sub.
-  'create_estimate(uuid, uuid, text, uuid, uuid, uuid, text, uuid)', 'create_invoice_for_job(uuid, text, numeric, date)', 'create_quote_from_estimate(uuid, text, uuid)', 'dashboard(uuid)',
+  'create_estimate(uuid, uuid, text, uuid, uuid, uuid, text, uuid)', 'create_invoice_for_job(uuid, text, numeric, date)', 'create_quote_from_estimate(uuid, text, uuid, integer)', 'dashboard(uuid)',
   -- Deleting a time entry with a reason (20261113001800): runs as the caller, so a sub deletes no more this way than with a plain delete.
   'delete_time_entry(uuid, text)',
   'dismiss_client_duplicate(uuid, uuid, uuid)',
@@ -693,7 +693,7 @@ select t1070.check(array(
   -- Why a quote can't be sent as it is (a payment's date to set, or past): runs as the caller, who reads only the quotes they can see. A sub sees none.
   'quote_send_problem(uuid)',
   'record_photos(uuid, uuid, uuid)', 'referral_auto_apply(uuid, boolean)', 'referral_credits_for(uuid, uuid)', 'referral_give_credit(uuid)', 'referral_no_reward(uuid)',
-  'referral_set_given(uuid)', 'referral_stats(uuid, timestamp with time zone, timestamp with time zone)', 'refresh_quote_from_estimate(uuid, uuid, boolean)',
+  'referral_set_given(uuid)', 'referral_stats(uuid, timestamp with time zone, timestamp with time zone)', 'refresh_quote_from_estimate(uuid, uuid, boolean, text)',
   -- Taking a late fee off an invoice: owners, admins and the office with invoices only (it checks), never a sub.
   'remove_late_fee(uuid)',
   'remove_promo_code(text, uuid)',

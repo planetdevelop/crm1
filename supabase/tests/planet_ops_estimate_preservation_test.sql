@@ -210,9 +210,11 @@ select tpo_ep.expect_error(format('select tpo_ep.as(%L, %L)', :'est', format('se
   'the same key for another request is refused, not answered with the first estimate', '%already used for a different estimate%');
 
 -- ===== At the same moment (a second connection) =================================================
-create schema tpo_ep_x;
-create extension dblink schema tpo_ep_x;
-select tpo_ep_x.dblink_connect('other', 'dbname=' || current_database() || ' user=postgres');
+-- dblink, as other test files have it (wherever it was created first).
+create extension if not exists dblink;
+select n.nspname as dblink_schema from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'dblink' \gset
+set search_path = public, :"dblink_schema";
+select dblink_connect('other', 'dbname=' || current_database() || ' user=postgres');
 -- (a) A save is in progress when someone makes a document: the document waits for it, then sees
 -- that the revision they reviewed is gone, and makes nothing.
 update public.companies set settings = jsonb_set(settings, '{estimating}', '{"require_approval": false}') where id = :'co';
@@ -220,15 +222,15 @@ select tpo_ep.as(:'est', format('select public.create_estimate(%L, %L, %L, %L)',
 select current_version_id as x1 from public.estimates where id = :'e3' \gset
 select tpo_ep.as(:'est', format('select public.save_estimate_version(%L, 0, %L::jsonb)::text', :'x1',
   '{"pricing_method": "markup", "pricing_pct": 0, "lines": [{"key": "a", "section": "other", "name": "Fence", "count": 1, "unit": "lump", "unit_cost": 300, "customer_item": "Demolition"}]}'));
-select tpo_ep_x.dblink_exec('other', 'begin');
-select tpo_ep_x.dblink_exec('other', format('set local "request.jwt.claims" = %L', json_build_object('sub', :'est', 'role', 'authenticated')::text));
-select tpo_ep_x.dblink_exec('other', 'set local role authenticated');
-select * from tpo_ep_x.dblink('other', format($s$select public.save_estimate_version(%L, 1, '{"lines": [{"key": "a", "section": "other", "name": "Fence", "count": 3, "unit": "lump", "unit_cost": 300, "customer_item": "Demolition"}]}')::text$s$, :'x1')) as t(r text);
+select dblink_exec('other', 'begin');
+select dblink_exec('other', format('set local "request.jwt.claims" = %L', json_build_object('sub', :'est', 'role', 'authenticated')::text));
+select dblink_exec('other', 'set local role authenticated');
+select * from dblink('other', format($s$select public.save_estimate_version(%L, 1, '{"lines": [{"key": "a", "section": "other", "name": "Fence", "count": 3, "unit": "lump", "unit_cost": 300, "customer_item": "Demolition"}]}')::text$s$, :'x1')) as t(r text);
 set lock_timeout = '300ms';
 select tpo_ep.expect_error(format('select tpo_ep.as(%L, %L)', :'est', format('select public.create_quote_from_estimate(%L, %L, %L, 1)::text', :'x1', 'line_items', 'a2600000-0000-0000-0000-0000000000f3')),
   'making a document waits while a save of the same version is in progress (no half-saved read)', '%lock timeout%');
 reset lock_timeout;
-select tpo_ep_x.dblink_exec('other', 'commit');
+select dblink_exec('other', 'commit');
 select tpo_ep.expect_error(format('select tpo_ep.as(%L, %L)', :'est', format('select public.create_quote_from_estimate(%L, %L, %L, 1)::text', :'x1', 'line_items', 'a2600000-0000-0000-0000-0000000000f3')),
   'once that save lands, the document from the revision reviewed before it is refused', '%saved again since you opened it%');
 select tpo_ep.as(:'est', format('select public.create_quote_from_estimate(%L, %L, %L, 2)::text', :'x1', 'line_items', 'a2600000-0000-0000-0000-0000000000f3')) as q3 \gset
@@ -238,35 +240,34 @@ select tpo_ep.check((select sum(unit_price) = 900 from public.quote_line_items w
 -- now the document's), so nothing is mixed.
 select tpo_ep.as(:'est', format('select public.revise_estimate(%L, %L)::text', :'e3', 'Second document')) as x2 \gset
 select tpo_ep.as(:'est', format('select public.save_estimate_version(%L, 0, %L::jsonb)::text', :'x2', tpo_ep.lines(:'x2')));
-select tpo_ep_x.dblink_exec('other', 'begin');
-select tpo_ep_x.dblink_exec('other', format('set local "request.jwt.claims" = %L', json_build_object('sub', :'est', 'role', 'authenticated')::text));
-select tpo_ep_x.dblink_exec('other', 'set local role authenticated');
-select * from tpo_ep_x.dblink('other', format($s$select public.create_quote_from_estimate(%L, 'proposal', 'a2600000-0000-0000-0000-0000000000f4', 1)::text$s$, :'x2')) as t(r text);
+select dblink_exec('other', 'begin');
+select dblink_exec('other', format('set local "request.jwt.claims" = %L', json_build_object('sub', :'est', 'role', 'authenticated')::text));
+select dblink_exec('other', 'set local role authenticated');
+select * from dblink('other', format($s$select public.create_quote_from_estimate(%L, 'proposal', 'a2600000-0000-0000-0000-0000000000f4', 1)::text$s$, :'x2')) as t(r text);
 set lock_timeout = '300ms';
 select tpo_ep.expect_error(format('select tpo_ep.as(%L, %L)', :'est', format('select public.save_estimate_version(%L, 1, %L::jsonb)::text', :'x2', tpo_ep.lines(:'x2', 'a', 5))),
   'a save waits while a document is being made from the same version', '%lock timeout%');
 reset lock_timeout;
-select tpo_ep_x.dblink_exec('other', 'commit');
+select dblink_exec('other', 'commit');
 select tpo_ep.expect_error(format('select tpo_ep.as(%L, %L)', :'est', format('select public.save_estimate_version(%L, 1, %L::jsonb)::text', :'x2', tpo_ep.lines(:'x2', 'a', 5))),
   'and then it''s refused: that version is the document''s now', '%used for a customer document%');
 -- (c) Two people convert the same signed document at once: one job.
 select id as q4 from public.quotes where from_estimate_key = 'a2600000-0000-0000-0000-0000000000f4' \gset
 update public.quotes set status = 'sent', sent_at = now() where id = :'q4';
 select planet_test.sign(:'q4');
-select tpo_ep_x.dblink_exec('other', 'begin');
-select tpo_ep_x.dblink_exec('other', format('set local "request.jwt.claims" = %L', json_build_object('sub', :'est', 'role', 'authenticated')::text));
-select tpo_ep_x.dblink_exec('other', 'set local role authenticated');
-select r as job4 from tpo_ep_x.dblink('other', format($s$select public.convert_quote_to_job(%L)::text$s$, :'q4')) as t(r text) \gset
+select dblink_exec('other', 'begin');
+select dblink_exec('other', format('set local "request.jwt.claims" = %L', json_build_object('sub', :'est', 'role', 'authenticated')::text));
+select dblink_exec('other', 'set local role authenticated');
+select r as job4 from dblink('other', format($s$select public.convert_quote_to_job(%L)::text$s$, :'q4')) as t(r text) \gset
 set lock_timeout = '300ms';
 select tpo_ep.expect_error(format('select tpo_ep.as(%L, %L)', :'est', format('select public.convert_quote_to_job(%L)::text', :'q4')), 'a second conversion waits for the first', '%lock timeout%');
 reset lock_timeout;
-select tpo_ep_x.dblink_exec('other', 'commit');
+select dblink_exec('other', 'commit');
 select tpo_ep.check(tpo_ep.as(:'est', format('select public.convert_quote_to_job(%L)::text', :'q4')) = :'job4' and (select count(*) from public.jobs where quote_id = :'q4') = 1
                     and (select estimate_version_id = :'x2' from public.jobs where id = :'job4'),
   'then finds the same job: one job, on the signed version''s estimate version');
-select tpo_ep_x.dblink_disconnect('other');
-drop extension dblink;
-drop schema tpo_ep_x;
+select dblink_disconnect('other');
+reset search_path;
 
 -- The company is kept: sub_isolation_test.sql sweeps tables with rows in them.
 \o
