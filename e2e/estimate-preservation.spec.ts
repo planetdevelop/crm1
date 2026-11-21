@@ -22,7 +22,8 @@ test("approval off: the document's estimate version is locked, not approved; a s
   // 240 + 160 = 400; 20% → $480.00 (Removal $288, Disposal $192).
 
   const before = must(await data.db.from("companies").select("settings").eq("id", data.id).single(), "settings").settings as { estimating?: { require_approval?: boolean } } | null;
-  must(await data.db.rpc("merge_company_settings", { p_company: data.id, p_settings: { estimating: { require_approval: false } } as never }), "approval off");
+  const ok = (r: { error: { message: string } | null }, what: string) => { if (r.error) throw new Error(`${what}: ${r.error.message}`); };
+  ok(await data.db.rpc("merge_company_settings", { p_company: data.id, p_settings: { estimating: { require_approval: false } } as never }), "approval off");
   try {
     const page = await as("owner");
     await page.goto(`/estimates/${estimateId}`);
@@ -70,6 +71,6 @@ test("approval off: the document's estimate version is locked, not approved; a s
     expect(must(await data.db.from("quote_line_items").select("unit_price").eq("quote_id", quoteId), "unchanged").map((l) => Number(l.unit_price)).sort((a, b) => a - b)).toEqual([192, 288]);
     expect(must(await data.db.from("estimate_versions").select("status").eq("id", v1).single(), "v1 kept").status).toBe("locked");
   } finally {
-    must(await data.db.rpc("merge_company_settings", { p_company: data.id, p_settings: { estimating: { require_approval: before?.estimating?.require_approval ?? true } } as never }), "approval restored");
+    ok(await data.db.rpc("merge_company_settings", { p_company: data.id, p_settings: { estimating: { require_approval: before?.estimating?.require_approval ?? true } } as never }), "approval restored");
   }
 });
