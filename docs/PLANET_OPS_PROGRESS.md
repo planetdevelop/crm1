@@ -509,7 +509,8 @@ cell by cell, the verified calculation order, the issues found, the app's rules,
 | Slice | Scope | Implemented | Automated | Staging (manual) |
 | --- | --- | --- | --- | --- |
 | 3a | Estimating areas; rates with effective dates; estimates, versions (draft → approved baseline → revisions), lines; exact totals; cost privacy; one summary record per estimate | PR #12, branch `claude/phase-3a-estimating-model` (stacked on 2d) | `planet_ops_estimating_test.sql`, core `estimating.test.ts`, parity script against the real workbook (local, 44/45 to the cent) | Not yet |
-| 3b | The Estimating tab: list and search, New estimate (from a request or alone), the guided editor (project and site, labor, equipment, disposal and hauling, other costs, pricing review, versions), Settings → Estimating (rates, approval), Start estimate on a request | Branch `claude/phase-3b-estimating-workspace` (stacked on 3a) | Browser test `e2e/estimating.spec.ts` (CI; includes tablet and phone width checks), web unit tests | Not yet |
+| 3b | The Estimating tab: list and search, New estimate (from a request or alone), the guided editor (project and site, labor, equipment, disposal and hauling, other costs, pricing review, versions), Settings → Estimating (rates, approval), Start estimate on a request | PR #13, branch `claude/phase-3b-estimating-workspace` (stacked on 3a) | Browser test `e2e/estimating.spec.ts` (CI; includes tablet and phone width checks), web unit tests | Not yet |
+| 3c | Create quote / proposal from an estimate version (unsent draft, prices only); explicit refresh with differences; issued versions and the job keep the exact estimate version; the Estimate Summary; estimator guide | Branch `claude/phase-3c-estimate-handoff` (stacked on 3b) | `planet_ops_estimate_handoff_test.sql`, browser test `e2e/estimate-handoff.spec.ts` (CI; checks the customer's page and data hold nothing internal) | Not yet |
 
 ### 3a: data, rates, calculation, privacy
 
@@ -581,6 +582,61 @@ Migration `20261124000100_planet_ops_estimating.sql` (not yet released).
   (from a day; earlier estimates keep theirs). None preset.
 - **Request page**: its estimates and **Start estimate**.
 
+### 3c: from the estimate to the customer's document, the summary, and the job
+
+Migration `20261125000100_planet_ops_estimate_handoff.sql` (not yet released).
+
+- **Create quote / proposal** (from a saved, complete estimate version; approved first while Settings
+  → Estimating requires it, the default): needs Estimating and Quotes and sales; asks line-item quote
+  or proposal; makes an **unsent draft** for the estimate's customer, property and request, linked to
+  that exact version (`quotes.estimate_version_id`), and opens it in Quotes & Proposals. Only customer
+  items at their selling prices (lines grouped by their customer name; the shares add up to the
+  calculated price exactly) and the customer-facing scope cross; the quote line's own `unit_cost`
+  stays empty; no wage, cost, rate, markup, reserve, owner pay or internal note. A retry returns the
+  same draft. Staff can't set the link by hand. Sales tax, if the business charges it, is added by
+  Quotes & Proposals on top of the selling price.
+- **Separate histories** (tested): negotiating the document never changes the estimate; revising the
+  estimate never changes a document. **Refresh from estimate…** on an unsigned document shows the
+  differences first (lines and subtotals now and after), then replaces its lines (and, if chosen, its
+  scope); a sent one becomes a draft revision until sent again (Phase 1c); a signed one is never
+  refreshed.
+- **Each issued document version keeps the estimate version** it carried
+  (`quote_versions.estimate_version_id`), and **converting the signed version links the job to that
+  exact estimate version** (`jobs.estimate_version_id`), even when a newer estimate version exists.
+  Only conversion sets it (the same guard as the signed-version link); documents and jobs without an
+  estimate stay without one; Create Job links none; no link is guessed from names or prices.
+- **The Estimate Summary** (Summary on the estimate; printable): estimate and version, estimator,
+  dates, customer, property, request; scope, conditions, assumptions and files; the itemized lines
+  with quantities and units (and, with cost access, unit costs, the rate as taken, base, risk and each
+  line's selling share); base, reserve, pricing method, owner pay, the **calculated** selling price
+  and profit; every version's dated figures; the **prices actually sent** (each document version,
+  with the estimate version it carried) and **accepted**, kept apart from the calculated price; any
+  job; the request's outcome, last contact, next follow-up and lost reason. One per estimate, kept
+  current, never duplicated. Someone without cost access gets it without a single cost, total or
+  price; nobody without Estimating gets it.
+- **Phase 4 handoff, recorded only**: the summary's permanent copy belongs in **Jobs Bid** until a job
+  exists, then in the **job's folder** (set when the job is made); its status says **not backed up**.
+  No folder is made for an estimate or a quote (tested); no Drive sync runs.
+- **Customer pages**: the hub reads only the document's own columns; the browser test checks the
+  customer's page and its data carry no internal line name, note or cost.
+- **Assistants** read estimates under the same rules (rows by role and area; costs only through the
+  costs function with *See estimating costs*); estimating writes aren't among the assistants' write
+  functions, so they can't change estimates.
+- Guide for estimators: [planet-ops/ESTIMATOR_GUIDE.md](planet-ops/ESTIMATOR_GUIDE.md).
+
+### Phase 3 decisions for the owner
+
+- The workbook issues **P1–P9** in [planet-ops/ESTIMATING_MAPPING.md](planet-ops/ESTIMATING_MAPPING.md)
+  §4: per-sq-ft area, travel by mileage vs fuel, the truck-fuel quantity, labels, whether a global
+  risk reserve applies, the OT rate's meaning, contingency as a line or a reserve, and whether owner
+  pay is a cost or profit (the app shows it apart from profit until decided).
+- **Rates**: enter the business's own rates (none are preset; the workbook's are not loaded).
+- **Labor burden**: whether rates are fully loaded or a burden % applies (no default).
+- **Approval**: who approves estimates (owners, admins and General manager by default), and whether
+  approval stays required before a customer document (on by default).
+- **Sales tax** on demolition services: Quotes & Proposals applies the business's tax settings on
+  top of the estimate's selling price.
+
 ## Phase 1 staging acceptance checklist (owner)
 
 Run on https://crewtavo-staging.up.railway.app/ with fictional records once PRs #4–#7 are merged
@@ -635,3 +691,29 @@ Run with fictional records once Phase 1 and PRs #8, #9 and the 2c PR are merged 
       prices appear, labelled as sales evidence.
 - [ ] **Roles**: a custom role without Sales can't move requests, log contacts or see the history.
 - [ ] **No customer messages** were sent by the pipeline at any point.
+
+## Phase 3 staging acceptance checklist (owner)
+
+Run with fictional records once Phases 1–2 and PRs #12, #13 and the 3c PR are merged in order.
+
+- [ ] **Settings → Estimating**: add a few rates (labor with and without burden, an owned and a rented
+      machine, a disposal per-ton fee); give one a new cost from today and check an earlier estimate
+      keeps the old one.
+- [ ] **Start estimate** from a request; fill Project and site and the assumption log; add labor,
+      equipment (with a fuel line for a fuel-included machine: warned), disposal (tons, CY, container
+      and loads apart), other costs and contingency.
+- [ ] **Pricing review**: markup and target margin each; owner pay none and on; burden; every metric's
+      definition; an incomplete estimate (a line without a rate) can't be approved.
+- [ ] **Roles**: a custom role with *Prepare internal estimates* only sees quantities, not costs, and
+      can't change pricing; a crew lead and a seller without Estimating see no estimate.
+- [ ] **Approve** (baseline frozen); **Revise** with a reason; the baseline's figures stay.
+- [ ] **Create quote / proposal** (both kinds): an unsent draft with customer lines only; review and
+      send it from Quotes & Proposals; on the customer's page (phone and desktop, print/PDF) nothing
+      internal appears.
+- [ ] Negotiate the document's price: the estimate doesn't change. Revise the estimate: the document
+      doesn't change until **Refresh from estimate…** (differences shown first); a signed one can't be.
+- [ ] Sign and convert: the job links the signed version's estimate version (not a newer one); the
+      summary now says its copy belongs with the job (not backed up); no folder before the job.
+- [ ] **Summary**: one per estimate after many saves; prints; sent and accepted prices apart from the
+      calculated price; a lost bid keeps it with its reason.
+- [ ] Tablet and phone: the estimate editor and summary are usable (physical devices are the owner's).

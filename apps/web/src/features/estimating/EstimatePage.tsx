@@ -8,10 +8,11 @@
 import { calculateEstimate, ESTIMATE_UNITS, METRIC_DEFINITIONS, SECTION_LABELS, UNIT_LABELS, type EstimateSection, type OwnerPayMethod, type PricingMethod } from "@crewtavo/core/estimating";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { confirm } from "@/components/ui/Confirm";
 import { Field, FormError } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { BackLink, PageHeader } from "@/components/ui/PageHeader";
 import { DetailSkeleton } from "@/components/ui/Skeleton";
 import { PageError } from "@/components/ui/States";
@@ -23,6 +24,7 @@ import { ClientPicker, PropertySelect, type PickedClient } from "../clients/Clie
 import { memberName, useTeam } from "../requests/RequestsPage";
 import { approvesEstimates, estimateKey, estimatesKey, percentFromFraction, savePayload, seesEstimateCosts, useEstimate, useRates, type LineRow, type Scope, type VersionRow } from "./data";
 import { estimateStatus } from "./EstimatesPage";
+import { CreateDocumentDialog, EstimateDocuments } from "./Handoff";
 
 const STEPS = [
   { key: "site", label: "Project and site" },
@@ -44,8 +46,10 @@ const newKey = () => `l${Date.now().toString(36)}${(keySeq++).toString(36)}`;
 export function EstimatePage() {
   const { id = "" } = useParams();
   const session = useSession();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
+  const [making, setMaking] = useState(false);
   const costs = seesEstimateCosts(session);
   const approver = approvesEstimates(session);
   const versionParam = params.get("version");
@@ -139,8 +143,10 @@ export function EstimatePage() {
         title={draft.title}
         actions={
           <>
+            <Link className="btn" to={`/estimates/${id}/summary`}><Icon name="file" size={16} />Summary</Link>
             {editable && <Button variant="primary" icon="check" loading={save.isPending} disabled={!dirty} onClick={() => save.mutate()}>Save</Button>}
             {!editable && <Button icon="edit" loading={revise.isPending} onClick={async () => { const reason = window.prompt("Why is it being revised? (kept with the revision)") ?? null; if (reason !== null) revise.mutate(reason); }}>Revise</Button>}
+            <Button icon="quote" disabled={dirty || d.version.calc_status !== "ok" || !d.version.saved_at} onClick={() => setMaking(true)}>Create quote / proposal</Button>
           </>
         }
       />
@@ -198,6 +204,7 @@ export function EstimatePage() {
           </div>
         </aside>
       </div>
+      {making && <CreateDocumentDialog version={d.version} estimateTitle={draft.title} onClose={() => setMaking(false)} onCreated={(qid) => navigate(`/quotes/${qid}`)} />}
     </>
   );
 }
@@ -526,6 +533,7 @@ function VersionsStep({ data, approver, onApprove, approving, dirty, name, onOpe
         </table>
         {v.revision_reason && <span className="muted small">Version {v.number}: {v.revision_reason}</span>}
       </section>
+      <EstimateDocuments estimateId={data.estimate.id} />
     </>
   );
 }
