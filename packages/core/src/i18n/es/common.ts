@@ -25,6 +25,8 @@ export default {
   "Quotes & Proposals": "Cotizaciones y propuestas",
   // Planet Ops Phase 3: the internal estimating calculator.
   "Estimating": "Estimaciones",
+  // Planet Ops Phase 4: reviewing receipts, tickets and job costs.
+  "Cost review": "Revisión de costos",
   "Jobs": "Trabajos",
   "Invoices": "Facturas",
   "Drive": "Drive",
