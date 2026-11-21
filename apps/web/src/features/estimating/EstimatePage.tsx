@@ -16,7 +16,7 @@ import { BackLink, PageHeader } from "@/components/ui/PageHeader";
 import { DetailSkeleton } from "@/components/ui/Skeleton";
 import { PageError } from "@/components/ui/States";
 import { supabase, unwrap } from "@/lib/api";
-import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
+import { formatDate, formatDateTime, formatMoneyCents } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { toast } from "@/lib/toast";
 import { ClientPicker, PropertySelect, type PickedClient } from "../clients/ClientForm";
@@ -176,11 +176,11 @@ export function EstimatePage() {
             <strong>{costs ? "Calculated price" : "Estimate"}</strong>
             {costs && live ? (
               <dl className="kv">
-                <dt>Base cost</dt><dd className="tabular">{formatMoney(live.base)}</dd>
-                <dt>Risk reserve</dt><dd className="tabular">{formatMoney(live.risk)}</dd>
-                <dt>Markup</dt><dd className="tabular">{formatMoney(live.markup)}</dd>
-                <dt>Owner pay</dt><dd className="tabular">{formatMoney(live.owner_pay)}</dd>
-                <dt><strong>Calculated selling price</strong></dt><dd className="tabular strong">{formatMoney(live.selling_price)}</dd>
+                <dt>Base cost</dt><dd className="tabular">{formatMoneyCents(live.base)}</dd>
+                <dt>Risk reserve</dt><dd className="tabular">{formatMoneyCents(live.risk)}</dd>
+                <dt>Markup</dt><dd className="tabular">{formatMoneyCents(live.markup)}</dd>
+                <dt>Owner pay</dt><dd className="tabular">{formatMoneyCents(live.owner_pay)}</dd>
+                <dt><strong>Calculated selling price</strong></dt><dd className="tabular strong">{formatMoneyCents(live.selling_price)}</dd>
               </dl>
             ) : (
               <span className="muted small">Costs, pricing and profit are shown to people with "See estimating costs, rates and profit".</span>
@@ -402,7 +402,7 @@ function LinesStep({ sections, draft, set, editable, costs, rates, live }: { sec
                     <Field label="On the customer's document as" optional hint="Lines with the same name are one customer line, at their selling price. Costs never show."><input className="input input-sm" value={l.customer_item ?? ""} maxLength={200} disabled={!editable} onChange={(e) => update(l.key!, { customer_item: e.target.value })} placeholder={SECTION_LABELS[section]} /></Field>
                     <Field label="Notes (internal)" optional className="grow"><input className="input input-sm" value={l.notes ?? ""} maxLength={2000} disabled={!editable} onChange={(e) => update(l.key!, { notes: e.target.value })} /></Field>
                   </div>
-                  {costs && result && <span className="small muted tabular">Base {formatMoney(result.base)} · risk {formatMoney(result.risk)} · subtotal {formatMoney(result.subtotal)} · selling share {formatMoney(result.price)}</span>}
+                  {costs && result && <span className="small muted tabular">Base {formatMoneyCents(result.base)} · risk {formatMoneyCents(result.risk)} · subtotal {formatMoneyCents(result.subtotal)} · selling share {formatMoneyCents(result.price)}</span>}
                   {!costs && l.rate_id && <span className="small muted">Priced from the {rates.find((r) => r.id === l.rate_id)?.name ?? "selected"} rate.</span>}
                 </div>
               );
@@ -472,10 +472,10 @@ function PricingStep({ draft, set, editable, costs, live }: { draft: Draft; set:
                 ["Calculated selling price", live.selling_price, METRIC_DEFINITIONS.selling_price],
                 ["Profit if the reserve isn't used", live.profit_if_reserve_unused, METRIC_DEFINITIONS.profit_if_reserve_unused],
               ] as const).map(([label, amount, hint]) => (
-                <tr key={label}><td><strong>{label}</strong><div className="muted small">{hint}</div></td><td className="num tabular">{formatMoney(amount)}</td></tr>
+                <tr key={label}><td><strong>{label}</strong><div className="muted small">{hint}</div></td><td className="num tabular">{formatMoneyCents(amount)}</td></tr>
               ))}
               <tr><td><strong>Sheet margin</strong><div className="muted small">{METRIC_DEFINITIONS.sheet_margin}</div></td><td className="num tabular">{live.sheet_margin === null ? "—" : `${(live.sheet_margin * 100).toFixed(1)}%`}</td></tr>
-              <tr><td><strong>Price per sq ft</strong><div className="muted small">Calculated selling price ÷ the total area on Project and site.</div></td><td className="num tabular">{area > 0 ? formatMoney(live.selling_price / area) : "—"}</td></tr>
+              <tr><td><strong>Price per sq ft</strong><div className="muted small">Calculated selling price ÷ the total area on Project and site.</div></td><td className="num tabular">{area > 0 ? formatMoneyCents(live.selling_price / area) : "—"}</td></tr>
             </tbody>
           </table>
           <span className="muted small">This is the calculated price. What the customer is sent, and what they sign, are kept on the quote or proposal and never change these figures.</span>

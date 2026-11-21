@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Field, FormError } from "@/components/ui/Field";
 import { supabase, unwrap } from "@/lib/api";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatMoneyCents } from "@/lib/format";
 import { can, hasRole, useSession } from "@/lib/session";
 import { toast } from "@/lib/toast";
 import { ratesKey, seesEstimateCosts, useRates, type Rate } from "../estimating/data";
@@ -94,7 +94,7 @@ export function EstimatingSettings() {
                   <td><strong>{r.name}</strong><div className="muted small">{r.code}{r.notes ? ` · ${r.notes}` : ""}</div></td>
                   <td>{SECTION_LABELS[r.section]}</td>
                   <td>{UNIT_LABELS[r.unit as keyof typeof UNIT_LABELS] ?? r.unit}</td>
-                  {costs && <td className="num tabular">{r.unit_cost === null ? "—" : formatMoney(Number(r.unit_cost))}</td>}
+                  {costs && <td className="num tabular">{r.unit_cost === null ? "—" : formatMoneyCents(Number(r.unit_cost))}</td>}
                   <td>{formatDate(r.effective_from)}</td>
                   <td className="small">{[r.includes_burden && "burden", r.includes_fuel && "fuel", r.owned === true && "owned", r.owned === false && "rented"].filter(Boolean).join(", ") || "—"}</td>
                   <td>{canSetRates && <Button size="sm" onClick={() => setEditing(r)}>New cost</Button>}</td>
