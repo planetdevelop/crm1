@@ -142,6 +142,23 @@ export function EstimateSummaryPage() {
           )}
           {s.jobs.map((j) => <span key={j.id} className="small">Job <Link to={`/jobs/${j.id}`} style={U}>#{j.number}</Link> made from estimate version {j.estimate_version ?? "—"}.</span>)}
         </section>
+        <section className="card card-pad stack-sm" aria-label="Estimated and actual">
+          <strong>Estimated and actual</strong>
+          <dl className="kv">
+            {s.costs_visible && (() => {
+              const baseline = s.versions.find((x) => x.baseline);
+              const latest = s.versions[s.versions.length - 1];
+              const money = (n: number | null | undefined) => (n === undefined || n === null ? "—" : formatMoneyCents(n));
+              return (
+                <>
+                  <dt>Original approved estimated cost</dt><dd>{baseline ? `${money(baseline.base_cost)} (v${baseline.number}, the baseline)` : "None yet: no version has been approved"}</dd>
+                  <dt>Latest estimated cost</dt><dd>{latest ? `${money(latest.base_cost)} (v${latest.number}, ${latest.status === "locked" ? "used for a document, not approved" : latest.status})` : "—"}</dd>
+                </>
+              );
+            })()}
+            <dt>Actual costs, invoices and payments</dt><dd className="muted">Not tracked here yet (Phase 4 compares them with the baseline). Nothing here means $0.</dd>
+          </dl>
+        </section>
       </div>
     </>
   );
