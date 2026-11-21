@@ -16,8 +16,8 @@ test("pipeline settings: a template is offered in the contact log; a custom stag
 
   // A template, in the business's own words.
   const name = unique("Check-in");
-  await settings.getByLabel("Name").fill(name);
-  await settings.getByLabel("Script").fill("Ask whether they have questions about the proposal, and when they'd like to start.");
+  await settings.getByLabel("Name", { exact: true }).fill(name);
+  await settings.getByLabel("Script", { exact: true }).fill("Ask whether they have questions about the proposal, and when they'd like to start.");
   await settings.getByRole("button", { name: "Add template" }).click();
   await expect(settings.getByRole("table", { name: "Templates" }).getByText(name)).toBeVisible();
 
@@ -35,7 +35,7 @@ test("pipeline settings: a template is offered in the contact log; a custom stag
   const request = must(await data.db.from("requests").insert({ company_id: data.id, client_id: client.id, title: `${client.name} demolition`, source: "phone" }).select("id").single(), "request");
   await page.goto(`/requests/${request.id}`);
   const activity = page.locator("[data-planet-ops=request-activity]");
-  await activity.getByLabel("Template").selectOption({ label: name });
+  await activity.getByLabel("Template", { exact: true }).selectOption({ label: name });
   await expect(activity.getByLabel("What was said")).toHaveValue(/questions about the proposal/);
 
   // Report and pricing history.
