@@ -34,7 +34,7 @@ function useRequestPipeline(id: string) {
       unwrapOne(
         await supabase()
           .from("requests")
-          .select("id, number, status, client_id, stage_id, stage_entered_at, assigned_to, estimator_id, next_action, next_action_on, last_contact_at, first_response_at, follow_up_paused_at, follow_up_paused_reason, outcome_reason, outcome_at, service, campaign")
+          .select("id, number, status, client_id, stage_id, stage_entered_at, assigned_to, estimator_id, next_action, next_action_on, next_action_task_id, last_contact_at, first_response_at, follow_up_paused_at, follow_up_paused_reason, outcome_reason, outcome_at, service, campaign")
           .eq("id", id)
           .maybeSingle(),
         "This request",
@@ -80,7 +80,7 @@ export function PipelineCard({ requestId, canSell }: { requestId: string; canSel
   const choose = (id: string) => {
     const to = stages.data!.find((s) => s.id === id);
     if (!to || to.id === data.stage_id) return;
-    if (needsOutcomeReason(to.kind)) return setClosing(to);
+    if (needsOutcomeReason(to.kind) || to.kind === "won") return setClosing(to);
     update.mutate({ stage_id: to.id }, { onSuccess: () => toast.success(`Moved to ${to.label}`, { tone: "request" }) });
   };
 
@@ -93,10 +93,10 @@ export function PipelineCard({ requestId, canSell }: { requestId: string; canSel
           {canSell ? (
             <select className="select input-sm" aria-label="Stage" value={data.stage_id ?? ""} disabled={update.isPending} onChange={(e) => choose(e.target.value)}>
               {!data.stage_id && <option value="">Not in the pipeline</option>}
-              {stages.data.filter((s) => (s.active && s.kind !== "won") || s.id === data.stage_id).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+              {stages.data.filter((s) => s.active || s.id === data.stage_id).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           ) : (stage?.label ?? "—")}
-          {stage?.kind !== "won" && <span className="muted small" style={{ display: "block", marginTop: 4 }}>Won comes when its job is made.</span>}
+          {stage?.kind !== "won" && <span className="muted small" style={{ display: "block", marginTop: 4 }}>A job made from it marks it won. Marking it won here is a sales call only: no job, signature or payment.</span>}
         </dd>
         {data.outcome_reason && <><dt>Why</dt><dd>{data.outcome_reason}</dd></>}
         <dt>Owner</dt>
@@ -125,7 +125,7 @@ export function PipelineCard({ requestId, canSell }: { requestId: string; canSel
             );
           }}
         >
-          <Field label="Next action" hint={late ? <span className="text-danger strong">Overdue</span> : undefined}>
+          <Field label="Next action" hint={late ? <span className="text-danger strong">Overdue</span> : data.next_action_task_id ? "This is one of the follow-ups below: snoozing it moves this date." : undefined}>
             <input className="input input-sm" value={next.action} maxLength={200} onChange={(e) => setNext({ ...next, action: e.target.value })} placeholder="Call to book the site visit" />
           </Field>
           <Field label="Next action date"><input className="input input-sm" type="date" value={next.on} onChange={(e) => setNext({ ...next, on: e.target.value })} /></Field>
@@ -173,7 +173,7 @@ export function RequestActivity({ requestId, canSell }: { requestId: string; can
     },
   });
   const [log, setLog] = useState({ channel: "call", direction: "out", body: "", subject: "" });
-  const [task, setTask] = useState({ title: "", due: "" });
+  const [task, setTask] = useState({ title: "", due: "", next: false });
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["request-activity", requestId] });
     queryClient.invalidateQueries({ queryKey: requestPipelineKey(requestId) });
@@ -189,11 +189,19 @@ export function RequestActivity({ requestId, canSell }: { requestId: string; can
     },
   });
   const addTask = useMutation({
-    mutationFn: async () => unwrap(await supabase().rpc("add_request_follow_up", { p_request: requestId, p_title: task.title, p_due_on: task.due || undefined })),
+    mutationFn: async () => unwrap(await supabase().rpc("add_request_follow_up", { p_request: requestId, p_title: task.title, p_due_on: task.due || undefined, p_next_action: task.next })),
     onSuccess: () => {
-      setTask({ title: "", due: "" });
+      setTask({ title: "", due: "", next: false });
       refresh();
     },
+  });
+  const move = useMutation({
+    mutationFn: async ({ id, due }: { id: string; due: string }) => unwrap(await supabase().from("follow_up_tasks").update({ due_on: due }).eq("id", id).select("id")),
+    onSuccess: (_, { due }) => {
+      toast.success(`Moved to ${formatDate(due)}`, { tone: "request" });
+      refresh();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "That didn't move."),
   });
   const done = useMutation({
     mutationFn: async (id: string) => unwrap(await supabase().from("follow_up_tasks").update({ done_at: new Date().toISOString(), done_by: session.userId }).eq("id", id).select("id")),
@@ -233,15 +241,17 @@ export function RequestActivity({ requestId, canSell }: { requestId: string; can
               </span>
               {t.body && <span className="muted small" style={{ display: "block" }}>{t.body}</span>}
             </span>
+            <Snooze today={today} due={t.due_on} busy={move.isPending && move.variables?.id === t.id} onMove={(due) => move.mutate({ id: t.id, due })} label={t.title} />
             <Button size="sm" loading={done.isPending && done.variables === t.id} onClick={() => done.mutate(t.id)}>Done</Button>
           </div>
         ))}
         <form className="row wrap" style={{ gap: 8, alignItems: "end" }} onSubmit={(e) => { e.preventDefault(); if (task.title.trim()) addTask.mutate(); }}>
           <Field label="Add a follow-up" className="grow"><input className="input input-sm" value={task.title} maxLength={300} onChange={(e) => setTask({ ...task, title: e.target.value })} placeholder="Call back about the start date" /></Field>
-          <Field label="Due" optional><input className="input input-sm" type="date" value={task.due} onChange={(e) => setTask({ ...task, due: e.target.value })} /></Field>
+          <Field label="Due" optional><input className="input input-sm" type="date" min={today} value={task.due} onChange={(e) => setTask({ ...task, due: e.target.value })} /></Field>
+          <label className="row small" style={{ gap: 6, alignItems: "center" }}><input type="checkbox" checked={task.next} onChange={(e) => setTask({ ...task, next: e.target.checked })} />Make it the next action</label>
           <Button type="submit" size="sm" loading={addTask.isPending} disabled={!task.title.trim()}>Add</Button>
         </form>
-        <FormError error={addTask.error ?? done.error} />
+        <FormError error={addTask.error ?? done.error ?? move.error} />
       </div>
 
       <form className="card card-pad stack-sm" onSubmit={(e) => { e.preventDefault(); if (log.body.trim()) logContact.mutate(); }}>
@@ -310,6 +320,42 @@ export function describe(e: Pick<Event, "kind" | "from_value" | "to_value">, nam
     case "outcome": return `Reason: ${e.to_value}`;
     case "paused": return `Follow-ups paused: ${PAUSE_REASONS[e.to_value ?? "staff"] ?? e.to_value}`;
     case "resumed": return "Follow-ups resumed";
+    case "follow_up": return followUpLine(e.from_value, e.to_value);
     default: return e.kind;
   }
+}
+
+/** A follow-up's history line: what happened to it. */
+export function followUpLine(what: string | null, detail: string | null): string {
+  const d = detail ?? "";
+  if (what === "created") return `Follow-up added: ${d}`;
+  if (what === "done") return `Follow-up done: ${d}`;
+  if (what === "reopened") return `Follow-up restored: ${d}`;
+  if (what === "rescheduled") return `Follow-up moved: ${d}`;
+  if (what?.startsWith("cancelled:")) {
+    const why = what.slice("cancelled:".length);
+    const reason = why === "stage_changed" ? "the request moved to another stage" : why === "paused" ? "follow-ups were paused" : (PAUSE_REASONS[why] ?? why).toLowerCase();
+    return `Follow-up cancelled (${reason}): ${d}`;
+  }
+  return `Follow-up: ${d}`;
+}
+
+const addDays = (iso: string, days: number) => new Date(Date.parse(`${iso}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+
+/** Snooze a follow-up (from today, the business's own date) or move it to a day. The same follow-up moves. */
+function Snooze({ today, due, busy, onMove, label }: { today: string; due: string | null; busy: boolean; onMove: (due: string) => void; label: string }) {
+  const [picking, setPicking] = useState(false);
+  if (picking) {
+    return (
+      <input className="input input-sm" type="date" aria-label={`Move "${label}" to`} min={today} defaultValue={due && due >= today ? due : today} autoFocus
+        onChange={(e) => { if (e.target.value && e.target.value >= today) { onMove(e.target.value); setPicking(false); } }} onBlur={() => setPicking(false)} style={{ width: 150 }} />
+    );
+  }
+  return (
+    <span className="row" style={{ gap: 4 }}>
+      <Button size="sm" loading={busy} onClick={() => onMove(addDays(today, 1))} aria-label={`Snooze "${label}" to tomorrow`}>Tomorrow</Button>
+      <Button size="sm" disabled={busy} onClick={() => onMove(addDays(today, 7))} aria-label={`Snooze "${label}" a week`}>+1 week</Button>
+      <Button size="sm" disabled={busy} onClick={() => setPicking(true)}>Move…</Button>
+    </span>
+  );
 }

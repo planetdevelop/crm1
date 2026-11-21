@@ -367,7 +367,8 @@ merge Phase 1 first (#4 → #5 → #6 → #7), then 2a → 2b → 2c.
 | --- | --- | --- | --- | --- |
 | 2a | Stages, owner/estimator/next action/outcomes per request, history, contacts and pauses, follow-up cadence and templates (data), report and pricing history | PR #8, branch `claude/phase-2a-pipeline-model` | `planet_ops_pipeline_test.sql`, core `pipeline.test.ts` (CI runs the full suite) | Not yet |
 | 2b | Pipeline board and list with the filters; the request's pipeline card, contact log, follow-ups and history | PR #9, branch `claude/phase-2b-pipeline-screens` (stacked on 2a) | Browser test `e2e/pipeline.spec.ts` (CI), web unit tests | Not yet |
-| 2c | Settings → Sales pipeline (default owner, reminders, stages, cadence, templates); Report and Pricing history | Branch `claude/phase-2c-pipeline-settings-reports` (stacked on 2b) | Browser test `e2e/pipeline-settings.spec.ts` (CI), web unit tests | Not yet |
+| 2c | Settings → Sales pipeline (default owner, reminders, stages, cadence, templates); Report and Pricing history | PR #10, branch `claude/phase-2c-pipeline-settings-reports` (stacked on 2b) | Browser test `e2e/pipeline-settings.spec.ts` (CI), web unit tests | Not yet |
+| 2d | Resume restores the current stage's follow-ups; snooze/reschedule; a follow-up as the next action; Won as a sales call with a note | Branch `claude/phase-2d-pipeline-followups` (stacked on 2c) | `planet_ops_pipeline_followups_test.sql`, browser test `e2e/pipeline-followups.spec.ts` (CI) | Not yet |
 
 ### 2a: the pipeline's data and rules
 
@@ -428,7 +429,7 @@ Migration `20261122000100_planet_ops_pipeline.sql` (not yet released).
   in it, owner and estimator, next action and date, last contact, quoted amount), remembered per
   viewer. Filters: Active, Needs first response, Follow-up due, Overdue, Waiting on customer, No next
   action, No owner, Decided (30 days), and whose (mine, no owner, a person). Dragging a card moves its
-  request; Lost and Unqualified drop zones ask why. Won isn't a target: it comes with the job.
+  request; Won, Lost and Unqualified drop zones ask why (Won by hand is a sales call only: see 2d).
 - **The request page**: a Sales pipeline card (stage, owner, estimator, last contact, first response,
   days in stage, the reason once decided, next action and date, requested service, campaign, pause or
   resume follow-ups) and a Follow-ups and contact history section (open follow-ups with Done and Add,
@@ -451,6 +452,29 @@ Migration `20261122000100_planet_ops_pipeline.sql` (not yet released).
   estimator and outcome, each linked to its request and quote/proposal, with the reason once decided;
   labelled as sales evidence, not costs or benchmarks.
 
+### 2d: follow-ups that pause, resume and move; Won as a sales call
+
+Migration `20261123000100_planet_ops_pipeline_followups.sql` (not yet released).
+
+- **Resume policy**: resuming restores the *current stage's* unfinished cadence reminders, once. Those
+  the pause closed are reopened as the same follow-ups (due when they were, or today if that day has
+  passed); a step the pause kept from being made (the stage was entered while paused) is made, due as
+  it would have been, or today. Completed reminders stay completed; reminders from an earlier stage
+  stay closed; manual follow-ups were never closed by a pause. Repeated resumes and retries make
+  nothing twice (each reminder's identity is its stage entry and step). A decided request (Won, Lost,
+  Unqualified) can't be resumed by hand (move it back into the pipeline), nor one whose customer opted
+  out of messages or texts.
+- **History** says what happened to each follow-up: created, done, cancelled (and why: paused, the
+  customer replied, opted out, moved to another stage, won, lost), restored, moved (from → to).
+- **Snooze and reschedule**: Tomorrow, +1 week, or Move… to a day; the same follow-up moves, never to
+  a past day on the business's own date, and a closed one can't be moved. A follow-up can be made the
+  request's next action: snoozing it moves the next action's date; doing it clears the next action;
+  typing a next action by hand unlinks it.
+- **Won without a job**: someone in sales may mark a request Won with a note saying why. It is a
+  sales classification only: no job, invoice, payment, deposit, signature or folder handoff is made,
+  and the quote stays as it was (tested). Converting the signed agreement later still links the one
+  job to the request, and Won stays once in the history. Production status stays with the job.
+
 ### Phase 2 against the plan's "done when"
 
 - Every active request has an owner and a visible next action: every stage gives a next action on
@@ -460,8 +484,8 @@ Migration `20261122000100_planet_ops_pipeline.sql` (not yet released).
 - Moving stages preserves history (`request_pipeline_events`, kept as it happened; tested).
 - One client can have two independent opportunities (tested in the database and the browser).
 - Accepting a quote links the correct request/job without duplicates: converting the signed quote
-  makes one job linked to its request and marks the request Won once, again on retry (tested); a
-  request can't be marked Won by hand.
+  makes one job linked to its request and marks the request Won once, again on retry (tested). Won
+  by hand (2d) is a noted sales call that makes no job.
 
 ### Phase 2 deferred or for the owner
 

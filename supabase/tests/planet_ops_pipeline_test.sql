@@ -80,7 +80,7 @@ select tpo_pl.check((select stage_id = :'s_new' and assigned_to is null and next
                      from public.requests where id = :'req'),
   'a new request is a New inquiry with a visible next action; nobody covers its zip and no default owner is set, so it has no owner yet (flagged)');
 select tpo_pl.check((select last_contact_at is null from public.requests where id = :'req'), 'staff can''t write its last contact: it comes from logged contacts');
-select tpo_pl.check((select count(*) = 1 and bool_and(kind = 'stage' and to_value = 'New inquiry' and actor_id = :'sales') from public.request_pipeline_events where request_id = :'req'),
+select tpo_pl.check((select count(*) = 1 and bool_and(to_value = 'New inquiry' and actor_id = :'sales') from public.request_pipeline_events where request_id = :'req' and kind = 'stage'),
   'its history starts with the stage it came in at, and who');
 select tpo_pl.check((select count(*) = 1 and bool_and(source = 'cadence' and assigned_to is null and title = 'First response: House demolition' and done_at is null)
                      from public.follow_up_tasks where related_type = 'request' and related_id = :'req'),
@@ -204,7 +204,7 @@ select tpo_pl.check((select follow_up_paused_reason = 'opted_out' from public.re
 begin;
 set local role authenticated;
 select tpo_pl.as_user(:'sales');
-select tpo_pl.expect_error(format('update public.requests set stage_id = %L where id = %L', :'s_won', :'req'), 'staff can''t mark a request Won by hand: no win is made up', '%won when its job is made%');
+select tpo_pl.expect_error(format('update public.requests set stage_id = %L where id = %L', :'s_won', :'req'), 'staff can''t mark a request Won without a note saying why', '%Say why it''s won%');
 commit;
 select planet_test.sign(:'quote');
 begin;
