@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const dir = fileURLToPath(new URL("../../../supabase/migrations/", import.meta.url));
-const files = readdirSync(dir).filter((f) => f >= "20261120000000" && f.endsWith(".sql"));
+const files = readdirSync(dir).filter((f: string) => f >= "20261120000000" && f.endsWith(".sql"));
 
 describe("Planet Ops migrations", () => {
   it("have no UPDATE or DELETE without a WHERE clause", () => {
