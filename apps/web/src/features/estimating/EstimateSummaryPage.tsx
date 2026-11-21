@@ -44,7 +44,7 @@ export function EstimateSummaryPage() {
         <section className="card card-pad stack-sm">
           <strong>Estimate</strong>
           <dl className="kv">
-            <dt>Estimate</dt><dd>#{s.estimate.number}, version {v.number} ({v.status === "approved" ? (v.id === s.estimate.baseline_version_id ? "approved original baseline" : "approved revision") : "draft"})</dd>
+            <dt>Estimate</dt><dd>#{s.estimate.number}, version {v.number} ({v.status === "approved" ? (v.id === s.estimate.baseline_version_id ? "approved original baseline" : "approved revision") : v.status === "locked" ? "used for a customer document, not approved" : "draft"})</dd>
             <dt>Estimator</dt><dd>{s.estimate.estimator ?? "—"}</dd>
             <dt>Started</dt><dd>{formatDate(s.estimate.created_at)}</dd>
             <dt>Last saved</dt><dd>{v.saved_at ? formatDateTime(v.saved_at) : "—"}</dd>
@@ -116,7 +116,7 @@ export function EstimateSummaryPage() {
               {s.versions.map((x) => (
                 <tr key={x.number}>
                   <td>v{x.number}{x.baseline ? " · original baseline" : ""}</td>
-                  <td>{x.status}</td>
+                  <td>{x.status === "locked" ? "used for a document (not approved)" : x.status}</td>
                   <td>{x.saved_at ? formatDate(x.saved_at) : "—"}</td>
                   <td>{x.approved_at ? formatDate(x.approved_at) : "—"}</td>
                   {s.costs_visible && <><td className="num tabular">{x.base_cost === undefined || x.base_cost === null ? "—" : formatMoneyCents(x.base_cost)}</td><td className="num tabular">{x.selling_price === undefined || x.selling_price === null ? "—" : formatMoneyCents(x.selling_price)}</td></>}

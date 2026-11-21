@@ -83,7 +83,7 @@ select tpo_eh.check((select selling_price = 4375 from public.estimate_versions w
 -- ===== A customer document needs an approved estimate (by default) and the right areas =========
 select tpo_eh.expect_error(format('select tpo_eh.as(%L, %L)', :'est', format('select public.create_quote_from_estimate(%L, %L, %L)::text', :'v1', 'proposal', 'a2500000-0000-0000-0000-0000000000f1')),
   'an unapproved estimate can''t become a customer document while approval is required', '%requires an approved estimate%');
-select tpo_eh.as(:'owner', format('select public.approve_estimate_version(%L)::text', :'v1'));
+select tpo_eh.as(:'owner', format('select public.approve_estimate_version(%1$L, (select revision from public.estimate_versions where id = %1$L))::text', :'v1'));
 select tpo_eh.expect_error(format('select tpo_eh.as(%L, %L)', :'seller', format('select public.create_quote_from_estimate(%L, %L, %L)::text', :'v1', 'proposal', 'a2500000-0000-0000-0000-0000000000f1')),
   'someone who sells but doesn''t estimate can''t make one from it', '%Estimating%');
 select tpo_eh.expect_error(format('select tpo_eh.as(%L, %L)', :'est', format('select public.create_quote_from_estimate(%L, %L, %L)::text', :'v1', 'brochure', 'a2500000-0000-0000-0000-0000000000f1')),
@@ -116,12 +116,12 @@ select tpo_eh.check((select selling_price = 4375 and base_cost = 3500 from publi
 select tpo_eh.as(:'est', format('select public.revise_estimate(%L, %L)::text', :'e1', 'Larger foundation')) as v2 \gset
 select tpo_eh.as(:'est', format('select public.save_estimate_version(%L, 0, %L::jsonb)::text', :'v2', tpo_eh.lines(:'v2', 'debris', 15)));
 select tpo_eh.check((select sum(unit_price) = 4100 from public.quote_line_items where quote_id = :'q1'), 'revising the estimate doesn''t change the document');
-select tpo_eh.as(:'owner', format('select public.approve_estimate_version(%L)::text', :'v2'));
+select tpo_eh.as(:'owner', format('select public.approve_estimate_version(%1$L, (select revision from public.estimate_versions where id = %1$L))::text', :'v2'));
 select tpo_eh.as(:'est', format('select public.estimate_quote_diff(%L, %L)::text', :'q1', :'v2')) as diff \gset
 select tpo_eh.check((:'diff'::jsonb ->> 'current_subtotal')::numeric = 4100 and (:'diff'::jsonb ->> 'proposed_subtotal')::numeric = 4750
                     and (:'diff'::jsonb ->> 'from_version')::int = 1 and (:'diff'::jsonb ->> 'to_version')::int = 2,
   'the differences show before refreshing: now $4,100 (negotiated), version 2 gives $4,750');
-select tpo_eh.as(:'est', format('select public.refresh_quote_from_estimate(%L, %L)::text', :'q1', :'v2'));
+select tpo_eh.as(:'est', format('select public.refresh_quote_from_estimate(%L, %L, p_expected => %L)::text', :'q1', :'v2', :'diff'::jsonb ->> 'token'));
 select tpo_eh.check((select estimate_version_id = :'v2' from public.quotes where id = :'q1') and (select sum(unit_price) = 4750 from public.quote_line_items where quote_id = :'q1'),
   'refreshed on purpose: version 2''s prices and link');
 
@@ -129,11 +129,11 @@ select tpo_eh.check((select estimate_version_id = :'v2' from public.quotes where
 update public.quotes set status = 'sent', sent_at = now() where id = :'q1';
 select tpo_eh.check((select estimate_version_id = :'v2' from public.quote_versions where quote_id = :'q1' and number = 1), 'the issued version keeps the estimate version it carried');
 select planet_test.sign(:'q1');
-select tpo_eh.expect_error(format('select tpo_eh.as(%L, %L)', :'est', format('select public.refresh_quote_from_estimate(%L, %L)::text', :'q1', :'v2')), 'a signed document can''t be refreshed', '%Only an unsigned%');
+select tpo_eh.expect_error(format('select tpo_eh.as(%L, %L)', :'est', format('select public.refresh_quote_from_estimate(%L, %L, p_expected => %L)::text', :'q1', :'v2', public.estimate_quote_diff(:'q1', :'v2') ->> 'token')), 'a signed document can''t be refreshed', '%Only an unsigned%');
 -- A newer estimate version exists before the job is made: the job still takes the signed one's.
 select tpo_eh.as(:'est', format('select public.revise_estimate(%L, %L)::text', :'e1', 'After signing')) as v3 \gset
 select tpo_eh.as(:'est', format('select public.save_estimate_version(%L, 0, %L::jsonb)::text', :'v3', tpo_eh.lines(:'v3', 'debris', 20)));
-select tpo_eh.as(:'owner', format('select public.approve_estimate_version(%L)::text', :'v3'));
+select tpo_eh.as(:'owner', format('select public.approve_estimate_version(%1$L, (select revision from public.estimate_versions where id = %1$L))::text', :'v3'));
 select tpo_eh.as(:'est', format('select public.convert_quote_to_job(%L)::text', :'q1')) as job \gset
 select tpo_eh.check((select estimate_version_id = :'v2' and quote_version_id is not null from public.jobs where id = :'job'), 'the job links estimate version 2 (the signed version''s), not the newer version 3');
 select tpo_eh.check(tpo_eh.as(:'est', format('select public.convert_quote_to_job(%L)::text', :'q1')) = :'job' and (select count(*) from public.jobs where quote_id = :'q1') = 1, 'converting again: the same job');

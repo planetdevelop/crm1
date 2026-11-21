@@ -20,7 +20,7 @@ export function RequestEstimates({ requestId }: { requestId: string }) {
     queryKey: ["estimates", session.company.id, "request", requestId],
     enabled: allowed,
     queryFn: async () =>
-      unwrap(await supabase().from("estimates").select("id, number, title, updated_at, baseline_version_id, current_version_id, versions:estimate_versions!estimate_versions_company_id_estimate_id_fkey(id, number, status, calc_status, saved_at, approved_at)").eq("request_id", requestId).order("created_at")),
+      unwrap(await supabase().from("estimates").select("id, number, title, updated_at, baseline_version_id, current_version_id, versions:estimate_versions!estimate_versions_company_id_estimate_id_fkey(id, number, status, calc_status, saved_at, approved_at, locked_at)").eq("request_id", requestId).order("created_at")),
   });
   if (!allowed) return null;
   const rows = estimates.data ?? [];

@@ -21,7 +21,7 @@ test("estimate → unsent proposal draft → sent; nothing internal on the custo
     ],
   });
   must(await data.db.rpc("save_estimate_version", { p_version: v1, p_expected_revision: 0, p_payload: payload(2) as never }), "save v1");
-  must(await data.db.rpc("approve_estimate_version", { p_version: v1 }), "approve v1");
+  must(await data.db.rpc("approve_estimate_version", { p_version: v1, p_expected_revision: 1 }), "approve v1");
   // Base 500 + 100 + 100 = 700; markup 50% → 1,050: Demolition 900, Haul-off 150.
 
   const page = await as("owner");
@@ -69,7 +69,7 @@ test("estimate → unsent proposal draft → sent; nothing internal on the custo
   // A newer estimate version: the document refreshes only on purpose, after the differences.
   const v2 = must(await data.db.rpc("revise_estimate", { p_estimate: estimateId, p_reason: "More debris" }), "v2") as unknown as string;
   must(await data.db.rpc("save_estimate_version", { p_version: v2, p_expected_revision: 0, p_payload: payload(4) as never }), "save v2");
-  must(await data.db.rpc("approve_estimate_version", { p_version: v2 }), "approve v2");
+  must(await data.db.rpc("approve_estimate_version", { p_version: v2, p_expected_revision: 1 }), "approve v2");
   expect(must(await data.db.from("quote_line_items").select("unit_price").eq("quote_id", quoteId), "unchanged").map((l) => Number(l.unit_price)).sort()).toEqual([150, 900]);
   await page.goto(`/quotes/${quoteId}`);
   await page.locator("[data-planet-ops=estimate-link]").getByRole("button", { name: "Refresh from estimate…" }).click();

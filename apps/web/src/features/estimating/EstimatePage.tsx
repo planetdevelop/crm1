@@ -112,7 +112,7 @@ export function EstimatePage() {
     },
   });
   const approve = useMutation({
-    mutationFn: async (note: string) => unwrap(await supabase().rpc("approve_estimate_version", { p_version: d!.version.id, p_note: note || undefined })) as unknown as { baseline: boolean },
+    mutationFn: async (note: string) => unwrap(await supabase().rpc("approve_estimate_version", { p_version: d!.version.id, p_expected_revision: d!.version.revision, p_note: note || undefined })) as unknown as { baseline: boolean },
     onSuccess: (r) => {
       toast.success(r.baseline ? "Approved: this is the estimate's original baseline" : "Revision approved", { tone: "job" });
       refresh();
@@ -155,7 +155,13 @@ export function EstimatePage() {
         <span className="pill pill-quiet">{status.label}</span>
         {d.estimate.request_id && d.estimate.request && <Link to={`/requests/${d.estimate.request_id}`} className="strong">Request #{d.estimate.request.number}{d.estimate.request.stage ? ` · ${d.estimate.request.stage.label}` : ""}</Link>}
         {draft.client && <Link to={`/clients/${draft.client.id}`}>{draft.client.display_name}</Link>}
-        {!editable && <span className="muted small">Version {d.version.number} is approved and frozen. Revise to change it.</span>}
+        {!editable && (
+          <span className="muted small">
+            {d.version.status === "locked"
+              ? `Version ${d.version.number} was used for a customer document${d.version.locked_at ? ` on ${formatDate(d.version.locked_at)}` : ""} and is kept exactly as it was (it isn't approved). Revise to change it.`
+              : `Version ${d.version.number} is approved and frozen. Revise to change it.`}
+          </span>
+        )}
         {dirty && <span className="text-danger small strong">Unsaved changes</span>}
       </div>
       <FormError error={save.error ?? approve.error ?? revise.error} />
@@ -505,7 +511,12 @@ function VersionsStep({ data, approver, onApprove, approving, dirty, name, onOpe
           <span>Version {v.number} was approved {v.approved_at ? formatDateTime(v.approved_at) : ""} by {name(v.approved_by)}{v.approval_note ? `: ${v.approval_note}` : ""}. {data.estimate.baseline_version_id === v.id ? "It's the estimate's original baseline." : "It's an approved revision; the original baseline stays as it was."}</span>
         ) : approver ? (
           <>
-            <span className="muted small">Approving freezes this version. The first approved version is the estimate's original baseline; later changes are revisions.</span>
+            <span className="muted small">
+              {v.status === "locked"
+                ? "This version was used for a customer document without approval. Approving it records your approval of it exactly as it is; it's already kept unchanged."
+                : "Approving freezes this version. The first approved version is the estimate's original baseline; later changes are revisions."}
+              {" "}You approve revision {v.revision}: if someone saves after you opened it, you'll be asked to reload and review it first.
+            </span>
             <Field label="Approval note" optional><input className="input" value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} /></Field>
             <Button variant="primary" icon="check" style={{ justifySelf: "start" }} loading={approving} disabled={dirty || v.calc_status !== "ok" || !v.saved_at} onClick={async () => { if (await confirm({ title: `Approve version ${v.number}?`, body: "It's frozen from now on: changes become a revision.", confirmLabel: "Approve" })) onApprove(note); }}>Approve version {v.number}</Button>
             {(dirty || v.calc_status !== "ok") && <span className="small text-danger">Save a complete estimate first.</span>}
@@ -523,7 +534,7 @@ function VersionsStep({ data, approver, onApprove, approving, dirty, name, onOpe
             {versions.map((x) => (
               <tr key={x.id}>
                 <td>v{x.number}{x.id === data.estimate.baseline_version_id ? " · original baseline" : ""}</td>
-                <td>{x.status === "approved" ? "Approved" : x.calc_status === "ok" ? "Draft" : "Draft, incomplete"}</td>
+                <td>{x.status === "approved" ? "Approved" : x.status === "locked" ? "Used for a document (not approved)" : x.calc_status === "ok" ? "Draft" : "Draft, incomplete"}</td>
                 <td>{x.saved_at ? formatDate(x.saved_at) : "—"}</td>
                 <td>{x.approved_at ? formatDate(x.approved_at) : "—"}</td>
                 <td>{x.id !== v.id && <Button size="sm" onClick={() => { setAsking(false); onOpen(x.id); }}>Open</Button>}</td>

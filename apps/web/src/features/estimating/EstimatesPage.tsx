@@ -24,6 +24,7 @@ export const estimateStatus = (e: Pick<EstimateRow, "versions" | "baseline_versi
   const current = e.versions.find((v) => v.id === e.current_version_id);
   if (!current) return { label: "No versions", tone: "muted" };
   if (current.status === "approved") return { label: current.id === e.baseline_version_id ? "Approved baseline" : "Approved revision", tone: "job" };
+  if (current.status === "locked") return { label: "Used for a document (not approved)", tone: "quote" };
   if (current.calc_status !== "ok") return { label: current.saved_at ? "Draft, incomplete" : "New draft", tone: "warning" };
   return { label: "Draft", tone: "quote" };
 };
