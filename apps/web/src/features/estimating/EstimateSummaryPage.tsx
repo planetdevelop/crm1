@@ -14,6 +14,9 @@ import { PageError } from "@/components/ui/States";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { useSummary } from "./Handoff";
 
+// Links in a sentence are underlined, not told apart by color alone (WCAG link-in-text-block).
+const U = { textDecoration: "underline" } as const;
+
 const pct = (x: number | null | undefined) => (x === null || x === undefined ? "—" : `${(Number(x) * 100).toFixed(2).replace(/\.?0+$/, "")}%`);
 const val = (x: unknown) => (x === null || x === undefined || x === "" ? null : String(x));
 
@@ -45,9 +48,9 @@ export function EstimateSummaryPage() {
             <dt>Estimator</dt><dd>{s.estimate.estimator ?? "—"}</dd>
             <dt>Started</dt><dd>{formatDate(s.estimate.created_at)}</dd>
             <dt>Last saved</dt><dd>{v.saved_at ? formatDateTime(v.saved_at) : "—"}</dd>
-            <dt>Customer</dt><dd>{s.customer ? <Link to={`/clients/${s.customer.id}`}>{s.customer.name}</Link> : "—"}</dd>
+            <dt>Customer</dt><dd>{s.customer ? <Link to={`/clients/${s.customer.id}`} style={U}>{s.customer.name}</Link> : "—"}</dd>
             <dt>Property</dt><dd>{s.property ? [s.property.line1, s.property.city, s.property.region, s.property.postal_code].filter(Boolean).join(", ") : "—"}</dd>
-            <dt>Request</dt><dd>{s.request ? <Link to={`/requests/${s.request.id}`}>#{s.request.number} {s.request.title}</Link> : "—"}</dd>
+            <dt>Request</dt><dd>{s.request ? <Link to={`/requests/${s.request.id}`} style={U}>#{s.request.number} {s.request.title}</Link> : "—"}</dd>
             <dt>Outcome</dt><dd>{s.request?.stage ?? "—"}{s.request?.outcome_reason ? `: ${s.request.outcome_reason}` : ""}</dd>
             <dt>Last contact</dt><dd>{s.request?.last_contact_at ? formatDateTime(s.request.last_contact_at) : "None logged"}</dd>
             <dt>Next follow-up</dt><dd>{s.request?.next_follow_up ? `${s.request.next_follow_up.title}${s.request.next_follow_up.due_on ? `, ${formatDate(s.request.next_follow_up.due_on)}` : ""}` : s.request?.next_action ? `${s.request.next_action}${s.request.next_action_on ? `, ${formatDate(s.request.next_action_on)}` : ""}` : "—"}</dd>
@@ -61,7 +64,7 @@ export function EstimateSummaryPage() {
           )}
           {v.assumptions.length > 0 && <ul style={{ margin: 0 }}>{v.assumptions.map((a, i) => <li key={i}>{a.text}{a.source ? ` (${a.source})` : ""}</li>)}</ul>}
           {Array.isArray(scope.files) && (scope.files as Array<{ label: string; url?: string }>).length > 0 && (
-            <span>Files: {(scope.files as Array<{ label: string; url?: string }>).map((f, i) => (f.url ? <a key={i} href={f.url} target="_blank" rel="noreferrer" style={{ marginRight: 8 }}>{f.label || f.url}</a> : <span key={i} style={{ marginRight: 8 }}>{f.label}</span>))}</span>
+            <span>Files: {(scope.files as Array<{ label: string; url?: string }>).map((f, i) => (f.url ? <a key={i} href={f.url} target="_blank" rel="noreferrer" style={{ marginRight: 8, textDecoration: "underline" }}>{f.label || f.url}</a> : <span key={i} style={{ marginRight: 8 }}>{f.label}</span>))}</span>
           )}
         </section>
         <section className="card card-pad stack-sm">
@@ -129,7 +132,7 @@ export function EstimateSummaryPage() {
               <tbody>
                 {s.documents.map((q) => (
                   <tr key={q.quote_id}>
-                    <td><Link to={`/quotes/${q.quote_id}`}>{q.presentation === "proposal" ? "Proposal" : "Quote"} #{q.number}</Link> <span className="muted small">from v{q.from_version ?? "—"}, {q.status}</span></td>
+                    <td><Link to={`/quotes/${q.quote_id}`} style={U}>{q.presentation === "proposal" ? "Proposal" : "Quote"} #{q.number}</Link> <span className="muted small">from v{q.from_version ?? "—"}, {q.status}</span></td>
                     <td>{q.sent.length ? q.sent.map((x) => `${formatMoney(x.total)} on ${formatDate(x.issued_at)} (estimate v${x.estimate_version ?? "—"})`).join("; ") : <span className="muted">Not sent</span>}</td>
                     <td>{q.accepted ? `${formatMoney(q.accepted.total)}, signed ${formatDate(q.accepted.signed_at)}` : <span className="muted">Not accepted</span>}</td>
                   </tr>
@@ -137,7 +140,7 @@ export function EstimateSummaryPage() {
               </tbody>
             </table>
           )}
-          {s.jobs.map((j) => <span key={j.id} className="small">Job <Link to={`/jobs/${j.id}`}>#{j.number}</Link> made from estimate version {j.estimate_version ?? "—"}.</span>)}
+          {s.jobs.map((j) => <span key={j.id} className="small">Job <Link to={`/jobs/${j.id}`} style={U}>#{j.number}</Link> made from estimate version {j.estimate_version ?? "—"}.</span>)}
         </section>
       </div>
     </>

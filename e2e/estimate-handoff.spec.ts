@@ -60,7 +60,10 @@ test("estimate → unsent proposal draft → sent; nothing internal on the custo
   await page.goto(`/estimates/${estimateId}/summary`);
   const summary = page.locator("[data-planet-ops=estimate-summary]");
   await expect(summary.getByText(/It hasn't been backed up/)).toBeVisible();
-  await expect(summary.getByRole("table", { name: "Prices sent and accepted" }).getByText(/\$1,050\.00 on/)).toBeVisible();
+  // The sent price is the document's own total (with any sales tax the business charges), and the
+  // issued version records the estimate version it carried.
+  await expect(summary.getByRole("table", { name: "Prices sent and accepted" }).getByText(/\$[\d,]+\.\d\d on .*\(estimate v1\)/)).toBeVisible();
+  expect(must(await data.db.from("quote_versions").select("number, estimate_version_id").eq("quote_id", quoteId), "issued")).toEqual([{ number: 1, estimate_version_id: v1 }]);
   await expect(summary.getByText(/calculated; not a price sent/)).toBeVisible();
 
   // A newer estimate version: the document refreshes only on purpose, after the differences.

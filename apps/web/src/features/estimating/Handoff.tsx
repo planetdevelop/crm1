@@ -22,6 +22,9 @@ import { can, useSession } from "@/lib/session";
 import { toast } from "@/lib/toast";
 import { canEstimate, estimateKey, type VersionRow } from "./data";
 
+// Links in a sentence are underlined, not told apart by color alone (WCAG link-in-text-block).
+const U = { textDecoration: "underline" } as const;
+
 export function CreateDocumentDialog({ version, estimateTitle, onClose, onCreated }: { version: Pick<VersionRow, "id" | "number" | "status">; estimateTitle: string; onClose: () => void; onCreated: (quoteId: string) => void }) {
   const session = useSession();
   const queryClient = useQueryClient();
@@ -104,7 +107,7 @@ export function EstimateDocuments({ estimateId }: { estimateId: string }) {
           <tbody>
             {docs.map((q) => (
               <tr key={q.quote_id}>
-                <td><Link to={`/quotes/${q.quote_id}`}>{q.presentation === "proposal" ? "Proposal" : "Quote"} #{q.number}</Link></td>
+                <td><Link to={`/quotes/${q.quote_id}`} style={U}>{q.presentation === "proposal" ? "Proposal" : "Quote"} #{q.number}</Link></td>
                 <td>v{q.from_version ?? "—"}</td>
                 <td>{q.status}</td>
                 <td>{q.sent.length ? q.sent.map((s) => `${formatMoney(s.total)} (document v${s.version}, ${formatDate(s.issued_at)})`).join("; ") : <span className="muted">Not sent</span>}</td>
@@ -115,7 +118,7 @@ export function EstimateDocuments({ estimateId }: { estimateId: string }) {
         </table>
       )}
       {(summary.data?.jobs ?? []).map((j) => (
-        <span key={j.id} className="small">Job <Link to={`/jobs/${j.id}`}>#{j.number} {j.title}</Link> was made from estimate version {j.estimate_version ?? "—"}.</span>
+        <span key={j.id} className="small">Job <Link to={`/jobs/${j.id}`} style={U}>#{j.number} {j.title}</Link> was made from estimate version {j.estimate_version ?? "—"}.</span>
       ))}
     </section>
   );
@@ -159,7 +162,7 @@ export function EstimateLink({ quote }: { quote: { id: string; status: string; e
     <div className="callout callout-info" data-planet-ops="estimate-link">
       <Icon name="calculator" size={20} />
       <div className="grow small" style={{ fontWeight: 400 }}>
-        From internal estimate <Link to={`/estimates/${estimate.id}`}>#{estimate.number} {estimate.title}</Link>, version {version.number}.
+        From internal estimate <Link to={`/estimates/${estimate.id}`} style={U}>#{estimate.number} {estimate.title}</Link>, version {version.number}.
         {newer && unsigned && <> Version {latest.number} is newer: refresh to bring its prices in (you'll see the differences first).</>}
         {!unsigned && <> Signed documents keep their prices; a new agreement follows the signing rules.</>}
       </div>
