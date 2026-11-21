@@ -125,7 +125,7 @@ Delivered as small PRs into `planet-ops-staging`. Three kinds of evidence are ke
 | 1b+ | Document type chosen first (New Quote / Proposal), shown at the top of a draft; Edit / Preview kept apart from it | Branch `claude/phase-1b-creation-choice` | Unit tests; browser test `e2e/proposals.spec.ts` (CI) | Not yet |
 | 1c | Document versions (snapshot per issued version, supersession) and customer Request changes | Branch `claude/phase-1c-revisions` (stacked on 1b+) | `planet_ops_document_versions_test.sql`, API hub tests, browser test `e2e/change-requests.spec.ts` (CI) | Not yet |
 | 1d | `send_pricing` permission; accepted / countersigned / deposit / ready states; job contract summary | Branch `claude/phase-1d-pricing-readiness` (stacked on 1c) | `planet_ops_send_pricing_contract_test.sql`, API send/sign refusals, core `agreementFacts` tests (CI runs the full suite) | Not yet |
-| 1e | Convert the exact signed revision to a job; retry- and race-safe; job-created handoff | To do | | |
+| 1e | Convert the exact signed revision to a job; retry- and race-safe; job-created handoff | Branch `claude/phase-1e-convert-signed-revision` (stacked on 1d) | `planet_ops_convert_signed_revision_test.sql` (incl. two conversions at once via dblink), API retry test; signed-version link guarded (staff SQL updates, lifecycle API updates) (CI runs the full suite) | Not yet |
 
 Staging access: Claude can reach the staging app (health, setup, the deployed bundle) but has no
 sign-in there (single-company mode, email off), so every hand check on staging is the owner's until a
@@ -322,4 +322,61 @@ Migration `20261121000200_planet_ops_send_pricing_and_contract.sql` (not yet rel
   nothing; the revised total creates no invoice, payment or balance.
 - Decision for the owner: whether "Ready to schedule" should wait for the deposit (a switch, off),
   and which roles should prepare without sending (custom roles).
+
+### 1e: a job from the exact signed revision, once
+
+Migration `20261121000300_planet_ops_convert_signed_revision.sql` (not yet released).
+
+- Converting links the job to its customer and property (as before), the request
+  (`jobs.request_id`, new) and the exact version the customer signed (`jobs.quote_version_id`, new:
+  the version the signature recorded, never a later edit). The customer's signature and a required
+  countersignature are still checked as it's converted. **Linking an internal estimate is deferred
+  to Phase 3** (no internal estimate record exists before then), so none is linked yet.
+- The signed-version link is protected in the database (`jobs_signed_version_stays`), for staff,
+  the API, assistants and the server alike: it must be the exact version the job's own quote was
+  signed on (never another quote's, even in the same company, an unsigned one, or one the signature
+  didn't record); once set it can't be cleared or replaced, nor the job moved to another quote under
+  it; it's set only as a signed document is converted, so Create Job and jobs made before versions
+  were kept stay without one (no signed history invented). It goes only if the version itself is
+  deleted with its quote or company. Tested signed in as staff straight at the table
+  (`planet_ops_convert_signed_revision_test.sql`) and through the API in the lifecycle test.
+- Converting again returns the job it made (the API answers with it; the database does too). Two
+  at once: the quote is locked while it's converted, so the second waits and gets the first's job;
+  a unique index keeps one job per quote (created only if no old duplicates exist).
+- Job-created handoff (`job_folder_provisioning`): one pending record per job, made as the job is
+  created, by Create Job (`direct`) or a conversion (`converted`), the same workflow either way.
+  Requests, sends and signatures make none. No folders are made; Phase 4 does the Drive work.
+- Create Job stays separate: it can't claim an unsigned quote and records no acceptance.
+- The job's Contract card says which signed version it was made from and links the request.
+
+## Phase 1 staging acceptance checklist (owner)
+
+Run on https://crewtavo-staging.up.railway.app/ with fictional records once PRs #4–#7 are merged
+in order (#4, #5, #6, #7). Physical iPad / finger / stylus checks need a real device.
+
+- [ ] **Create**: New Quote / Proposal starts with Document type; a proposal's draft shows the type
+      at the top and Edit / Preview apart from it; switching keeps price, sections and both terms.
+- [ ] **Proposal output**: customer page (phone and desktop), print and PDF show the narrative
+      scope and total without priced lines; a line-item quote shows its lines.
+- [ ] **Terms**: Contract Terms and Payment Terms are separate, `[PLACEHOLDER]` until approved
+      wording is saved, and kept in the signed copy.
+- [ ] **Signatures**: a drawn signature signs; blank, tap-only and typed-name-only are refused.
+- [ ] **Outdated pages**: after a scope, price, schedule or terms change (and a price set on
+      site), an open customer page or iPad screen can't sign.
+- [ ] **Options**: choosing another option on the link signs at its price; an office switch of the
+      shown option makes an open page outdated.
+- [ ] **Request changes** (quote, proposal, change order): note saved, confirmation, signing
+      paused, follow-up and notification for the salesperson; reply; revision hidden from the
+      customer until sent; sent as the next version and signed; earlier versions kept.
+- [ ] **Signed agreement request**: kept as signed; a draft change order appears on the active job.
+- [ ] **Send pricing**: a custom role without "Send pricing to customers" prepares but can't send.
+- [ ] **Agreement status**: accepted, countersigned (off and on), deposit owed/received from real
+      payments, ready to schedule (switch off and on).
+- [ ] **Change orders**: charge, credit and $0 each signed and applied once; the Contract card
+      totals only finalized ones; the revised total makes no invoice.
+- [ ] **Convert**: the job links the signed version and request; converting twice (double click,
+      back and retry) opens the same job.
+- [ ] **iPad (physical device)**: in-person signing with a finger and with a stylus; blank and
+      single-tap refused; an old screen refused after an office change; the company line asks to
+      draw or use the saved signature.
 

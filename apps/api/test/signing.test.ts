@@ -630,6 +630,20 @@ describe("making a job from a quote needs the customer's signature", () => {
     expect(await res.json()).toEqual({ job_id: "job-1" });
     expect(quote().approval).toEqual(signed);
   });
+
+  it("opens the job it made when it's converted again: a second click or a retried request (Planet Ops 1e)", async () => {
+    const signed = { name: "Alex Morgan", signature: HOMEOWNER, signed_at: "2026-10-20T15:00:00.000Z", fingerprint: "fedcba9876543210fedcba9876543210" };
+    roofer({ status: "converted", approval: { ...signed } });
+    for (let n = 0; n < 2; n++) {
+      const res = await call(`/quotes/${QUOTE}/convert`, {});
+      expect(res.status).toBeLessThan(300);
+      expect(await res.json()).toEqual({ job_id: "job-1" });
+    }
+    // The database returns the job it made (convert_quote_to_job); nothing is approved or signed again.
+    expect(state.calls.filter((c) => c.name === "convert_quote_to_job")).toHaveLength(2);
+    expect(quote().approval).toEqual(signed);
+    expect(quote().status).toBe("converted");
+  });
 });
 
 describe("signing for the business afterwards", () => {

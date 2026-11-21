@@ -47,7 +47,8 @@ select t14.check((select status from public.quotes where id = :'co_quote') = 'co
 select t14.check((select contract_total from public.job_financials where job_id = :'job') = 15350, 'and the job''s total includes it');
 select t14.check((select count(*) from public.job_line_items where job_id = :'job' and source_quote_id = :'co_quote') = 1, 'its lines say where they came from');
 select t14.check((select count(*) from public.jobs where company_id = :'co') = 1, 'no new job is made');
-select t14.expect_error(format('select public.convert_quote_to_job(%L)', :'co_quote'), 'it can''t be added twice');
+-- Planet Ops 1e: converting it again opens its job; nothing is added a second time.
+select t14.check(public.convert_quote_to_job(:'co_quote') = :'job', 'converting it again returns its job, and it isn''t added twice');
 select t14.check((select count(*) from public.job_line_items where job_id = :'job' and source_quote_id = :'co_quote') = 1, 'so its lines are there once');
 
 -- The crew: no price list, but materials by name, and logs what went in.

@@ -11,6 +11,9 @@ import { Link } from "react-router-dom";
 import { supabase, unwrap } from "@/lib/api";
 import { formatMoneyCents } from "@/lib/format";
 
+// Links in a line of text are underlined, not told apart by color alone (WCAG link-in-text-block).
+const UNDERLINED = { textDecoration: "underline", textUnderlineOffset: 2 } as const;
+
 interface Summary {
   original: { quote_id: string; number: number; title: string; amount: number; signed_at: string | null; version_number: number | null } | null;
   original_amount: number;
@@ -34,7 +37,7 @@ const STATE: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
-export function ContractSummary({ jobId }: { jobId: string }) {
+export function ContractSummary({ jobId, requestId = null }: { jobId: string; requestId?: string | null }) {
   const summary = useQuery({ queryKey: ["job", jobId, "contract-summary"], queryFn: async () => unwrap(await supabase().rpc("job_contract_summary", { p_job: jobId })) as unknown as Summary });
   const s = summary.data;
   if (!s) return null;
@@ -48,6 +51,14 @@ export function ContractSummary({ jobId }: { jobId: string }) {
     <section className="stack" data-planet-ops="contract-summary">
       <h2 className="section-title">Contract</h2>
       <div className="card card-pad stack-sm">
+        {/* Planet Ops 1e: the job was made from the exact version the customer signed, and the request it came from. */}
+        {(s.original || requestId) && (
+          <span className="muted small">
+            {s.original && <>Made from <Link to={`/quotes/${s.original.quote_id}`} style={UNDERLINED}>#{s.original.number}</Link>{s.original.version_number ? `, the signed version ${s.original.version_number}` : ""}</>}
+            {s.original && requestId ? " · " : ""}
+            {requestId && <Link to={`/requests/${requestId}`} style={UNDERLINED}>The request it came from</Link>}
+          </span>
+        )}
         {row("Original signed agreement", s.original_amount, { note: s.original ? `#${s.original.number}${s.original.version_number ? `, version ${s.original.version_number}` : ""}` : "no signed agreement on this job" })}
         {s.change_orders.map((o) => (
           <div key={o.quote_id} className="row" style={{ justifyContent: "space-between", gap: 12 }}>
