@@ -378,7 +378,7 @@ declare
 begin
   select * into v from public.estimate_versions where id = p_version;
   create temporary table if not exists pg_temp.estimate_calc (id uuid, sort integer, base numeric, risk numeric) on commit drop;
-  delete from pg_temp.estimate_calc;
+  delete from pg_temp.estimate_calc where true;  -- hosted Supabase refuses a DELETE without WHERE (pg-safeupdate)
   insert into pg_temp.estimate_calc
   select l.id, l.sort, x.base, x.base * l.risk_pct
     from public.estimate_lines l
@@ -493,7 +493,7 @@ begin
 
   -- The lines kept by id: their old rate snapshot and cost go with them.
   create temporary table if not exists pg_temp.estimate_old_lines on commit drop as select * from public.estimate_lines limit 0;
-  delete from pg_temp.estimate_old_lines;
+  delete from pg_temp.estimate_old_lines where true;
   insert into pg_temp.estimate_old_lines select * from public.estimate_lines where version_id = p_version;
   delete from public.estimate_lines where version_id = p_version;
 
