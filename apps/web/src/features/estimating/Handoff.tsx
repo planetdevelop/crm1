@@ -171,7 +171,7 @@ export function EstimateLink({ quote }: { quote: { id: string; status: string; e
   const unsigned = ["draft", "sent", "changes_requested"].includes(quote.status);
   const newer = latest.number > version.number && latest.calc_status === "ok";
   return (
-    <div className="callout callout-info" data-planet-ops="estimate-link">
+    <div className="callout callout-info no-print" data-planet-ops="estimate-link">
       <Icon name="calculator" size={20} />
       <div className="grow small" style={{ fontWeight: 400 }}>
         From internal estimate <Link to={`/estimates/${estimate.id}`} style={U}>#{estimate.number} {estimate.title}</Link>, version {version.number}.
@@ -227,7 +227,7 @@ export function JobEstimateLink({ jobId }: { jobId: string }) {
   if (!allowed || !link.data) return null;
   const { version, estimate } = link.data;
   return (
-    <div className="callout callout-info small" style={{ fontWeight: 400 }} data-planet-ops="job-estimate-link">
+    <div className="callout callout-info small no-print" style={{ fontWeight: 400 }} data-planet-ops="job-estimate-link">
       <Icon name="calculator" size={20} />
       <span>
         Made from internal estimate <Link to={`/estimates/${estimate.id}?version=${version.id}`} style={U}>#{estimate.number} {estimate.title}</Link>, version {version.number}
