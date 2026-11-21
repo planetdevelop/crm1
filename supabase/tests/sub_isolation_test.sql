@@ -598,7 +598,7 @@ select t1070.check(array(
   'add_field_line(uuid, uuid, numeric, uuid)',
   -- Planet Ops 2: a follow-up on a request, logging a contact on one, the pipeline report and pricing
   -- history: people who sell only (each checks), never a sub.
-  'add_request_follow_up(uuid, text, date, uuid)',
+  'add_request_follow_up(uuid, text, date, uuid, boolean)',
   'answer_sub_offer(uuid, boolean, text, integer, uuid)',
   -- Changing prices across repeating jobs (and price_change_history, price_change_preview and undo_price_change below): owners, admins and
   -- the office with Quotes and sales only (each checks), never a sub.

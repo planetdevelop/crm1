@@ -2,8 +2,8 @@
  * Planet Ops Phase 2: requests in the sales pipeline, as a board (one column per open stage and
  * Nurture) or a list, with the filters people work from: Needs first response, Follow-up due,
  * Overdue, Waiting on customer, No next action, No owner, and whose it is. Moving a card moves its
- * request (with its history); Lost and Unqualified ask why. Won isn't a drop target: a request is won
- * when its job is made.
+ * request (with its history); Won, Lost and Unqualified ask why. Won by hand is a sales call only (no
+ * job, signature or payment); converting the signed agreement makes the job and marks it won.
  */
 import { daysBetween, isActive, needsOutcomeReason, PIPELINE_FILTERS, pipelineFlags, type PipelineFilter } from "@crewtavo/core/pipeline";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -96,13 +96,14 @@ export function RequestPipeline() {
   };
 
   const columns = (stages.data ?? []).filter((s) => s.active && (s.kind === "open" || s.kind === "nurture"));
-  const outcomes = (stages.data ?? []).filter((s) => s.active && needsOutcomeReason(s.kind));
+  // Won (a sales call, with a note), Lost and Unqualified: each asks why.
+  const outcomes = (stages.data ?? []).filter((s) => s.active && (needsOutcomeReason(s.kind) || s.kind === "won"));
   const drop = (stage: Stage) => {
     const card = dragging;
     setDragging(null);
     setOver(null);
     if (!card || card.stage_id === stage.id) return;
-    if (needsOutcomeReason(stage.kind)) return setClosing({ card, stage });
+    if (needsOutcomeReason(stage.kind) || stage.kind === "won") return setClosing({ card, stage });
     move.mutate({ card, stage });
   };
   const zone = (stage: Stage) => ({
@@ -173,7 +174,7 @@ export function RequestPipeline() {
           {dragging && (
             <div className="row" style={{ gap: 12, position: "sticky", bottom: 16 }}>
               {outcomes.map((s) => (
-                <div key={s.id} className="card row grow" style={{ justifyContent: "center", padding: 16, borderStyle: "dashed", borderColor: over === s.id ? "var(--danger)" : undefined, background: over === s.id ? "var(--danger-tint)" : undefined, color: "var(--danger)", fontWeight: 600 }} {...zone(s)}>
+                <div key={s.id} className="card row grow" style={{ justifyContent: "center", padding: 16, borderStyle: "dashed", borderColor: over === s.id ? KIND_COLOR[s.kind] : undefined, color: s.kind === "won" ? "var(--job)" : "var(--danger)", fontWeight: 600 }} {...zone(s)}>
                   Drop here: {s.label}
                 </div>
               ))}
@@ -267,7 +268,7 @@ function Deal({ r, today, owner, dragging, onDrag }: { r: PipelineCard & { flags
 export function OutcomeDialog({ stage, number, saving, error, onClose, onSave }: { stage: Stage; number: number; saving: boolean; error: unknown; onClose: () => void; onSave: (reason: string) => void }) {
   const [reason, setReason] = useState("");
   return (
-    <Dialog open onClose={onClose} title={`Move #${number} to ${stage.label}`} description="Say why. It stays with the request and in its history, and its follow-ups stop.">
+    <Dialog open onClose={onClose} title={`Move #${number} to ${stage.label}`} description={stage.kind === "won" ? "A sales call only: it makes no job, signature, deposit or payment, and the agreement stays as it is. Converting the signed quote or proposal makes the job. Say why it's won; it stays in the history." : "Say why. It stays with the request and in its history, and its follow-ups stop."}>
       <form
         className="stack"
         onSubmit={(e) => {
@@ -275,7 +276,7 @@ export function OutcomeDialog({ stage, number, saving, error, onClose, onSave }:
           if (reason.trim()) onSave(reason.trim());
         }}
       >
-        <Field label="Why?">
+        <Field label={stage.kind === "won" ? "Why is it won?" : "Why?"}>
           <textarea className="textarea" required maxLength={500} rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />
         </Field>
         <FormError error={error} />
