@@ -14,6 +14,9 @@ test("estimating: from a request to an approved baseline and a revision, with th
   const dialog = page.getByRole("dialog", { name: "New estimate" });
   await dialog.getByLabel(/^Project type/).fill("Garage demolition");
   await dialog.getByRole("button", { name: "Create estimate" }).click();
+  // If it can't be made, say why (the dialog's own message).
+  await Promise.race([page.waitForURL(/\/estimates\/[0-9a-f-]+$/), dialog.getByRole("alert").waitFor()]);
+  expect(await dialog.getByRole("alert").count() ? await dialog.getByRole("alert").textContent() : null, "the estimate is made").toBeNull();
   await expect(page).toHaveURL(/\/estimates\/[0-9a-f-]+$/);
   const estimateId = page.url().split("/").pop()!;
   const estimate = must(await data.db.from("estimates").select("number, title, client_id, property_id, request_id").eq("id", estimateId).single(), "estimate");
