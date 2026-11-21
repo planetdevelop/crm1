@@ -125,7 +125,7 @@ Delivered as small PRs into `planet-ops-staging`. Three kinds of evidence are ke
 | 1b+ | Document type chosen first (New Quote / Proposal), shown at the top of a draft; Edit / Preview kept apart from it | Branch `claude/phase-1b-creation-choice` | Unit tests; browser test `e2e/proposals.spec.ts` (CI) | Not yet |
 | 1c | Document versions (snapshot per issued version, supersession) and customer Request changes | Branch `claude/phase-1c-revisions` (stacked on 1b+) | `planet_ops_document_versions_test.sql`, API hub tests, browser test `e2e/change-requests.spec.ts` (CI) | Not yet |
 | 1d | `send_pricing` permission; accepted / countersigned / deposit / ready states; job contract summary | Branch `claude/phase-1d-pricing-readiness` (stacked on 1c) | `planet_ops_send_pricing_contract_test.sql`, API send/sign refusals, core `agreementFacts` tests (CI runs the full suite) | Not yet |
-| 1e | Convert the exact signed revision to a job; retry- and race-safe; job-created handoff | Branch `claude/phase-1e-convert-signed-revision` (stacked on 1d) | `planet_ops_convert_signed_revision_test.sql` (incl. two conversions at once via dblink), API retry test (CI runs the full suite) | Not yet |
+| 1e | Convert the exact signed revision to a job; retry- and race-safe; job-created handoff | Branch `claude/phase-1e-convert-signed-revision` (stacked on 1d) | `planet_ops_convert_signed_revision_test.sql` (incl. two conversions at once via dblink), API retry test; signed-version link guarded (staff SQL updates, lifecycle API updates) (CI runs the full suite) | Not yet |
 
 Staging access: Claude can reach the staging app (health, setup, the deployed bundle) but has no
 sign-in there (single-company mode, email off), so every hand check on staging is the owner's until a
@@ -330,8 +330,16 @@ Migration `20261121000300_planet_ops_convert_signed_revision.sql` (not yet relea
 - Converting links the job to its customer and property (as before), the request
   (`jobs.request_id`, new) and the exact version the customer signed (`jobs.quote_version_id`, new:
   the version the signature recorded, never a later edit). The customer's signature and a required
-  countersignature are still checked as it's converted. No internal estimate record exists before
-  Phase 3, so none is linked yet.
+  countersignature are still checked as it's converted. **Linking an internal estimate is deferred
+  to Phase 3** (no internal estimate record exists before then), so none is linked yet.
+- The signed-version link is protected in the database (`jobs_signed_version_stays`), for staff,
+  the API, assistants and the server alike: it must be the exact version the job's own quote was
+  signed on (never another quote's, even in the same company, an unsigned one, or one the signature
+  didn't record); once set it can't be cleared or replaced, nor the job moved to another quote under
+  it; it's set only as a signed document is converted, so Create Job and jobs made before versions
+  were kept stay without one (no signed history invented). It goes only if the version itself is
+  deleted with its quote or company. Tested signed in as staff straight at the table
+  (`planet_ops_convert_signed_revision_test.sql`) and through the API in the lifecycle test.
 - Converting again returns the job it made (the API answers with it; the database does too). Two
   at once: the quote is locked while it's converted, so the second waits and gets the first's job;
   a unique index keeps one job per quote (created only if no old duplicates exist).

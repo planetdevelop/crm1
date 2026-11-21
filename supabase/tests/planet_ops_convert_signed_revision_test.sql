@@ -63,6 +63,58 @@ select tpo_cv.check((select count(*) from public.jobs where quote_id = :'quote')
 select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_id, title, quote_id) values (%L, %L, %L, %L)', :'co', :'client', 'A second job', :'quote'),
   'a second job can''t claim the same quote', '%jobs_one_per_quote%');
 
+-- ===== The signed-version link: only the exact signed version of the job's own quote, set once =====
+select id as v1 from public.quote_versions where quote_id = :'quote' and number = 1 \gset
+-- Another signed quote in the same company: sent (version 1), revised and sent again (version 2), signed on 2.
+insert into public.quotes (company_id, client_id, property_id, title) values (:'co', :'client', :'property', 'Barn demolition') returning id as other \gset
+insert into public.quote_line_items (company_id, quote_id, name, quantity, unit, unit_price) values (:'co', :'other', 'Demolish barn', 1, 'ea', 9000);
+update public.quotes set status = 'sent', sent_at = now() where id = :'other';
+select id as other_v1 from public.quote_versions where quote_id = :'other' and number = 1 \gset
+update public.quote_line_items set unit_price = 8800 where quote_id = :'other';
+select public.issue_quote_version(:'other') as other_v2 \gset
+select planet_test.sign(:'other');
+select tpo_cv.check((select approval ->> 'version_id' = :'other_v2' from public.quotes where id = :'other'), 'a second quote in the company is signed on its version 2');
+
+-- Signed in as staff (the office's screens and the API use these same rules), straight at the table.
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub": "a1000000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
+select tpo_cv.expect_error(format('update public.jobs set quote_version_id = null where id = %L', :'job'),
+  'staff can''t clear a converted job''s signed version', '%keeps the signed version%');
+select tpo_cv.expect_error(format('update public.jobs set quote_version_id = %L where id = %L', :'other_v2', :'job'),
+  'nor replace it with another quote''s signed version (same company)', '%keeps the signed version%');
+select tpo_cv.expect_error(format('update public.jobs set quote_version_id = %L where id = %L', :'v1', :'job'),
+  'nor with its own quote''s earlier, unsigned version', '%keeps the signed version%');
+select tpo_cv.expect_error(format('update public.jobs set quote_id = %L where id = %L', :'other', :'job'),
+  'nor move the job to another quote under it', '%stays with the quote%');
+select tpo_cv.expect_error(format('update public.jobs set quote_id = null, quote_version_id = null where id = %L', :'job'),
+  'nor unlink both at once');
+select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_id, title, quote_version_id) values (%L, %L, %L, %L)', :'co', :'client', 'No quote, a version', :'other_v2'),
+  'a job with no quote can''t claim a signed version', '%its own quote%');
+select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_id, title, quote_id, quote_version_id) values (%L, %L, %L, %L, %L)', :'co', :'client', 'Wrong version', :'other', :'v2'),
+  'a job can''t claim another quote''s version', '%its own quote%');
+select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_id, title, quote_id, quote_version_id) values (%L, %L, %L, %L, %L)', :'co', :'client', 'Unsigned version', :'other', :'other_v1'),
+  'nor its own quote''s unsigned version', '%exact version%');
+update public.jobs set title = 'House demolition (front lot)' where id = :'job';
+commit;
+select tpo_cv.check((select quote_id = :'quote' and quote_version_id = :'v2' and title = 'House demolition (front lot)' from public.jobs where id = :'job'),
+  'the job''s other details still change, and its quote and signed version 2 stay as they were');
+
+-- The server (nobody signed in) is held to the same.
+select tpo_cv.expect_error(format('update public.jobs set quote_version_id = %L where id = %L', :'other_v2', :'job'),
+  'the server can''t replace it either', '%keeps the signed version%');
+
+-- A job without a link (made before versions were kept) keeps working and gets no invented history.
+insert into public.jobs (company_id, client_id, property_id, title, quote_id) values (:'co', :'client', :'property', 'Barn demolition (older job)', :'other') returning id as legacy \gset
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub": "a1000000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
+update public.jobs set title = 'Barn demolition (older job, renamed)' where id = :'legacy';
+select tpo_cv.expect_error(format('update public.jobs set quote_version_id = %L where id = %L', :'other_v2', :'legacy'),
+  'a job without a signed version can''t be given one afterwards, not even the right one', '%set only as a signed document is converted%');
+commit;
+select tpo_cv.check((select quote_version_id is null and title like '%renamed%' from public.jobs where id = :'legacy'), 'the older job keeps working, still without a signed version');
+
 -- Two conversions at once: the second waits for the first, then finds its job.
 select exists (select 1 from pg_available_extensions where name = 'dblink') as has_dblink \gset
 \if :has_dblink
@@ -111,6 +163,15 @@ select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_i
 commit;
 select tpo_cv.check((select count(*) = 1 and bool_and(source = 'direct' and status = 'pending') from public.job_folder_provisioning where job_id = :'direct'),
   'Create Job makes the same pending folder handoff');
+select tpo_cv.check((select quote_id is null and quote_version_id is null from public.jobs where id = :'direct'), 'Create Job links no quote and no signed version');
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub": "a1000000-0000-0000-0000-000000000001", "role": "authenticated"}', true);
+select tpo_cv.expect_error(format('update public.jobs set quote_version_id = %L where id = %L', :'v2', :'direct'),
+  'and staff can''t give a Create Job job a signed version afterwards', '%set only as a signed document is converted%');
+select tpo_cv.expect_error(format('insert into public.jobs (company_id, client_id, title, quote_version_id) values (%L, %L, %L, %L)', :'co', :'client', 'Direct with a version', :'v2'),
+  'nor create one with a signed version', '%its own quote%');
+commit;
 select tpo_cv.check((select status from public.quotes where id = :'unsigned') = 'draft' and (select approval is null from public.quotes where id = :'unsigned'),
   'and claims nothing was accepted');
 begin;

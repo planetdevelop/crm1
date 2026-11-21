@@ -270,6 +270,23 @@ const jobId = convert.body.job_id;
   check(Number(job.financials?.contract_total) === 6900, `job #${job.number} carries the $6,900.00 contract`, job);
   const c = must(await owner.db.from("clients").select("status").eq("id", client.id).single(), "client");
   check(c.status === "active", "the lead becomes an active client");
+
+  // The job keeps the exact version the customer signed; nobody's API edit clears, replaces or invents it.
+  const signedOn = must(await owner.db.from("quotes").select("approval").eq("id", quoteId).single(), "approval").approval?.version_id;
+  const linked = () => ops.db.from("jobs").select("quote_id, quote_version_id").eq("id", jobId).single();
+  const before = must(await linked(), "job link");
+  check(signedOn && before.quote_version_id === signedOn && before.quote_id === quoteId, "the job links the exact version the customer signed", { signedOn, before });
+  const otherVersion = must(await owner.db.from("quote_versions").select("id").eq("company_id", companyId).neq("quote_id", quoteId).limit(1), "another quote's version")[0]?.id ?? crypto.randomUUID();
+  for (const [who, label] of [[ops, "the operations manager"], [owner, "the owner"]]) {
+    const cleared = await who.db.from("jobs").update({ quote_version_id: null }).eq("id", jobId).select("id");
+    check(cleared.error, `${label} can't clear it through the API`, cleared);
+    const replaced = await who.db.from("jobs").update({ quote_version_id: otherVersion }).eq("id", jobId).select("id");
+    check(replaced.error, `${label} can't replace it with another quote's version`, replaced);
+  }
+  const fabricated = await owner.db.from("jobs").insert({ company_id: companyId, client_id: client.id, title: "E2E direct job claiming a signature", quote_version_id: signedOn }).select("id");
+  check(fabricated.error, "Create Job through the API can't claim a signed version", fabricated);
+  const after = must(await linked(), "job link after");
+  check(after.quote_version_id === signedOn && after.quote_id === quoteId, "and the link is unchanged");
 }
 
 step("6. The foreman schedules the work and assigns the employee");

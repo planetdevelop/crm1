@@ -5,7 +5,8 @@
 --    the request it came from (jobs.request_id, new) and the exact version the customer signed
 --    (jobs.quote_version_id, new: the version the signature recorded, never the latest edit). The
 --    customer's signature on that version, and a required countersignature, are still checked as
---    it's converted (20261120000100, 20261120000200). An internal estimate record arrives in Phase 3;
+--    it's converted (20261120000100, 20261120000200); the link is guarded below. Linking an internal
+--    estimate is deferred to Phase 3;
 --    nothing here invents one.
 -- 2. Converting again opens the job it made: a repeated click, a retried request, or two at once
 --    (the quote is locked while it's converted; the second waits, then finds the job). A quote has
@@ -23,6 +24,54 @@ alter table public.jobs add constraint jobs_quote_version_fkey foreign key (comp
   references public.quote_versions (company_id, id) on delete set null (quote_version_id);
 comment on column public.jobs.request_id is 'Planet Ops: the request the job''s quote came from, set as it''s converted.';
 comment on column public.jobs.quote_version_id is 'Planet Ops: the exact version of the quote, proposal or change order the customer signed, which the job was made from.';
+
+-- The signed version a job was made from is the database's to set, once, and is never another
+-- quote's version, an unsigned one, or a version the signature didn't record:
+--   - made with a job (converting is the only way that sets it), it must be the exact version the
+--     job's own quote was signed on (quotes.approval ->> 'version_id', its signed_at set), in the
+--     job's company, while that quote is signed;
+--   - afterwards nobody (the office's screens, the API, an assistant, the server) sets, clears or
+--     replaces it, nor moves the job to another quote under it. A job without one (Create Job, or
+--     made before versions were kept) stays without one: no signed history is invented for it.
+--   - only when the version itself is gone (its quote or company deleted) does the link go with it.
+create function private.job_signed_version_stays() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare q public.quotes; v public.quote_versions;
+begin
+  if tg_op = 'UPDATE' then
+    if old.quote_version_id is not null then
+      if new.quote_version_id is distinct from old.quote_version_id
+         and not (new.quote_version_id is null and not exists (select 1 from public.quote_versions where id = old.quote_version_id)) then
+        raise exception 'A job keeps the signed version it was made from.' using errcode = '22023';
+      end if;
+      if new.quote_id is distinct from old.quote_id
+         and not (new.quote_id is null and not exists (select 1 from public.quotes where id = old.quote_id)) then
+        raise exception 'A job made from a signed version stays with the quote it was signed on.' using errcode = '22023';
+      end if;
+      return new;
+    end if;
+    if new.quote_version_id is not null then
+      raise exception 'A job''s signed version is set only as a signed document is converted.' using errcode = '22023';
+    end if;
+    return new;
+  end if;
+
+  if new.quote_version_id is null then
+    return new;
+  end if;
+  select * into q from public.quotes where id = new.quote_id and company_id = new.company_id;
+  select * into v from public.quote_versions where id = new.quote_version_id and company_id = new.company_id;
+  if q.id is null or v.id is null or v.quote_id <> q.id then
+    raise exception 'A job''s signed version must be a version of its own quote.' using errcode = '22023';
+  end if;
+  if v.signed_at is null or q.status not in ('approved', 'converted') or (q.approval ->> 'version_id') is distinct from v.id::text then
+    raise exception 'A job''s signed version must be the exact version its quote was signed on.' using errcode = '22023';
+  end if;
+  return new;
+end $$;
+create trigger jobs_signed_version_stays before insert or update of quote_version_id, quote_id on public.jobs
+  for each row execute function private.job_signed_version_stays();
+revoke execute on function private.job_signed_version_stays() from public;
 
 -- One job per quote, where that already holds (it does, as convert_quote_to_job makes one); a
 -- database with an old duplicate keeps working and is told so.
