@@ -34,6 +34,8 @@ export const NAV_GROUPS: NavItem[][] = [
   [
     { to: "/clients", label: msg("Clients"), icon: "clients", keywords: "customers contacts properties addresses client hub portal" },
     { to: "/requests", label: msg("Requests"), icon: "requests", keywords: "inquiries leads assessments website form messages contact form" },
+    // Planet Ops Phase 3: the internal calculator, apart from the customer's documents.
+    { to: "/estimates", label: msg("Estimating"), icon: "calculator", roles: ["admin", "office", "estimator"], perm: "estimate", keywords: "estimate estimates calculator bid takeoff costs labor equipment disposal tons pricing markup margin internal" },
     { to: "/quotes", label: msg("Quotes & Proposals"), icon: "quote", roles: ["admin", "office", "estimator"], also: ["/pipeline", "/measure"], keywords: "estimates proposals bids" },
     { to: "/jobs", label: msg("Jobs"), icon: "job", keywords: "work orders projects recurring visits job costing" },
     { to: "/invoices", label: msg("Invoices"), icon: "invoice", roles: ["admin", "office"], perm: "invoices", also: ["/payouts"], keywords: "billing bills payments batch invoicing collect payments" },

@@ -26,6 +26,7 @@ import { readyDraft } from "../quotes/DraftedCallout";
 import { VisitDialog, type VisitInput } from "../schedule/VisitDialog";
 import { askedFor, BookAskedTime } from "./AskedTime";
 import { PipelineCard, RequestActivity, requestPipelineKey } from "./PipelinePanel";
+import { RequestEstimates } from "../estimating/RequestEstimates";
 import { memberName, requestSource, useTeam } from "./RequestsPage";
 
 export function RequestPage() {
@@ -258,6 +259,9 @@ export function RequestPage() {
               </div>
             </section>
           )}
+
+          {/* Planet Ops Phase 3: the request's internal estimates. */}
+          <RequestEstimates requestId={r.id} />
 
           {/* Planet Ops Phase 2: contacts, follow-ups and the pipeline history. */}
           <RequestActivity requestId={r.id} canSell={canSell} />

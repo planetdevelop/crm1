@@ -37,6 +37,8 @@ const screens = {
   requests: () => import("@/features/requests/RequestsPage"),
   request: () => import("@/features/requests/RequestPage"),
   quotes: () => import("@/features/quotes/QuotesPage"),
+  estimates: () => import("@/features/estimating/EstimatesPage"),
+  estimate: () => import("@/features/estimating/EstimatePage"),
   paving: () => import("@/features/paving/PavingPage"),
   pavingProject: () => import("@/features/paving/PavingProjectPage"),
   pavingCalculator: () => import("@/features/paving/PavingCalculatorPage"),
@@ -163,6 +165,8 @@ export const routes: RouteObject[] = [
           { path: "snow/report/:visitId", ...page(screens.snowReport, "SnowReportPage") },
           // Every trade's packages; a roofer's are under Roofing (the page sends them there).
           { path: "packages", ...page(screens.roofPackages, "PackagesPage") },
+          { path: "estimates", ...page(screens.estimates, "EstimatesPage") },
+          { path: "estimates/:id", ...page(screens.estimate, "EstimatePage") },
           { path: "quotes", ...page(screens.quotes, "QuotesPage") },
           { path: "quotes/:id", ...page(screens.quote, "QuotePage") },
           { path: "jobs", ...page(screens.jobs, "JobsPage") },

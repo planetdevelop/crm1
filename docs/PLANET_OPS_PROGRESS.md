@@ -508,7 +508,8 @@ cell by cell, the verified calculation order, the issues found, the app's rules,
 
 | Slice | Scope | Implemented | Automated | Staging (manual) |
 | --- | --- | --- | --- | --- |
-| 3a | Estimating areas; rates with effective dates; estimates, versions (draft → approved baseline → revisions), lines; exact totals; cost privacy; one summary record per estimate | Branch `claude/phase-3a-estimating-model` (stacked on 2d) | `planet_ops_estimating_test.sql`, core `estimating.test.ts`, parity script against the real workbook (local, 44/45 to the cent) | Not yet |
+| 3a | Estimating areas; rates with effective dates; estimates, versions (draft → approved baseline → revisions), lines; exact totals; cost privacy; one summary record per estimate | PR #12, branch `claude/phase-3a-estimating-model` (stacked on 2d) | `planet_ops_estimating_test.sql`, core `estimating.test.ts`, parity script against the real workbook (local, 44/45 to the cent) | Not yet |
+| 3b | The Estimating tab: list and search, New estimate (from a request or alone), the guided editor (project and site, labor, equipment, disposal and hauling, other costs, pricing review, versions), Settings → Estimating (rates, approval), Start estimate on a request | Branch `claude/phase-3b-estimating-workspace` (stacked on 3a) | Browser test `e2e/estimating.spec.ts` (CI; includes tablet and phone width checks), web unit tests | Not yet |
 
 ### 3a: data, rates, calculation, privacy
 
@@ -545,6 +546,40 @@ Migration `20261124000100_planet_ops_estimating.sql` (not yet released).
   {address} - {project type} - {year}* and kept current; its permanent copy is to go to **Jobs Bid**
   until a job exists, then the job's folder (Phase 4 does the Drive work: nothing is backed up yet).
 - Estimating makes no quote, job or folder (tested).
+
+### 3b: the estimating workspace
+
+- **Estimating** (main menu, for people with *Prepare internal estimates*): every estimate with its
+  customer, address, estimator, version and status, the request and its outcome; search; **New
+  estimate** (from a request it takes the request's customer, property and title; a retried click
+  opens the one it made). A banner says costs stay internal.
+- **The guided editor**, in the order of the bid workbook and the Future Bid Checklist:
+  1. *Project and site*: title, type, customer and property (for an estimate without a request),
+     estimator, area, structures (sq ft, stories), materials and layers, foundation, access,
+     utilities, hazards, testing assumptions, internal inclusions/exclusions, site notes, supporting
+     file links, the customer-facing scope a proposal will say, and the **assumption log** (each
+     assumption with its source).
+  2. *Labor*: people × hours/day × days at a rate; role, overtime, "rate already includes burden".
+  3. *Equipment* (and travel): owned/rented, "rate already includes fuel", fuel lines tied to their
+     machine (a double charge is flagged).
+  4. *Disposal and hauling*: priced by what's billed, with material stream, facility, estimated
+     tons, loose CY, container CY and expected loads each in its own field.
+  5. *Other costs*: materials, permits and testing, subcontractors, other (credits allowed), and
+     contingency (warned when missing).
+  6. *Pricing review* (costs only): markup **or** target margin, owner pay none **or** % of the
+     price before it, labor burden, default risk %, and every figure with its definition: base cost,
+     risk reserve, subtotal, markup, price before owner pay, owner pay, calculated selling price,
+     profit if the reserve isn't used, sheet margin, price per sq ft.
+  7. *Versions and documents*: approve (owners/admins by default; frozen; the first is the original
+     baseline), every version with its dates, open an older one.
+  A side panel shows the calculated price as you type (the same arithmetic the database saves), and
+  what's missing before it can be approved. **Revise** makes the next draft with a reason. Rates
+  picked from Settings carry their unit, cost and includes; a preparer without cost access sees
+  quantities and rate names only.
+- **Settings → Estimating**: approval required for customer documents (on by default; owners and
+  admins switch it); the business's rates with unit, cost, from-day and includes, and "New cost"
+  (from a day; earlier estimates keep theirs). None preset.
+- **Request page**: its estimates and **Start estimate**.
 
 ## Phase 1 staging acceptance checklist (owner)
 

@@ -23,6 +23,8 @@ export default {
   "Requests": "Solicitudes",
   // Planet Ops: the customer-document area (line-item quotes and proposals); Estimating is separate.
   "Quotes & Proposals": "Cotizaciones y propuestas",
+  // Planet Ops Phase 3: the internal estimating calculator.
+  "Estimating": "Estimaciones",
   "Jobs": "Trabajos",
   "Invoices": "Facturas",
   "Drive": "Drive",
