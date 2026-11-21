@@ -20,6 +20,7 @@ import { HostingSettings } from "./HostingSettings";
 import { LicenseSettings } from "./LicenseSettings";
 import { MapsSettings } from "./MapsSettings";
 import { PaymentSettings } from "./PaymentSettings";
+import { PipelineSettings } from "./PipelineSettings";
 import { PriceList } from "./PriceList";
 import { ProfileSettings } from "./ProfileSettings";
 import { RolesSettings } from "./RolesSettings";
@@ -82,6 +83,7 @@ export function SettingsPage() {
           {tab === "roles" && <RolesSettings />}
           {tab === "crews" && <CrewSettings />}
           {tab === "sales-areas" && <SalesAreaSettings />}
+          {tab === "pipeline" && <PipelineSettings />}
           {tab === "prices" && <PriceList />}
           {tab === "templates" && <TemplateSettings />}
           {tab === "contracts" && <ContractSettings />}

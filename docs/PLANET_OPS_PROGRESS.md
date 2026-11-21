@@ -366,7 +366,8 @@ merge Phase 1 first (#4 → #5 → #6 → #7), then 2a → 2b → 2c.
 | Slice | Scope | Implemented | Automated | Staging (manual) |
 | --- | --- | --- | --- | --- |
 | 2a | Stages, owner/estimator/next action/outcomes per request, history, contacts and pauses, follow-up cadence and templates (data), report and pricing history | PR #8, branch `claude/phase-2a-pipeline-model` | `planet_ops_pipeline_test.sql`, core `pipeline.test.ts` (CI runs the full suite) | Not yet |
-| 2b | Pipeline board and list with the filters; the request's pipeline card, contact log, follow-ups and history | Branch `claude/phase-2b-pipeline-screens` (stacked on 2a) | Browser test `e2e/pipeline.spec.ts` (CI), web unit tests | Not yet |
+| 2b | Pipeline board and list with the filters; the request's pipeline card, contact log, follow-ups and history | PR #9, branch `claude/phase-2b-pipeline-screens` (stacked on 2a) | Browser test `e2e/pipeline.spec.ts` (CI), web unit tests | Not yet |
+| 2c | Settings → Sales pipeline (default owner, reminders, stages, cadence, templates); Report and Pricing history | Branch `claude/phase-2c-pipeline-settings-reports` (stacked on 2b) | Browser test `e2e/pipeline-settings.spec.ts` (CI), web unit tests | Not yet |
 
 ### 2a: the pipeline's data and rules
 
@@ -434,6 +435,44 @@ Migration `20261122000100_planet_ops_pipeline.sql` (not yet released).
   log a call/text/email/note with a template to start from, and the full history: moves, changes,
   pauses and contacts with who and when). The client card's Salesperson is now Owner.
 
+### 2c: pipeline settings, report and pricing history
+
+- **Settings → Team → Sales pipeline** (owners, admins and office with Settings): a reminder that the
+  pipeline only makes reminders and drafts; the **default owner** and whether stage cadence makes
+  reminders (owners and admins); **stages** (rename, next action and days, on/off, order, add and
+  delete custom ones; the starter outcomes stay on); the **follow-up cadence** (per stage: reminder,
+  after how many days, how, which template, on/off); and **templates** (call scripts, text and email
+  drafts, in the business's own words; none preset; on/off).
+- **Sales pipeline → Report**: 30 days, 90 days or 12 months, the dates on screen: requests in (by
+  source, with conversion by source, and where they are now), median first-response time, conversion
+  (won ÷ (won + lost) decided in the period), won and lost value (quoted amounts), and open requests'
+  aging.
+- **Sales pipeline → Pricing history**: sent prices on requests by service, location, sent dates,
+  estimator and outcome, each linked to its request and quote/proposal, with the reason once decided;
+  labelled as sales evidence, not costs or benchmarks.
+
+### Phase 2 against the plan's "done when"
+
+- Every active request has an owner and a visible next action: every stage gives a next action on
+  entry, and a request comes in with its zip's salesperson or the default owner. **Owner input:**
+  choose a default owner (Settings → Sales pipeline) so none arrives without one; until then such a
+  request is flagged No owner on the board, the list and its page.
+- Moving stages preserves history (`request_pipeline_events`, kept as it happened; tested).
+- One client can have two independent opportunities (tested in the database and the browser).
+- Accepting a quote links the correct request/job without duplicates: converting the signed quote
+  makes one job linked to its request and marks the request Won once, again on retry (tested); a
+  request can't be marked Won by hand.
+
+### Phase 2 deferred or for the owner
+
+- Automatic customer messages (sequences that send): Phase 7, once a channel, approved wording,
+  recipients and timing are set. Templates hold no preset wording.
+- The internal estimate and its summary on each request and in pricing history: Phase 3.
+- The starter stage labels, next actions and cadence are the plan's suggestions, for the owner to
+  confirm or change in Settings.
+- Not covered by a connected assistant's own tools yet (assistants read and write requests under the
+  same database rules).
+
 ## Phase 1 staging acceptance checklist (owner)
 
 Run on https://crewtavo-staging.up.railway.app/ with fictional records once PRs #4–#7 are merged
@@ -465,3 +504,26 @@ in order (#4, #5, #6, #7). Physical iPad / finger / stylus checks need a real de
       single-tap refused; an old screen refused after an office change; the company line asks to
       draw or use the saved signature.
 
+
+## Phase 2 staging acceptance checklist (owner)
+
+Run with fictional records once Phase 1 and PRs #8, #9 and the 2c PR are merged in order.
+
+- [ ] **Settings → Sales pipeline**: confirm or edit the stage names, next actions and cadence;
+      choose a default owner; write any call/text/email templates (none are preset).
+- [ ] **New request** (booking form, Client Hub, phone): lands in New inquiry with an owner (its zip's
+      salesperson or the default owner) and the next action "Make first contact"; a first-response
+      reminder appears for the owner.
+- [ ] **Board and list**: each filter (Needs first response, Follow-up due, Overdue, Waiting on
+      customer, No next action, No owner, Decided) and the owner filter; drag a card between stages;
+      Lost and Unqualified ask why; Won isn't offered.
+- [ ] **Request page**: change stage, estimator, next action and date, service, campaign; log a
+      call, a text from the customer (follow-ups pause), an internal note; resume follow-ups; add and
+      complete a follow-up; the history lists each with who and when.
+- [ ] **Existing flows**: scheduling and finishing a site visit, sending a quote/proposal and
+      converting the signed one move the request forward, and the job makes it Won once.
+- [ ] **Two opportunities**: two requests for one client move independently.
+- [ ] **Report and pricing history**: numbers match the period's requests; lost and unanswered
+      prices appear, labelled as sales evidence.
+- [ ] **Roles**: a custom role without Sales can't move requests, log contacts or see the history.
+- [ ] **No customer messages** were sent by the pipeline at any point.
