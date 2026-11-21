@@ -605,6 +605,8 @@ select t1070.check(array(
   'apply_price_change(uuid, uuid, jsonb, jsonb)',
   'apply_promo_code(text, uuid, text, uuid, uuid[])',
   'apply_quote_options(uuid, jsonb, text, uuid[], jsonb)', 'apply_referral_credit(uuid, uuid)', 'approve_autopay_charge(uuid)',
+  -- Planet Ops 3: estimating, people with the estimating areas only (each checks), never a sub.
+  'approve_estimate_version(uuid, text)',
   -- The company's switch for AI assistants, for the person's own assistant: on for anyone signed in
   -- themselves, and a business someone only subs for isn't counted (and tells them nothing).
   'assistant_switch()',
@@ -626,7 +628,9 @@ select t1070.check(array(
   -- Money added up for Home, Invoices and Deposits (collected_by_day, invoice_summary, stripe_fees): each
   -- runs as the caller, and a sub reads no payments or invoices, so they get nothing or zeros.
   'collected_by_day(uuid, date, date)', 'company_basics(uuid)', 'convert_quote_to_job(uuid)',
-  'create_company(text, text, text)', 'create_invoice_for_job(uuid, text, numeric, date)', 'dashboard(uuid)',
+  'create_company(text, text, text)',
+  -- Planet Ops 3: estimating, people with the estimating areas only (each checks), never a sub.
+  'create_estimate(uuid, uuid, text, uuid, uuid, uuid, text, uuid)', 'create_invoice_for_job(uuid, text, numeric, date)', 'dashboard(uuid)',
   -- Deleting a time entry with a reason (20261113001800): runs as the caller, so a sub deletes no more this way than with a plain delete.
   'delete_time_entry(uuid, text)',
   'dismiss_client_duplicate(uuid, uuid, uuid)',
@@ -638,7 +642,9 @@ select t1070.check(array(
   'duplicate_quote(uuid, text, uuid, uuid, text, jsonb)',
   -- Editing a sent invoice's lines: owners, admins and the office with invoices only (it checks), never a sub.
   'edit_invoice(uuid, jsonb, boolean, timestamp with time zone)',
-  'equipment_conflicts(uuid, uuid[], date, timestamp with time zone, timestamp with time zone, uuid)', 'global_search(uuid, text, integer)',
+  'equipment_conflicts(uuid, uuid[], date, timestamp with time zone, timestamp with time zone, uuid)',
+  -- Planet Ops 3: estimating, people with the estimating areas only (each checks), never a sub.
+  'estimate_rate_list(uuid, date)', 'estimate_version_costs(uuid)', 'global_search(uuid, text, integer)',
   'guide_feedback(uuid, boolean, text)', 'guide_quiz(uuid)',
   -- Bringing work over from Jobber: an owner's or admin's, never a sub's.
   'import_jobber(uuid, text, jsonb)', 'inactive_client_count(uuid, integer)',
@@ -697,13 +703,17 @@ select t1070.check(array(
   'request_manual_charges(uuid, uuid[], numeric[])',
   -- Planet Ops 1c: the office's reply to a customer's change request: people who sell only.
   'respond_to_change_request(uuid, text)', 'review_stats(uuid)',
+  -- Planet Ops 3: estimating, people with the estimating areas only (each checks), never a sub.
+  'revise_estimate(uuid, text)', 'save_estimate_version(uuid, integer, jsonb)',
   -- Saving a read receipt as an expense: runs as the caller, so a sub can no more add one this way than any other.
   'save_read_expense(jsonb, jsonb, uuid)',
   'search_sops(uuid, text, integer, boolean)', 'send_sub_offer(uuid, timestamp with time zone)',
   -- Runs as the caller: no rule lets a sub link a checklist to an item.
   'set_checklist_services(uuid, uuid[])',
   -- Whether a client's contacts get the client's messages: owners and admins only, never a sub.
-  'set_contact_messages(uuid, boolean)', 'set_job_discount_billing(uuid, uuid, boolean)', 'set_next_number(uuid, text, bigint)',
+  'set_contact_messages(uuid, boolean)',
+  -- Planet Ops 3: estimating, people with the estimating areas only (each checks), never a sub.
+  'set_estimate_rate(uuid, text, text, text, text, numeric, date, boolean, boolean, boolean, text)', 'set_job_discount_billing(uuid, uuid, boolean)', 'set_next_number(uuid, text, bigint)',
   'set_photo_shareable(uuid, boolean)', 'set_promo_code_jobs(uuid, boolean)',
   -- Reviews on quotes: owners, admins and the office with the marketing area only (it checks), never a sub.
   'set_quote_reviews(uuid, boolean, boolean, uuid[])',

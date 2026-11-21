@@ -8,7 +8,8 @@ phase's acceptance evidence here.
 | 0: fork/staging baseline, shared records, permissions, Planet Ops name | **Merged** (PR #1). Railway staging exists (owner-confirmed): https://crewtavo-staging.up.railway.app/ |
 | 1: quotes, proposals, terms, signatures, change orders | **In progress**: 1a and 1b merged (PR #2, #3); 1b follow-up, 1c, 1d, 1e in stacked PRs (see Phase 1) |
 | 2: a real sales pipeline | **In progress**: 2a (data, rules, reports) in a PR stacked on Phase 1e (#7); 2b and 2c (screens) stacked on 2a. See Phase 2 |
-| 3–9 | Not started. Gusto and historical import remain deferred |
+| 3: estimating (internal calculator and database) | **In progress**: 3a (data, rates, calculation, privacy) stacked on 2d; 3b (workspace) and 3c (customer-document handoff, summaries, job linkage) stacked on 3a. See Phase 3 |
+| 4–9 | Not started. Gusto and historical import remain deferred |
 
 ## Phase 0 (branch `claude/phase-0-foundation`)
 
@@ -368,7 +369,7 @@ merge Phase 1 first (#4 → #5 → #6 → #7), then 2a → 2b → 2c.
 | 2a | Stages, owner/estimator/next action/outcomes per request, history, contacts and pauses, follow-up cadence and templates (data), report and pricing history | PR #8, branch `claude/phase-2a-pipeline-model` | `planet_ops_pipeline_test.sql`, core `pipeline.test.ts` (CI runs the full suite) | Not yet |
 | 2b | Pipeline board and list with the filters; the request's pipeline card, contact log, follow-ups and history | PR #9, branch `claude/phase-2b-pipeline-screens` (stacked on 2a) | Browser test `e2e/pipeline.spec.ts` (CI), web unit tests | Not yet |
 | 2c | Settings → Sales pipeline (default owner, reminders, stages, cadence, templates); Report and Pricing history | PR #10, branch `claude/phase-2c-pipeline-settings-reports` (stacked on 2b) | Browser test `e2e/pipeline-settings.spec.ts` (CI), web unit tests | Not yet |
-| 2d | Resume restores the current stage's follow-ups; snooze/reschedule; a follow-up as the next action; Won as a sales call with a note | Branch `claude/phase-2d-pipeline-followups` (stacked on 2c) | `planet_ops_pipeline_followups_test.sql`, browser test `e2e/pipeline-followups.spec.ts` (CI) | Not yet |
+| 2d | Resume restores the current stage's follow-ups; snooze/reschedule; a follow-up as the next action; Won as a sales call with a note | PR #11, branch `claude/phase-2d-pipeline-followups` (stacked on 2c) | `planet_ops_pipeline_followups_test.sql`, browser test `e2e/pipeline-followups.spec.ts` (CI) | Not yet |
 
 ### 2a: the pipeline's data and rules
 
@@ -496,6 +497,54 @@ Migration `20261123000100_planet_ops_pipeline_followups.sql` (not yet released).
   confirm or change in Settings.
 - Not covered by a connected assistant's own tools yet (assistants read and write requests under the
   same database rules).
+
+## Phase 3: Estimating, the internal calculator and database (in progress)
+
+Built on Phase 2d (`claude/phase-2d-pipeline-followups`, PR #11), since Phases 1 and 2 aren't merged:
+merge #4 → #5 → #6 → #7 → #8 → #9 → #10 → #11, then 3a → 3b → 3c.
+
+Reference: [planet-ops/ESTIMATING_MAPPING.md](planet-ops/ESTIMATING_MAPPING.md) (the workbooks read
+cell by cell, the verified calculation order, the issues found, the app's rules, and the parity check).
+
+| Slice | Scope | Implemented | Automated | Staging (manual) |
+| --- | --- | --- | --- | --- |
+| 3a | Estimating areas; rates with effective dates; estimates, versions (draft → approved baseline → revisions), lines; exact totals; cost privacy; one summary record per estimate | Branch `claude/phase-3a-estimating-model` (stacked on 2d) | `planet_ops_estimating_test.sql`, core `estimating.test.ts`, parity script against the real workbook (local, 44/45 to the cent) | Not yet |
+
+### 3a: data, rates, calculation, privacy
+
+Migration `20261124000100_planet_ops_estimating.sql` (not yet released).
+
+- **Areas** (Settings → Roles): *Prepare internal estimates* (`estimate`), *See estimating costs, rates
+  and profit* (`estimate_costs`), *Approve estimates* (`estimate_approve`), apart from Quotes and sales
+  and Send pricing. Owners and admins have all three; office and estimators prepare and see costs;
+  approving is owners' and admins' (and General manager's) unless given. Existing custom roles that
+  sell were given prepare and costs; none was given approve except admin-level ones.
+- **Rates** (`estimate_rates`): code, section, name, unit, cost, includes burden / fuel, owned, and the
+  day it takes effect. A new cost is a new row from its day; the earlier one ends the day before; a
+  cost can't be edited in place. Setting rates needs costs and Settings. **No rates are preset**: the
+  business enters its own (the workbook's values are not loaded).
+- **Estimates** (`estimates`, number per business, linked to the request, customer, property and
+  estimator), **versions** (`estimate_versions`: draft → approved; the first approved is the
+  **original baseline**; later approved versions are revisions; a revision copies the latest version
+  with its rate snapshots and a reason; approved versions and their lines are frozen; versions are
+  never deleted) and **lines** (`estimate_lines`: count × hours × days × unit cost, unit, risk %, rate
+  and its snapshot, labor role / overtime / burden, equipment owned / fuel, disposal stream, facility,
+  estimated tons, loose CY, container CY and loads kept apart, the customer item each line rolls up to).
+- **Calculation** in the database (`private.estimate_totals`, exact `numeric`) and the same in
+  `packages/core/src/estimating.ts`, in the workbook's verified order; rounding half up to the cent
+  once; each line's share of the selling price for the customer document (adds up exactly). Missing
+  rates, owner pay on without its %, and impossible values leave an estimate **unresolved**: it can't
+  be approved. Markup and target margin are exclusive; owner pay is none or a % of the price before it.
+- **Saving** carries the revision it was made from; a save from an older revision is refused (no lost
+  changes). A retried *New estimate* with the same key returns the same estimate.
+- **Privacy**: costs, percentages, totals, prices and rate costs are in columns nobody signed in can
+  read; `estimate_version_costs` and `estimate_rate_list` return them only with `estimate_costs`. A
+  preparer without it sees scope, quantities and rate names, can change quantities, and can't see or
+  change a cost or the pricing. Crews, other businesses and the customer pages see nothing.
+- **Summary** (`estimate_summaries`): one per estimate, made with it, titled *Estimate {number} -
+  {address} - {project type} - {year}* and kept current; its permanent copy is to go to **Jobs Bid**
+  until a job exists, then the job's folder (Phase 4 does the Drive work: nothing is backed up yet).
+- Estimating makes no quote, job or folder (tested).
 
 ## Phase 1 staging acceptance checklist (owner)
 

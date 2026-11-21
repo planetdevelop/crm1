@@ -41,6 +41,10 @@ export const PERMISSIONS = [
   { key: "sales", label: "Quotes and sales" },
   // Planet Ops: preparing pricing (sales) is apart from sending it to the customer.
   { key: "send_pricing", label: "Send pricing to customers (quotes, proposals, change orders)" },
+  // Planet Ops Phase 3: the internal estimate, apart from the customer's documents.
+  { key: "estimate", label: "Prepare internal estimates (Estimating)" },
+  { key: "estimate_costs", label: "See estimating costs, rates and profit" },
+  { key: "estimate_approve", label: "Approve estimates (baselines)" },
   { key: "invoices", label: "Invoices and payments" },
   { key: "job_costs", label: "Job costs and profit" },
   { key: "reports", label: "Finance and metrics" },
@@ -62,8 +66,8 @@ const ALL: Permission[] = PERMISSIONS.map((p) => p.key);
 export const LEVEL_PERMISSIONS: Record<Role, readonly Permission[]> = {
   owner: ALL,
   admin: ALL,
-  office: ALL.filter((p) => p !== "team" && p !== "apps"),
-  estimator: ["sales", "send_pricing", "schedule", "equipment"],
+  office: ALL.filter((p) => p !== "team" && p !== "apps" && p !== "estimate_approve"),
+  estimator: ["sales", "send_pricing", "estimate", "estimate_costs", "schedule", "equipment"],
   // A crew lead always runs their own crew; "schedule" extends that to every crew.
   crew_lead: ["schedule", "timesheets", "equipment"],
   field_crew: [],

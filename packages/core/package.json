@@ -24,6 +24,7 @@
     "./changeOrders": "./src/changeOrders.ts",
     "./proposals": "./src/proposals.ts",
     "./pipeline": "./src/pipeline.ts",
+    "./estimating": "./src/estimating.ts",
     "./chat": "./src/chat.ts",
     "./database": "./src/database.types.ts",
     "./time": "./src/time.ts",

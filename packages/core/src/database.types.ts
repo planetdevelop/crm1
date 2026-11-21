@@ -1897,6 +1897,176 @@ isOneToOne: false
       referencedColumns: ["company_id", "id"]
     }
                   ]
+                },"estimate_rates": {
+                  Row: {
+                    "code": string,"company_id": string,"created_at": string,"created_by": string | null,"effective_from": string,"effective_to": string | null,"id": string,"includes_burden": boolean,"includes_fuel": boolean,"name": string,"notes": string | null,"owned": boolean | null,"section": string,"unit": string,"unit_cost": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "code": string,"company_id": string,"created_at"?: string,"created_by"?: string | null,"effective_from": string,"effective_to"?: string | null,"id"?: string,"includes_burden"?: boolean,"includes_fuel"?: boolean,"name": string,"notes"?: string | null,"owned"?: boolean | null,"section": string,"unit": string,"unit_cost": number
+                  }
+                  Update: {
+                    "code"?: string,"company_id"?: string,"created_at"?: string,"created_by"?: string | null,"effective_from"?: string,"effective_to"?: string | null,"id"?: string,"includes_burden"?: boolean,"includes_fuel"?: boolean,"name"?: string,"notes"?: string | null,"owned"?: boolean | null,"section"?: string,"unit"?: string,"unit_cost"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "estimate_rates_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"estimates": {
+                  Row: {
+                    "archived_at": string | null,"baseline_version_id": string | null,"client_id": string | null,"company_id": string,"created_at": string,"created_by": string | null,"current_version_id": string | null,"estimator_id": string | null,"id": string,"number": number,"project_type": string | null,"property_id": string | null,"request_id": string | null,"request_key": string,"title": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "archived_at"?: string | null,"baseline_version_id"?: string | null,"client_id"?: string | null,"company_id": string,"created_at"?: string,"created_by"?: string | null,"current_version_id"?: string | null,"estimator_id"?: string | null,"id"?: string,"number": number,"project_type"?: string | null,"property_id"?: string | null,"request_id"?: string | null,"request_key": string,"title": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "archived_at"?: string | null,"baseline_version_id"?: string | null,"client_id"?: string | null,"company_id"?: string,"created_at"?: string,"created_by"?: string | null,"current_version_id"?: string | null,"estimator_id"?: string | null,"id"?: string,"number"?: number,"project_type"?: string | null,"property_id"?: string | null,"request_id"?: string | null,"request_key"?: string,"title"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "estimates_baseline_fkey"
+      columns: ["company_id", "baseline_version_id"]
+isOneToOne: false
+      referencedRelation: "estimate_versions"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "estimates_company_id_client_id_fkey"
+      columns: ["company_id", "client_id"]
+isOneToOne: false
+      referencedRelation: "clients"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "estimates_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    },
+                    {
+      foreignKeyName: "estimates_company_id_property_id_fkey"
+      columns: ["company_id", "property_id"]
+isOneToOne: false
+      referencedRelation: "properties"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "estimates_company_id_request_id_fkey"
+      columns: ["company_id", "request_id"]
+isOneToOne: false
+      referencedRelation: "requests"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "estimates_current_fkey"
+      columns: ["company_id", "current_version_id"]
+isOneToOne: false
+      referencedRelation: "estimate_versions"
+      referencedColumns: ["company_id", "id"]
+    }
+                  ]
+                },"estimate_versions": {
+                  Row: {
+                    "approval_note": string | null,"approved_at": string | null,"approved_by": string | null,"assumptions": Json,"base_cost": number | null,"based_on_version_id": string | null,"burden_pct": number | null,"calc_problems": Json,"calc_status": string,"company_id": string,"created_at": string,"created_by": string | null,"default_risk_pct": number | null,"estimate_id": string,"id": string,"markup_amount": number | null,"number": number,"owner_pay": number | null,"owner_pay_method": string,"owner_pct": number | null,"price_before_owner_pay": number | null,"pricing_method": string,"pricing_pct": number | null,"revision": number,"revision_reason": string | null,"risk_reserve": number | null,"saved_at": string | null,"saved_by": string | null,"scope": Json,"selling_price": number | null,"status": string,"subtotal": number | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "approval_note"?: string | null,"approved_at"?: string | null,"approved_by"?: string | null,"assumptions"?: Json,"base_cost"?: number | null,"based_on_version_id"?: string | null,"burden_pct"?: number | null,"calc_problems"?: Json,"calc_status"?: string,"company_id": string,"created_at"?: string,"created_by"?: string | null,"default_risk_pct"?: number | null,"estimate_id": string,"id"?: string,"markup_amount"?: number | null,"number": number,"owner_pay"?: number | null,"owner_pay_method"?: string,"owner_pct"?: number | null,"price_before_owner_pay"?: number | null,"pricing_method"?: string,"pricing_pct"?: number | null,"revision"?: number,"revision_reason"?: string | null,"risk_reserve"?: number | null,"saved_at"?: string | null,"saved_by"?: string | null,"scope"?: Json,"selling_price"?: number | null,"status"?: string,"subtotal"?: number | null
+                  }
+                  Update: {
+                    "approval_note"?: string | null,"approved_at"?: string | null,"approved_by"?: string | null,"assumptions"?: Json,"base_cost"?: number | null,"based_on_version_id"?: string | null,"burden_pct"?: number | null,"calc_problems"?: Json,"calc_status"?: string,"company_id"?: string,"created_at"?: string,"created_by"?: string | null,"default_risk_pct"?: number | null,"estimate_id"?: string,"id"?: string,"markup_amount"?: number | null,"number"?: number,"owner_pay"?: number | null,"owner_pay_method"?: string,"owner_pct"?: number | null,"price_before_owner_pay"?: number | null,"pricing_method"?: string,"pricing_pct"?: number | null,"revision"?: number,"revision_reason"?: string | null,"risk_reserve"?: number | null,"saved_at"?: string | null,"saved_by"?: string | null,"scope"?: Json,"selling_price"?: number | null,"status"?: string,"subtotal"?: number | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "estimate_versions_company_id_estimate_id_fkey"
+      columns: ["company_id", "estimate_id"]
+isOneToOne: false
+      referencedRelation: "estimates"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "estimate_versions_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"estimate_lines": {
+                  Row: {
+                    "base": number | null,"company_id": string,"container_cy": number | null,"count": number | null,"customer_description": string | null,"customer_item": string | null,"days": number | null,"est_loose_cy": number | null,"est_tons": number | null,"expected_loads": number | null,"facility": string | null,"fuel_for": string | null,"hours": number | null,"id": string,"includes_burden": boolean,"includes_fuel": boolean,"key": string | null,"material_stream": string | null,"name": string,"notes": string | null,"overtime": boolean,"owned": boolean | null,"price": number | null,"rate_id": string | null,"rate_snapshot": Json | null,"risk": number | null,"risk_pct": number,"role": string | null,"section": string,"sort": number,"subtotal": number | null,"unit": string,"unit_cost": number | null,"version_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "base"?: number | null,"company_id": string,"container_cy"?: number | null,"count"?: number | null,"customer_description"?: string | null,"customer_item"?: string | null,"days"?: number | null,"est_loose_cy"?: number | null,"est_tons"?: number | null,"expected_loads"?: number | null,"facility"?: string | null,"fuel_for"?: string | null,"hours"?: number | null,"id"?: string,"includes_burden"?: boolean,"includes_fuel"?: boolean,"key"?: string | null,"material_stream"?: string | null,"name": string,"notes"?: string | null,"overtime"?: boolean,"owned"?: boolean | null,"price"?: number | null,"rate_id"?: string | null,"rate_snapshot"?: Json | null,"risk"?: number | null,"risk_pct"?: number,"role"?: string | null,"section": string,"sort"?: number,"subtotal"?: number | null,"unit": string,"unit_cost"?: number | null,"version_id": string
+                  }
+                  Update: {
+                    "base"?: number | null,"company_id"?: string,"container_cy"?: number | null,"count"?: number | null,"customer_description"?: string | null,"customer_item"?: string | null,"days"?: number | null,"est_loose_cy"?: number | null,"est_tons"?: number | null,"expected_loads"?: number | null,"facility"?: string | null,"fuel_for"?: string | null,"hours"?: number | null,"id"?: string,"includes_burden"?: boolean,"includes_fuel"?: boolean,"key"?: string | null,"material_stream"?: string | null,"name"?: string,"notes"?: string | null,"overtime"?: boolean,"owned"?: boolean | null,"price"?: number | null,"rate_id"?: string | null,"rate_snapshot"?: Json | null,"risk"?: number | null,"risk_pct"?: number,"role"?: string | null,"section"?: string,"sort"?: number,"subtotal"?: number | null,"unit"?: string,"unit_cost"?: number | null,"version_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "estimate_lines_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    },
+                    {
+      foreignKeyName: "estimate_lines_company_id_rate_id_fkey"
+      columns: ["company_id", "rate_id"]
+isOneToOne: false
+      referencedRelation: "estimate_rates"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "estimate_lines_company_id_version_id_fkey"
+      columns: ["company_id", "version_id"]
+isOneToOne: false
+      referencedRelation: "estimate_versions"
+      referencedColumns: ["company_id", "id"]
+    }
+                  ]
+                },"estimate_summaries": {
+                  Row: {
+                    "company_id": string,"created_at": string,"drive_destination": string,"drive_file_id": string | null,"drive_status": string,"estimate_id": string,"id": string,"job_id": string | null,"title": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"created_at"?: string,"drive_destination"?: string,"drive_file_id"?: string | null,"drive_status"?: string,"estimate_id": string,"id"?: string,"job_id"?: string | null,"title": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "company_id"?: string,"created_at"?: string,"drive_destination"?: string,"drive_file_id"?: string | null,"drive_status"?: string,"estimate_id"?: string,"id"?: string,"job_id"?: string | null,"title"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "estimate_summaries_company_id_estimate_id_fkey"
+      columns: ["company_id", "estimate_id"]
+isOneToOne: false
+      referencedRelation: "estimates"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "estimate_summaries_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    },
+                    {
+      foreignKeyName: "estimate_summaries_company_id_job_id_fkey"
+      columns: ["company_id", "job_id"]
+isOneToOne: false
+      referencedRelation: "jobs"
+      referencedColumns: ["company_id", "id"]
+    }
+                  ]
                 },"follow_up_tasks": {
                   Row: {
                     "assigned_to": string | null,"body": string | null,"closed_reason": string | null,"company_id": string,"created_at": string,"created_by": string | null,"done_at": string | null,"done_by": string | null,"due_on": string | null,"id": string,"link": string | null,"related_id": string | null,"related_type": string | null,"source": string,"source_id": string,"title": string
@@ -5371,6 +5541,27 @@ isOneToOne: false
                            },
 "job_contract_summary":
 { Args: { "p_job": string }; Returns: Json
+                           },
+"create_estimate":
+{ Args: { "p_client"?: string,"p_company": string,"p_estimator"?: string,"p_project_type"?: string,"p_property"?: string,"p_request"?: string,"p_request_key": string,"p_title": string }; Returns: string
+                           },
+"save_estimate_version":
+{ Args: { "p_expected_revision": number,"p_payload": Json,"p_version": string }; Returns: Json
+                           },
+"approve_estimate_version":
+{ Args: { "p_note"?: string,"p_version": string }; Returns: Json
+                           },
+"revise_estimate":
+{ Args: { "p_estimate": string,"p_reason"?: string }; Returns: string
+                           },
+"set_estimate_rate":
+{ Args: { "p_code": string,"p_company": string,"p_effective_from": string,"p_includes_burden"?: boolean,"p_includes_fuel"?: boolean,"p_name": string,"p_notes"?: string,"p_owned"?: boolean,"p_section": string,"p_unit": string,"p_unit_cost": number }; Returns: string
+                           },
+"estimate_rate_list":
+{ Args: { "p_company": string,"p_on"?: string }; Returns: Json
+                           },
+"estimate_version_costs":
+{ Args: { "p_version": string }; Returns: Json
                            },
 "log_request_contact":
 { Args: { "p_at"?: string,"p_body": string,"p_channel": string,"p_direction": string,"p_request": string,"p_subject"?: string }; Returns: string
