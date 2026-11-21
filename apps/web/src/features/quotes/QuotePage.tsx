@@ -90,6 +90,7 @@ import { AddOptionsDialog, QuoteOptions } from "./QuoteOptions";
 import { QuoteSections } from "./QuoteSections";
 import { DraftedCallout } from "./DraftedCallout";
 import { DocumentTypeChoice, ProposalCard } from "./ProposalCard";
+import { EstimateLink } from "../estimating/Handoff";
 import { VersionsCard, versionsKey } from "./VersionsCard";
 import { AgreementFacts } from "./AgreementFacts";
 import { PaymentScheduleCard } from "./PaymentSchedule";
@@ -119,7 +120,7 @@ async function loadQuoteRow(id: string) {
   return unwrapOne(
     await supabase()
       .from("quotes")
-      .select("id, number, title, status, message, presentation, narrative, contract_terms, payment_terms, subtotal, discount_amount, tax_rate, tax_amount, total, deposit_amount, deposit_percent, valid_until, recurrence_rule, active_months, starts_on, ends_on, sent_at, approved_at, approval, lost_reason, request_id, created_at, template_id, option_id, section_ids, roof_package_id, promo_code_id, promo_every_visit, promo:promo_codes(code, kind, value, description, every_visit), request:requests(promo_code, website_form_id, rejected_promo_code, promo_problem), client:clients(id, display_name, email, phone, billing_address, sms_opt_out_at, tax_exempt, tax_exempt_note), property:properties(id, line1, city, region, postal_code, lat, lng), lines:quote_line_items(id, name, description, quantity, unit, unit_price, unit_cost, taxable, optional, selected, option_group, option_id, formula, sort, service_id), jobs!jobs_company_id_quote_id_fkey(id, number), change_order_for, change_job:jobs!quotes_change_order_fkey(id, number, title), package:roof_packages!quotes_roof_package_fkey(name, warranty, price_mode, markup_pct), range_low, range_high, range_accepted_at, priced_on_site_at, exact_sent_at, custom_fields, is_template, left_out, payment_schedule, drafted")
+      .select("id, number, title, status, message, presentation, narrative, estimate_version_id, contract_terms, payment_terms, subtotal, discount_amount, tax_rate, tax_amount, total, deposit_amount, deposit_percent, valid_until, recurrence_rule, active_months, starts_on, ends_on, sent_at, approved_at, approval, lost_reason, request_id, created_at, template_id, option_id, section_ids, roof_package_id, promo_code_id, promo_every_visit, promo:promo_codes(code, kind, value, description, every_visit), request:requests(promo_code, website_form_id, rejected_promo_code, promo_problem), client:clients(id, display_name, email, phone, billing_address, sms_opt_out_at, tax_exempt, tax_exempt_note), property:properties(id, line1, city, region, postal_code, lat, lng), lines:quote_line_items(id, name, description, quantity, unit, unit_price, unit_cost, taxable, optional, selected, option_group, option_id, formula, sort, service_id), jobs!jobs_company_id_quote_id_fkey(id, number), change_order_for, change_job:jobs!quotes_change_order_fkey(id, number, title), package:roof_packages!quotes_roof_package_fkey(name, warranty, price_mode, markup_pct), range_low, range_high, range_accepted_at, priced_on_site_at, exact_sent_at, custom_fields, is_template, left_out, payment_schedule, drafted")
       .eq("id", id)
       .order("sort", { referencedTable: "quote_line_items" })
       .maybeSingle(),
@@ -601,6 +602,8 @@ export function QuotePage() {
 
       <div className="two-col">
         <div className="wide stack-lg">
+          {/* Planet Ops Phase 3: the internal estimate version it came from, and an explicit refresh. */}
+          {!isTemplate && <EstimateLink quote={q} />}
           {/* Planet Ops: the document type comes first, apart from how it's looked at (Edit / Preview). */}
           {!isTemplate && (
             <div className="card card-pad stack-sm">
