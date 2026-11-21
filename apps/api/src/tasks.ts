@@ -41,7 +41,7 @@ import { pdosBackup } from "./services/pdosStore";
 export const TASKS = [
   "automations", "campaigns", "notify", "outbox", "autopay", "calendars", "recurrence", "followups", "weather", "snow", "address",
   "railway", "hosting", "plans", "trash", "storage", "routes", "website", "reviews", "inactive", "review_sync",
-  "social", "backups", "profits", "installments", "postcards", "pins", "review_tidy", "chatgpt_plans", "pdos",
+  "social", "backups", "profits", "installments", "postcards", "pins", "review_tidy", "pdos", "chatgpt_plans",
 ] as const;
 export type TaskName = (typeof TASKS)[number];
 
