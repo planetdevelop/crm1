@@ -9,7 +9,7 @@ import type { IconName } from "@/components/ui/Icon";
 import { msg } from "@/lib/i18n";
 import { can, hasRole, isSub, type Session } from "@/lib/session";
 
-export type SettingsTab = "profile" | "company" | "payments" | "schedule" | "address" | "hosting" | "storage" | "team" | "roles" | "crews" | "sales-areas" | "prices" | "templates" | "contracts" | "checklists" | "custom-fields" | "client-notifications" | "email" | "calendars" | "assistants" | "maps" | "data" | "license" | "weather" | "pipeline" | "estimating";
+export type SettingsTab = "profile" | "company" | "payments" | "schedule" | "address" | "hosting" | "storage" | "team" | "roles" | "crews" | "sales-areas" | "prices" | "templates" | "contracts" | "checklists" | "custom-fields" | "client-notifications" | "email" | "calendars" | "assistants" | "maps" | "data" | "license" | "weather" | "pipeline" | "estimating" | "pdos";
 export type SettingsItem = { label: string; icon: IconName; keywords: string } & ({ tab: SettingsTab } | { to: string });
 
 export function settingsGroups(session: Session): Array<{ title: string; items: SettingsItem[] }> {
@@ -36,6 +36,7 @@ export function settingsGroups(session: Session): Array<{ title: string; items: 
         isAdmin && { tab: "schedule", label: "Schedule and routes", icon: "navigation", keywords: "routes route optimize organize order stops lawn mowing drive time driving speed shop automatic time steps 5 minutes 15 minutes precision calendar snap" },
         // Planet Ops Phase 3: estimating rates and approval.
         canSell && can(session, "estimate") && { tab: "estimating", label: "Estimating", icon: "calculator", keywords: "estimating rates labor rate equipment rate disposal tipping fee dump fee fuel burden approval baseline internal estimate calculator" },
+        isAdmin && { tab: "pdos", label: "PDOS Drive backup", icon: "cloud", keywords: "pdos google drive backup folders jobs bid jobs awarded media reciepts dump tickets documents permits sync retry" },
         canSell && { tab: "prices", label: "Price list", icon: "list", keywords: "services products prices rates costs catalog formulas materials import products & services" },
         // Roofing → Packages with Roofing installed, as roofing/data.ts packagesPath (not imported: it brings the presets into search).
         sellsPackages && { to: featureOn(session.company?.settings, "roofing_app") ? "/roofing/packages" : "/packages", label: "Packages", icon: "package", keywords: "packages bundles tiers good better best options choices pictures photos highlights warranty sell offer roof systems" },

@@ -117,6 +117,8 @@ select tpo_jc.as(:'office', format('select public.review_cost_document(%L, %L, %
 select tpo_jc.check(not exists (select 1 from public.expenses where cost_document_id = :'d2') and (select sum(amount) = 50 from public.expenses where job_id = :'job'),
   'marked a duplicate: nothing added; the job''s receipt cost is still $50');
 
+select tpo_jc.check(private.stored_path_in_use(:'co', (select storage_path from public.cost_documents where id = :'d2')), 'a duplicate''s original file still counts as in use: the nightly tidy-up never deletes it');
+
 -- ===== Disposal register: a ticket's charge counts once ==========================================
 select tpo_jc.as(:'office', format('select public.record_disposal_ticket(%L, %L, %L, %L)::text', :'job', 'a3000000-0000-0000-0000-0000000000d1',
   '{"load_date": "2026-11-12", "hauler": "TEST Hauling", "facility": "TEST Transfer", "ticket_number": "T-501", "material_stream": "C&D", "gross_lb": 18400, "tare_lb": 12000, "container_capacity_cy": 20, "reported_loose_cy": 14, "tipping_fee": 288, "hauling_charge": 250}', 'new')) as t1 \gset

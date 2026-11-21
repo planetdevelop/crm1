@@ -17,6 +17,7 @@ import { CustomFieldSettings } from "./CustomFieldSettings";
 import { DataSettings } from "./DataSettings";
 import { EmailSettings } from "./EmailSettings";
 import { EstimatingSettings } from "./EstimatingSettings";
+import { PdosSettings } from "./PdosSettings";
 import { HostingSettings } from "./HostingSettings";
 import { LicenseSettings } from "./LicenseSettings";
 import { MapsSettings } from "./MapsSettings";
@@ -86,6 +87,7 @@ export function SettingsPage() {
           {tab === "sales-areas" && <SalesAreaSettings />}
           {tab === "pipeline" && <PipelineSettings />}
           {tab === "estimating" && <EstimatingSettings />}
+          {tab === "pdos" && <PdosSettings />}
           {tab === "prices" && <PriceList />}
           {tab === "templates" && <TemplateSettings />}
           {tab === "contracts" && <ContractSettings />}
