@@ -1796,16 +1796,117 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"follow_up_tasks": {
+                },"pipeline_stages": {
                   Row: {
-                    "assigned_to": string | null,"body": string | null,"company_id": string,"created_at": string,"done_at": string | null,"done_by": string | null,"due_on": string | null,"id": string,"link": string | null,"related_id": string | null,"related_type": string | null,"source": string,"source_id": string,"title": string
+                    "active": boolean,"company_id": string,"created_at": string,"default_due_days": number | null,"default_next_action": string | null,"id": string,"kind": string,"label": string,"sort": number,"system_key": string | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "assigned_to"?: string | null,"body"?: string | null,"company_id": string,"created_at"?: string,"done_at"?: string | null,"done_by"?: string | null,"due_on"?: string | null,"id"?: string,"link"?: string | null,"related_id"?: string | null,"related_type"?: string | null,"source": string,"source_id": string,"title": string
+                    "active"?: boolean,"company_id": string,"created_at"?: string,"default_due_days"?: number | null,"default_next_action"?: string | null,"id"?: string,"kind": string,"label": string,"sort": number,"system_key"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "assigned_to"?: string | null,"body"?: string | null,"company_id"?: string,"created_at"?: string,"done_at"?: string | null,"done_by"?: string | null,"due_on"?: string | null,"id"?: string,"link"?: string | null,"related_id"?: string | null,"related_type"?: string | null,"source"?: string,"source_id"?: string,"title"?: string
+                    "active"?: boolean,"company_id"?: string,"created_at"?: string,"default_due_days"?: number | null,"default_next_action"?: string | null,"id"?: string,"kind"?: string,"label"?: string,"sort"?: number,"system_key"?: string | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "pipeline_stages_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"pipeline_templates": {
+                  Row: {
+                    "active": boolean,"body": string,"channel": string,"company_id": string,"created_at": string,"created_by": string | null,"id": string,"name": string,"subject": string | null,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "active"?: boolean,"body": string,"channel": string,"company_id": string,"created_at"?: string,"created_by"?: string | null,"id"?: string,"name": string,"subject"?: string | null,"updated_at"?: string
+                  }
+                  Update: {
+                    "active"?: boolean,"body"?: string,"channel"?: string,"company_id"?: string,"created_at"?: string,"created_by"?: string | null,"id"?: string,"name"?: string,"subject"?: string | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "pipeline_templates_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"pipeline_cadence_steps": {
+                  Row: {
+                    "active": boolean,"after_days": number,"channel": string,"company_id": string,"created_at": string,"id": string,"sort": number,"stage_id": string,"template_id": string | null,"title": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "active"?: boolean,"after_days"?: number,"channel"?: string,"company_id": string,"created_at"?: string,"id"?: string,"sort"?: number,"stage_id": string,"template_id"?: string | null,"title": string
+                  }
+                  Update: {
+                    "active"?: boolean,"after_days"?: number,"channel"?: string,"company_id"?: string,"created_at"?: string,"id"?: string,"sort"?: number,"stage_id"?: string,"template_id"?: string | null,"title"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "pipeline_cadence_steps_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    },
+                    {
+      foreignKeyName: "pipeline_cadence_steps_company_id_stage_id_fkey"
+      columns: ["company_id", "stage_id"]
+isOneToOne: false
+      referencedRelation: "pipeline_stages"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "pipeline_cadence_steps_company_id_template_id_fkey"
+      columns: ["company_id", "template_id"]
+isOneToOne: false
+      referencedRelation: "pipeline_templates"
+      referencedColumns: ["company_id", "id"]
+    }
+                  ]
+                },"request_pipeline_events": {
+                  Row: {
+                    "actor_id": string | null,"company_id": string,"created_at": string,"from_stage_id": string | null,"from_value": string | null,"id": string,"kind": string,"request_id": string,"to_stage_id": string | null,"to_value": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_id"?: string | null,"company_id": string,"created_at"?: string,"from_stage_id"?: string | null,"from_value"?: string | null,"id"?: string,"kind": string,"request_id": string,"to_stage_id"?: string | null,"to_value"?: string | null
+                  }
+                  Update: {
+                    "actor_id"?: string | null,"company_id"?: string,"created_at"?: string,"from_stage_id"?: string | null,"from_value"?: string | null,"id"?: string,"kind"?: string,"request_id"?: string,"to_stage_id"?: string | null,"to_value"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "request_pipeline_events_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    },
+                    {
+      foreignKeyName: "request_pipeline_events_company_id_request_id_fkey"
+      columns: ["company_id", "request_id"]
+isOneToOne: false
+      referencedRelation: "requests"
+      referencedColumns: ["company_id", "id"]
+    }
+                  ]
+                },"follow_up_tasks": {
+                  Row: {
+                    "assigned_to": string | null,"body": string | null,"closed_reason": string | null,"company_id": string,"created_at": string,"created_by": string | null,"done_at": string | null,"done_by": string | null,"due_on": string | null,"id": string,"link": string | null,"related_id": string | null,"related_type": string | null,"source": string,"source_id": string,"title": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "assigned_to"?: string | null,"body"?: string | null,"closed_reason"?: string | null,"company_id": string,"created_at"?: string,"created_by"?: string | null,"done_at"?: string | null,"done_by"?: string | null,"due_on"?: string | null,"id"?: string,"link"?: string | null,"related_id"?: string | null,"related_type"?: string | null,"source": string,"source_id": string,"title": string
+                  }
+                  Update: {
+                    "assigned_to"?: string | null,"body"?: string | null,"closed_reason"?: string | null,"company_id"?: string,"created_at"?: string,"created_by"?: string | null,"done_at"?: string | null,"done_by"?: string | null,"due_on"?: string | null,"id"?: string,"link"?: string | null,"related_id"?: string | null,"related_type"?: string | null,"source"?: string,"source_id"?: string,"title"?: string
                   }
                   Relationships: []
                 },"quote_change_requests": {
@@ -2668,14 +2769,14 @@ isOneToOne: false
                   ]
                 },"requests": {
                   Row: {
-                    "answers": NonNullable<Json>,"asked_ends_at": string | null,"asked_starts_at": string | null,"assigned_to": string | null,"client_id": string,"company_id": string,"created_at": string,"created_by": string | null,"details": string | null,"id": string,"intake_form_id": string | null,"number": number | null,"preferred_times": NonNullable<Json>,"promo_code": string | null,"promo_problem": string | null,"property_id": string | null,"rejected_promo_code": string | null,"source": string,"status": string,"title": string,"updated_at": string,"web_visit": Json | null,"website_form_id": string | null
+                    "answers": Json,"asked_ends_at": string | null,"asked_starts_at": string | null,"assigned_to": string | null,"campaign": string | null,"client_id": string,"company_id": string,"created_at": string,"created_by": string | null,"details": string | null,"estimator_id": string | null,"first_response_at": string | null,"follow_up_paused_at": string | null,"follow_up_paused_reason": string | null,"id": string,"intake_form_id": string | null,"last_contact_at": string | null,"next_action": string | null,"next_action_on": string | null,"number": number | null,"outcome_at": string | null,"outcome_reason": string | null,"preferred_times": Json,"promo_code": string | null,"promo_problem": string | null,"property_id": string | null,"rejected_promo_code": string | null,"service": string | null,"source": string,"stage_entered_at": string | null,"stage_id": string | null,"status": string,"title": string,"updated_at": string,"web_visit": Json | null,"website_form_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "answers"?: NonNullable<Json>,"asked_ends_at"?: string | null,"asked_starts_at"?: string | null,"assigned_to"?: string | null,"client_id": string,"company_id": string,"created_at"?: string,"created_by"?: string | null,"details"?: string | null,"id"?: string,"intake_form_id"?: string | null,"number"?: number | null,"preferred_times"?: NonNullable<Json>,"promo_code"?: string | null,"promo_problem"?: string | null,"property_id"?: string | null,"rejected_promo_code"?: string | null,"source"?: string,"status"?: string,"title": string,"updated_at"?: string,"web_visit"?: Json | null,"website_form_id"?: string | null
+                    "answers"?: Json,"asked_ends_at"?: string | null,"asked_starts_at"?: string | null,"assigned_to"?: string | null,"campaign"?: string | null,"client_id": string,"company_id": string,"created_at"?: string,"created_by"?: string | null,"details"?: string | null,"estimator_id"?: string | null,"first_response_at"?: string | null,"follow_up_paused_at"?: string | null,"follow_up_paused_reason"?: string | null,"id"?: string,"intake_form_id"?: string | null,"last_contact_at"?: string | null,"next_action"?: string | null,"next_action_on"?: string | null,"number"?: number | null,"outcome_at"?: string | null,"outcome_reason"?: string | null,"preferred_times"?: Json,"promo_code"?: string | null,"promo_problem"?: string | null,"property_id"?: string | null,"rejected_promo_code"?: string | null,"service"?: string | null,"source"?: string,"stage_entered_at"?: string | null,"stage_id"?: string | null,"status"?: string,"title": string,"updated_at"?: string,"web_visit"?: Json | null,"website_form_id"?: string | null
                   }
                   Update: {
-                    "answers"?: NonNullable<Json>,"asked_ends_at"?: string | null,"asked_starts_at"?: string | null,"assigned_to"?: string | null,"client_id"?: string,"company_id"?: string,"created_at"?: string,"created_by"?: string | null,"details"?: string | null,"id"?: string,"intake_form_id"?: string | null,"number"?: number | null,"preferred_times"?: NonNullable<Json>,"promo_code"?: string | null,"promo_problem"?: string | null,"property_id"?: string | null,"rejected_promo_code"?: string | null,"source"?: string,"status"?: string,"title"?: string,"updated_at"?: string,"web_visit"?: Json | null,"website_form_id"?: string | null
+                    "answers"?: Json,"asked_ends_at"?: string | null,"asked_starts_at"?: string | null,"assigned_to"?: string | null,"campaign"?: string | null,"client_id"?: string,"company_id"?: string,"created_at"?: string,"created_by"?: string | null,"details"?: string | null,"estimator_id"?: string | null,"first_response_at"?: string | null,"follow_up_paused_at"?: string | null,"follow_up_paused_reason"?: string | null,"id"?: string,"intake_form_id"?: string | null,"last_contact_at"?: string | null,"next_action"?: string | null,"next_action_on"?: string | null,"number"?: number | null,"outcome_at"?: string | null,"outcome_reason"?: string | null,"preferred_times"?: Json,"promo_code"?: string | null,"promo_problem"?: string | null,"property_id"?: string | null,"rejected_promo_code"?: string | null,"service"?: string | null,"source"?: string,"stage_entered_at"?: string | null,"stage_id"?: string | null,"status"?: string,"title"?: string,"updated_at"?: string,"web_visit"?: Json | null,"website_form_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -5270,6 +5371,20 @@ isOneToOne: false
                            },
 "job_contract_summary":
 { Args: { "p_job": string }; Returns: Json
+                           },
+"log_request_contact":
+{ Args: { "p_at"?: string,"p_body": string,"p_channel": string,"p_direction": string,"p_request": string,"p_subject"?: string }; Returns: string
+                           },
+"add_request_follow_up":
+{ Args: { "p_assigned_to"?: string,"p_due_on"?: string,"p_request": string,"p_title": string }; Returns: string
+                           },
+"pipeline_report":
+{ Args: { "p_company": string,"p_from": string,"p_to": string }; Returns: Json
+                           },
+"pipeline_pricing_history":
+{ Args: { "p_company": string,"p_estimator"?: string,"p_from"?: string,"p_location"?: string,"p_outcome"?: string,"p_service"?: string,"p_to"?: string }; Returns: {
+              "amount": number,"city": string | null,"estimator_id": string | null,"outcome": string,"outcome_at": string | null,"outcome_reason": string | null,"postal_code": string | null,"presentation": string,"quote_id": string,"quote_number": number,"region": string | null,"request_id": string,"request_number": number,"request_title": string,"sent_at": string,"service": string | null
+            }[]
                            },
 "issue_quote_version":
 { Args: { "p_quote": string,"p_via"?: string }; Returns: string

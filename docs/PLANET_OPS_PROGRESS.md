@@ -7,7 +7,8 @@ phase's acceptance evidence here.
 | --- | --- |
 | 0: fork/staging baseline, shared records, permissions, Planet Ops name | **Merged** (PR #1). Railway staging exists (owner-confirmed): https://crewtavo-staging.up.railway.app/ |
 | 1: quotes, proposals, terms, signatures, change orders | **In progress**: 1a and 1b merged (PR #2, #3); 1b follow-up, 1c, 1d, 1e in stacked PRs (see Phase 1) |
-| 2–9 | Not started. Gusto and historical import remain deferred |
+| 2: a real sales pipeline | **In progress**: 2a (data, rules, reports) in a PR stacked on Phase 1e (#7); 2b and 2c (screens) stacked on 2a. See Phase 2 |
+| 3–9 | Not started. Gusto and historical import remain deferred |
 
 ## Phase 0 (branch `claude/phase-0-foundation`)
 
@@ -348,6 +349,74 @@ Migration `20261121000300_planet_ops_convert_signed_revision.sql` (not yet relea
   Requests, sends and signatures make none. No folders are made; Phase 4 does the Drive work.
 - Create Job stays separate: it can't claim an unsigned quote and records no acceptance.
 - The job's Contract card says which signed version it was made from and links the request.
+- **Only converting sets the signed-version link** (fix after review): a job inserted straight into
+  the table with its correct quote and exact signed version was accepted. `convert_quote_to_job` now
+  runs as its owner and checks who may convert itself (owners, admins, office and estimators with the
+  sales area; the server: as its quote and job rules allowed before); it marks the quote it's
+  converting for its transaction, and the guard accepts a new link only from the function's owner
+  with that mark. Staff, the API, the service role and a direct write are refused even with the right
+  values (or the marker set by hand), and nothing is left behind. Tested in
+  `planet_ops_convert_signed_revision_test.sql` and through the API in the lifecycle test.
+
+## Phase 2: a real sales pipeline (in progress)
+
+Built on Phase 1e (`claude/phase-1e-convert-signed-revision`, PR #7), since Phase 1 isn't merged yet:
+merge Phase 1 first (#4 → #5 → #6 → #7), then 2a → 2b → 2c.
+
+| Slice | Scope | Implemented | Automated | Staging (manual) |
+| --- | --- | --- | --- | --- |
+| 2a | Stages, owner/estimator/next action/outcomes per request, history, contacts and pauses, follow-up cadence and templates (data), report and pricing history | Branch `claude/phase-2a-pipeline-model` | `planet_ops_pipeline_test.sql`, core `pipeline.test.ts` (CI runs the full suite) | Not yet |
+
+### 2a: the pipeline's data and rules
+
+Migration `20261122000100_planet_ops_pipeline.sql` (not yet released).
+
+- **Stages** (`pipeline_stages`), per business, from the plan: New inquiry → Contacting → Site visit
+  scheduled → Site visit complete → Estimating → Quote/proposal sent → Follow-up → Won, with
+  Nurture/on hold, Lost and Unqualified/spam kept apart. Labels, order and each stage's next action
+  are editable (Settings); custom open stages can be added and removed when empty. The starter stages
+  keep their kind and can't be deleted; New inquiry, Won and the outcomes stay on. Viewed / overdue
+  are badges, not stages.
+- **Every request** carries its stage (apart from its status and any job's production status), its
+  owner (`assigned_to`: the zip code's salesperson as before, else the pipeline's default owner when
+  one is chosen; with neither it's flagged "No owner", as Crewtavo leaves it unassigned today), the
+  assigned estimator, its next action and date (each stage sets one on entry unless one is given),
+  last contact and first response (from logged contacts only), campaign, requested service, and its
+  outcome with a reason (Lost and Unqualified need one). Existing requests join at the stage their
+  status means; archived ones stay out (no reason is invented).
+- **Moves**: the existing flows move a request forward, never back and never out of an outcome a
+  person chose (site visit booked or done, quote/proposal sent); a job made from it makes it Won,
+  once. Outcomes clear the next action and stop its follow-ups; moving back into the pipeline starts
+  them again.
+- **History** (`request_pipeline_events`): stage moves (with the labels as they read then), owner,
+  estimator, next action, outcome, pauses and resumes, contacts, with who and when. Kept as it
+  happened: no edits or deletes.
+- **Contacts** (`log_request_contact`): a call, text, email or note is kept in the client's messages
+  on the request (never a new lead) and is never sent from here. It sets the last contact and first
+  response. An inbound one pauses the request's follow-ups, as do a customer's inbound message
+  anywhere, an opt-out, a win or a loss; staff can pause and resume.
+- **Follow-ups**: each stage's cadence steps (`pipeline_cadence_steps`; the plan's suggested starter:
+  first response, post-site-visit check-in, post-proposal follow-up, later nurture) make internal
+  reminders (`follow_up_tasks`) for the owner as a request enters the stage, once per entry; the last
+  stage's are closed (as left behind) and a paused request gets none. Follow-ups can be added by hand
+  (`add_request_follow_up`) and go with the request to a new owner. Reusable call/text/email
+  templates (`pipeline_templates`) are written by the business: none are preset.
+- **No automatic customer messages.** Sending needs an approved channel, text, recipients and timing;
+  it comes with the communication integrations (Phase 7). Until then everything here is reminders and
+  drafts.
+- **Reports** (`pipeline_report`), on defined dates: requests that came in in the period (by source
+  and current stage); open requests' aging and days in stage; first-response time; outcomes decided in
+  the period with conversion = won ÷ (won + lost), unqualified apart, also by source; won and lost
+  value = the quoted amount (signed, else the latest sent).
+- **Pricing history** (`pipeline_pricing_history`): every sent quote/proposal for a request (not
+  change orders), filterable by service, location, date, estimator and outcome, lost and unanswered
+  included. Sales evidence, never actual costs or benchmarks. The internal estimate summary joins it
+  in Phase 3 (Estimating).
+- **Who**: the pipeline is the Sales area's (owners, admins, office and estimators with it); stages,
+  cadence, templates and pipeline settings are Settings'. Enforced in the database for anyone signed
+  in (screens, API, assistants); a crew lead sees no history or templates.
+- Shared rules for the screens (`packages/core/src/pipeline.ts`): what Needs first response, Follow-up
+  due, Overdue, Waiting on customer, No next action and No owner mean; silence never closes a request.
 
 ## Phase 1 staging acceptance checklist (owner)
 

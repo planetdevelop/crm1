@@ -596,6 +596,9 @@ select t1070.check(array(
   'acknowledge_worker_notices(uuid, text[], timestamp with time zone)',
   -- Adding work on site: the team on the visit only, never a sub (the job's prices are the client's).
   'add_field_line(uuid, uuid, numeric, uuid)',
+  -- Planet Ops 2: a follow-up on a request, logging a contact on one, the pipeline report and pricing
+  -- history: people who sell only (each checks), never a sub.
+  'add_request_follow_up(uuid, text, date, uuid)',
   'answer_sub_offer(uuid, boolean, text, integer, uuid)',
   -- Changing prices across repeating jobs (and price_change_history, price_change_preview and undo_price_change below): owners, admins and
   -- the office with Quotes and sales only (each checks), never a sub.
@@ -661,12 +664,14 @@ select t1070.check(array(
   'job_visits_to_remove(uuid)',
   -- Jobs with finished visits to invoice: runs as the caller, so a sub gets no more than the jobs of their own visits.
   'jobs_with_visits_to_invoice(uuid)', 'last_referral_ask(uuid, uuid)', 'last_review_ask(uuid, uuid)',
+  'log_request_contact(uuid, text, text, text, text, timestamp with time zone)',
   'marketing_set_enabled(uuid, boolean)', 'marketing_summary(uuid)', 'material_choices(uuid)', 'merge_clients(uuid, uuid, uuid)',
   -- Saving a screen's own settings: runs as the caller, so owners and admins only, never a sub.
   'merge_company_settings(uuid, jsonb)', 'my_crew_ids(uuid)', 'my_sub_offers(boolean, uuid)',
   'my_sub_pay_totals(uuid)',
   -- The next request, quote, job and invoice numbers (and set_next_number below): owners and admins only, never a sub.
   'next_numbers(uuid)',
+  'pipeline_pricing_history(uuid, text, text, date, date, uuid, text)', 'pipeline_report(uuid, date, date)',
   -- Who a postcard goes to, with their addresses: runs as the caller, so the office's clients only, none for a sub.
   'postcard_audience(uuid, jsonb)', 'postcard_audience_summary(uuid, jsonb)',
   -- What postcards brought in: the office with Marketing only (it checks), never a sub.
