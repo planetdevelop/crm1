@@ -1,0 +1,901 @@
+[
+ {
+  "name": "markup 25% on the subtotal",
+  "pricing": {
+   "method": "markup",
+   "pct": "0.25",
+   "owner_pay": "none"
+  },
+  "lines": [
+   {
+    "key": "crew",
+    "section": "labor",
+    "name": "Crew",
+    "unit": "hour",
+    "count": 1,
+    "hours": 10,
+    "days": 1,
+    "unit_cost": "50",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   },
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "100",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   }
+  ],
+  "expect": {
+   "base": 600.0,
+   "risk": 0.0,
+   "subtotal": 600.0,
+   "markup": 150.0,
+   "price_before_owner_pay": 750.0,
+   "owner_pay": 0.0,
+   "selling_price": 750.0,
+   "line_prices": [
+    625.0,
+    125.0
+   ],
+   "status": "ok",
+   "warnings": []
+  }
+ },
+ {
+  "name": "target margin 25% (the same lines): the fee is 25% of the price",
+  "pricing": {
+   "method": "margin",
+   "pct": "0.25",
+   "owner_pay": "none"
+  },
+  "lines": [
+   {
+    "key": "crew",
+    "section": "labor",
+    "name": "Crew",
+    "unit": "hour",
+    "count": 1,
+    "hours": 10,
+    "days": 1,
+    "unit_cost": "50",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   },
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "100",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   }
+  ],
+  "expect": {
+   "base": 600.0,
+   "risk": 0.0,
+   "subtotal": 600.0,
+   "markup": 200.0,
+   "price_before_owner_pay": 800.0,
+   "owner_pay": 0.0,
+   "selling_price": 800.0,
+   "line_prices": [
+    666.67,
+    133.33
+   ],
+   "status": "ok",
+   "warnings": []
+  }
+ },
+ {
+  "name": "owner pay 10% of the price before it",
+  "pricing": {
+   "method": "markup",
+   "pct": "0.25",
+   "owner_pay": "percent_of_price",
+   "owner_pct": "0.10"
+  },
+  "lines": [
+   {
+    "key": "crew",
+    "section": "labor",
+    "name": "Crew",
+    "unit": "hour",
+    "count": 1,
+    "hours": 10,
+    "days": 1,
+    "unit_cost": "50",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   },
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "100",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   }
+  ],
+  "expect": {
+   "base": 600.0,
+   "risk": 0.0,
+   "subtotal": 600.0,
+   "markup": 150.0,
+   "price_before_owner_pay": 750.0,
+   "owner_pay": 75.0,
+   "selling_price": 825.0,
+   "line_prices": [
+    687.5,
+    137.5
+   ],
+   "status": "ok",
+   "warnings": []
+  }
+ },
+ {
+  "name": "owner pay on at 0% (allowed)",
+  "pricing": {
+   "method": "markup",
+   "pct": "0.25",
+   "owner_pay": "percent_of_price",
+   "owner_pct": "0"
+  },
+  "lines": [
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "100",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   }
+  ],
+  "expect": {
+   "base": 100.0,
+   "risk": 0.0,
+   "subtotal": 100.0,
+   "markup": 25.0,
+   "price_before_owner_pay": 125.0,
+   "owner_pay": 0.0,
+   "selling_price": 125.0,
+   "line_prices": [
+    125.0
+   ],
+   "status": "ok",
+   "warnings": []
+  }
+ },
+ {
+  "name": "burden 20% on labor whose rate excludes it, not on a fully loaded rate, not on equipment",
+  "pricing": {
+   "method": "markup",
+   "pct": "0",
+   "owner_pay": "none",
+   "burden_pct": "0.20"
+  },
+  "lines": [
+   {
+    "key": "reg",
+    "section": "labor",
+    "name": "Regular crew",
+    "unit": "hour",
+    "count": 2,
+    "hours": 8,
+    "days": 1,
+    "unit_cost": "25",
+    "risk_pct": "0",
+    "includes_burden": false,
+    "customer_item": "Demolition"
+   },
+   {
+    "key": "ot",
+    "section": "labor",
+    "name": "Overtime crew (OT hourly rate)",
+    "unit": "hour",
+    "count": 2,
+    "hours": 2,
+    "days": 1,
+    "unit_cost": "37.50",
+    "risk_pct": "0",
+    "includes_burden": false,
+    "customer_item": "Demolition"
+   },
+   {
+    "key": "loaded",
+    "section": "labor",
+    "name": "Operator (rate includes burden)",
+    "unit": "hour",
+    "count": 1,
+    "hours": 8,
+    "days": 1,
+    "unit_cost": "45",
+    "risk_pct": "0",
+    "includes_burden": true,
+    "customer_item": "Demolition"
+   },
+   {
+    "key": "skid",
+    "section": "equipment",
+    "name": "Skid steer",
+    "unit": "day",
+    "count": 1,
+    "days": 1,
+    "unit_cost": "300",
+    "risk_pct": "0",
+    "customer_item": "Equipment"
+   },
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "0",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   }
+  ],
+  "expect": {
+   "base": 1320.0,
+   "risk": 0.0,
+   "subtotal": 1320.0,
+   "markup": 0.0,
+   "price_before_owner_pay": 1320.0,
+   "owner_pay": 0.0,
+   "selling_price": 1320.0,
+   "line_prices": [
+    480.0,
+    180.0,
+    360.0,
+    300.0,
+    0.0
+   ],
+   "status": "ok",
+   "warnings": []
+  }
+ },
+ {
+  "name": "equipment with fuel included plus a fuel line for it: warned, still complete",
+  "pricing": {
+   "method": "markup",
+   "pct": "0.10",
+   "owner_pay": "none"
+  },
+  "lines": [
+   {
+    "key": "ex",
+    "section": "equipment",
+    "name": "Excavator (rate includes fuel)",
+    "unit": "day",
+    "count": 1,
+    "days": 2,
+    "unit_cost": "650",
+    "risk_pct": "0",
+    "includes_fuel": true,
+    "customer_item": "Equipment"
+   },
+   {
+    "key": "exfuel",
+    "section": "equipment",
+    "name": "Excavator fuel",
+    "unit": "gallon",
+    "count": 40,
+    "unit_cost": "5.25",
+    "risk_pct": "0",
+    "fuel_for": "ex",
+    "customer_item": "Equipment"
+   },
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "50",
+    "risk_pct": "0",
+    "customer_item": "Equipment"
+   }
+  ],
+  "expect": {
+   "base": 1560.0,
+   "risk": 0.0,
+   "subtotal": 1560.0,
+   "markup": 156.0,
+   "price_before_owner_pay": 1716.0,
+   "owner_pay": 0.0,
+   "selling_price": 1716.0,
+   "line_prices": [
+    1430.0,
+    231.0,
+    55.0
+   ],
+   "status": "ok",
+   "warnings": [
+    "Fuel"
+   ]
+  }
+ },
+ {
+  "name": "equipment without fuel and its own fuel line in gallons; truck fuel in gallons",
+  "pricing": {
+   "method": "markup",
+   "pct": "0.10",
+   "owner_pay": "none"
+  },
+  "lines": [
+   {
+    "key": "ex",
+    "section": "equipment",
+    "name": "Excavator (dry rate)",
+    "unit": "day",
+    "count": 1,
+    "days": 2,
+    "unit_cost": "600",
+    "risk_pct": "0",
+    "includes_fuel": false,
+    "customer_item": "Equipment"
+   },
+   {
+    "key": "exfuel",
+    "section": "equipment",
+    "name": "Excavator fuel",
+    "unit": "gallon",
+    "count": 40,
+    "unit_cost": "5.25",
+    "risk_pct": "0",
+    "fuel_for": "ex",
+    "customer_item": "Equipment"
+   },
+   {
+    "key": "truck",
+    "section": "travel",
+    "name": "Truck fuel",
+    "unit": "gallon",
+    "count": 12.5,
+    "unit_cost": "4.899",
+    "risk_pct": "0",
+    "customer_item": "Mobilization"
+   },
+   {
+    "key": "miles",
+    "section": "travel",
+    "name": "Mileage (round trip)",
+    "unit": "mile",
+    "count": 84,
+    "unit_cost": "0.70",
+    "risk_pct": "0",
+    "customer_item": "Mobilization"
+   },
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "50",
+    "risk_pct": "0",
+    "customer_item": "Equipment"
+   }
+  ],
+  "expect": {
+   "base": 1580.04,
+   "risk": 0.0,
+   "subtotal": 1580.04,
+   "markup": 158.0,
+   "price_before_owner_pay": 1738.04,
+   "owner_pay": 0.0,
+   "selling_price": 1738.04,
+   "line_prices": [
+    1320.0,
+    231.0,
+    67.36,
+    64.68,
+    55.0
+   ],
+   "status": "ok",
+   "warnings": []
+  }
+ },
+ {
+  "name": "disposal priced by what's billed (tons); loose CY, container CY and loads kept apart and not priced",
+  "pricing": {
+   "method": "markup",
+   "pct": "0.20",
+   "owner_pay": "none"
+  },
+  "lines": [
+   {
+    "key": "debris",
+    "section": "disposal",
+    "name": "Mixed C&D",
+    "unit": "ton",
+    "count": 3.4,
+    "unit_cost": "85",
+    "risk_pct": "0",
+    "est_tons": 3.4,
+    "est_loose_cy": 12,
+    "container_cy": 20,
+    "expected_loads": 1,
+    "customer_item": "Haul-off and disposal"
+   },
+   {
+    "key": "haul",
+    "section": "hauling",
+    "name": "Container haul",
+    "unit": "haul",
+    "count": 1,
+    "unit_cost": "275",
+    "risk_pct": "0",
+    "container_cy": 20,
+    "expected_loads": 1,
+    "customer_item": "Haul-off and disposal"
+   },
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "75",
+    "risk_pct": "0",
+    "customer_item": "Haul-off and disposal"
+   }
+  ],
+  "expect": {
+   "base": 639.0,
+   "risk": 0.0,
+   "subtotal": 639.0,
+   "markup": 127.8,
+   "price_before_owner_pay": 766.8,
+   "owner_pay": 0.0,
+   "selling_price": 766.8,
+   "line_prices": [
+    346.8,
+    330.0,
+    90.0
+   ],
+   "status": "ok",
+   "warnings": []
+  }
+ },
+ {
+  "name": "per-line risk: 10% on one line, 0% on another",
+  "pricing": {
+   "method": "markup",
+   "pct": "0.20",
+   "owner_pay": "none"
+  },
+  "lines": [
+   {
+    "key": "slab",
+    "section": "subcontractor",
+    "name": "Slab saw-cutting (sub quote)",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "1200",
+    "risk_pct": "0.10",
+    "customer_item": "Demolition"
+   },
+   {
+    "key": "permit",
+    "section": "permits",
+    "name": "Demolition permit",
+    "unit": "each",
+    "count": 1,
+    "unit_cost": "350",
+    "risk_pct": "0",
+    "customer_item": "Permits"
+   },
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "150",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   }
+  ],
+  "expect": {
+   "base": 1700.0,
+   "risk": 120.0,
+   "subtotal": 1820.0,
+   "markup": 364.0,
+   "price_before_owner_pay": 2184.0,
+   "owner_pay": 0.0,
+   "selling_price": 2184.0,
+   "line_prices": [
+    1584.0,
+    420.0,
+    180.0
+   ],
+   "status": "ok",
+   "warnings": []
+  }
+ },
+ {
+  "name": "a credit on an Other line lowers the base",
+  "pricing": {
+   "method": "markup",
+   "pct": "0.30",
+   "owner_pay": "none"
+  },
+  "lines": [
+   {
+    "key": "crew",
+    "section": "labor",
+    "name": "Crew",
+    "unit": "hour",
+    "count": 2,
+    "hours": 8,
+    "days": 1,
+    "unit_cost": "30",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   },
+   {
+    "key": "salvage",
+    "section": "other",
+    "name": "Salvage credit (steel)",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "-120",
+    "risk_pct": "0",
+    "customer_item": "Salvage credit"
+   },
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "100",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   }
+  ],
+  "expect": {
+   "base": 460.0,
+   "risk": 0.0,
+   "subtotal": 460.0,
+   "markup": 138.0,
+   "price_before_owner_pay": 598.0,
+   "owner_pay": 0.0,
+   "selling_price": 598.0,
+   "line_prices": [
+    624.0,
+    -156.0,
+    130.0
+   ],
+   "status": "ok",
+   "warnings": []
+  }
+ },
+ {
+  "name": "fractional quantities, exact to the cent",
+  "pricing": {
+   "method": "margin",
+   "pct": "0.235",
+   "owner_pay": "percent_of_price",
+   "owner_pct": "0.0725",
+   "burden_pct": "0.1825"
+  },
+  "lines": [
+   {
+    "key": "crew",
+    "section": "labor",
+    "name": "Crew",
+    "unit": "hour",
+    "count": 2.5,
+    "hours": 7.75,
+    "days": 1.333,
+    "unit_cost": "33.3333",
+    "risk_pct": "0.035",
+    "customer_item": "Demolition"
+   },
+   {
+    "key": "debris",
+    "section": "disposal",
+    "name": "Debris",
+    "unit": "ton",
+    "count": 4.125,
+    "unit_cost": "92.40",
+    "risk_pct": "0.015",
+    "est_tons": 4.125,
+    "customer_item": "Haul-off and disposal"
+   },
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "99.99",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   }
+  ],
+  "expect": {
+   "base": 1499.15,
+   "risk": 41.35,
+   "subtotal": 1540.5,
+   "markup": 473.22,
+   "price_before_owner_pay": 2013.72,
+   "owner_pay": 145.99,
+   "selling_price": 2159.71,
+   "line_prices": [
+    1477.16,
+    542.37,
+    140.18
+   ],
+   "status": "ok",
+   "warnings": []
+  }
+ },
+ {
+  "name": "rounding boundary: three equal lines, the leftover cent on the first",
+  "pricing": {
+   "method": "markup",
+   "pct": "0.11112",
+   "owner_pay": "none"
+  },
+  "lines": [
+   {
+    "key": "a",
+    "section": "labor",
+    "name": "Crew A",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "100",
+    "risk_pct": "0",
+    "customer_item": "Part A"
+   },
+   {
+    "key": "b",
+    "section": "labor",
+    "name": "Crew B",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "100",
+    "risk_pct": "0",
+    "customer_item": "Part B"
+   },
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "100",
+    "risk_pct": "0",
+    "customer_item": "Part C"
+   }
+  ],
+  "expect": {
+   "base": 300.0,
+   "risk": 0.0,
+   "subtotal": 300.0,
+   "markup": 33.34,
+   "price_before_owner_pay": 333.34,
+   "owner_pay": 0.0,
+   "selling_price": 333.34,
+   "line_prices": [
+    111.12,
+    111.11,
+    111.11
+   ],
+   "status": "ok",
+   "warnings": []
+  }
+ },
+ {
+  "name": "half a cent rounds up (not to even)",
+  "pricing": {
+   "method": "markup",
+   "pct": "0",
+   "owner_pay": "none"
+  },
+  "lines": [
+   {
+    "key": "permit",
+    "section": "permits",
+    "name": "Permit fee",
+    "unit": "each",
+    "count": 1,
+    "unit_cost": "10.005",
+    "risk_pct": "0",
+    "customer_item": "Permits"
+   },
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "0",
+    "risk_pct": "0",
+    "customer_item": "Permits"
+   }
+  ],
+  "expect": {
+   "base": 10.01,
+   "risk": 0.0,
+   "subtotal": 10.01,
+   "markup": 0.0,
+   "price_before_owner_pay": 10.01,
+   "owner_pay": 0.0,
+   "selling_price": 10.01,
+   "line_prices": [
+    10.01,
+    0.0
+   ],
+   "status": "ok",
+   "warnings": []
+  }
+ },
+ {
+  "name": "all zero: nothing to price, nothing on the document",
+  "pricing": {
+   "method": "margin",
+   "pct": "0.30",
+   "owner_pay": "none"
+  },
+  "lines": [
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 0,
+    "unit_cost": "100",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   }
+  ],
+  "expect": {
+   "base": 0.0,
+   "risk": 0.0,
+   "subtotal": 0.0,
+   "markup": 0.0,
+   "price_before_owner_pay": 0.0,
+   "owner_pay": 0.0,
+   "selling_price": 0.0,
+   "line_prices": [
+    0.0
+   ],
+   "status": "ok",
+   "warnings": []
+  }
+ },
+ {
+  "name": "a line with no rate: incomplete (can't be approved or sent on)",
+  "pricing": {
+   "method": "markup",
+   "pct": "0.25",
+   "owner_pay": "none"
+  },
+  "lines": [
+   {
+    "key": "crew",
+    "section": "labor",
+    "name": "Crew",
+    "unit": "hour",
+    "count": 2,
+    "hours": 8,
+    "days": 1,
+    "unit_cost": null,
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   },
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "100",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   }
+  ],
+  "expect": {
+   "base": 100.0,
+   "risk": 0.0,
+   "subtotal": 100.0,
+   "markup": 25.0,
+   "price_before_owner_pay": 125.0,
+   "owner_pay": 0.0,
+   "selling_price": 125.0,
+   "line_prices": [
+    0.0,
+    125.0
+   ],
+   "status": "unresolved",
+   "warnings": []
+  }
+ },
+ {
+  "name": "owner pay on with no percentage: incomplete",
+  "pricing": {
+   "method": "markup",
+   "pct": "0.25",
+   "owner_pay": "percent_of_price"
+  },
+  "lines": [
+   {
+    "key": "cont",
+    "section": "contingency",
+    "name": "Contingency",
+    "unit": "lump",
+    "count": 1,
+    "unit_cost": "100",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   }
+  ],
+  "expect": {
+   "base": 100.0,
+   "risk": 0.0,
+   "subtotal": 100.0,
+   "markup": 25.0,
+   "price_before_owner_pay": 125.0,
+   "owner_pay": 0.0,
+   "selling_price": 125.0,
+   "line_prices": [
+    125.0
+   ],
+   "status": "unresolved",
+   "warnings": []
+  }
+ },
+ {
+  "name": "no contingency line: a warning, not a block",
+  "pricing": {
+   "method": "markup",
+   "pct": "0.25",
+   "owner_pay": "none"
+  },
+  "lines": [
+   {
+    "key": "crew",
+    "section": "labor",
+    "name": "Crew",
+    "unit": "hour",
+    "count": 1,
+    "hours": 4,
+    "days": 1,
+    "unit_cost": "40",
+    "risk_pct": "0",
+    "customer_item": "Demolition"
+   }
+  ],
+  "expect": {
+   "base": 160.0,
+   "risk": 0.0,
+   "subtotal": 160.0,
+   "markup": 40.0,
+   "price_before_owner_pay": 200.0,
+   "owner_pay": 0.0,
+   "selling_price": 200.0,
+   "line_prices": [
+    200.0
+   ],
+   "status": "ok",
+   "warnings": [
+    "Contingency"
+   ]
+  }
+ }
+]

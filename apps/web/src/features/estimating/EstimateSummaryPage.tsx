@@ -44,7 +44,7 @@ export function EstimateSummaryPage() {
         <section className="card card-pad stack-sm">
           <strong>Estimate</strong>
           <dl className="kv">
-            <dt>Estimate</dt><dd>#{s.estimate.number}, version {v.number} ({v.status === "approved" ? (v.id === s.estimate.baseline_version_id ? "approved original baseline" : "approved revision") : "draft"})</dd>
+            <dt>Estimate</dt><dd>#{s.estimate.number}, version {v.number} ({v.status === "approved" ? (v.id === s.estimate.baseline_version_id ? "approved original baseline" : "approved revision") : v.status === "locked" ? "used for a customer document, not approved" : "draft"})</dd>
             <dt>Estimator</dt><dd>{s.estimate.estimator ?? "—"}</dd>
             <dt>Started</dt><dd>{formatDate(s.estimate.created_at)}</dd>
             <dt>Last saved</dt><dd>{v.saved_at ? formatDateTime(v.saved_at) : "—"}</dd>
@@ -116,7 +116,7 @@ export function EstimateSummaryPage() {
               {s.versions.map((x) => (
                 <tr key={x.number}>
                   <td>v{x.number}{x.baseline ? " · original baseline" : ""}</td>
-                  <td>{x.status}</td>
+                  <td>{x.status === "locked" ? "used for a document (not approved)" : x.status}</td>
                   <td>{x.saved_at ? formatDate(x.saved_at) : "—"}</td>
                   <td>{x.approved_at ? formatDate(x.approved_at) : "—"}</td>
                   {s.costs_visible && <><td className="num tabular">{x.base_cost === undefined || x.base_cost === null ? "—" : formatMoneyCents(x.base_cost)}</td><td className="num tabular">{x.selling_price === undefined || x.selling_price === null ? "—" : formatMoneyCents(x.selling_price)}</td></>}
@@ -141,6 +141,23 @@ export function EstimateSummaryPage() {
             </table>
           )}
           {s.jobs.map((j) => <span key={j.id} className="small">Job <Link to={`/jobs/${j.id}`} style={U}>#{j.number}</Link> made from estimate version {j.estimate_version ?? "—"}.</span>)}
+        </section>
+        <section className="card card-pad stack-sm" aria-label="Estimated and actual">
+          <strong>Estimated and actual</strong>
+          <dl className="kv">
+            {s.costs_visible && (() => {
+              const baseline = s.versions.find((x) => x.baseline);
+              const latest = s.versions[s.versions.length - 1];
+              const money = (n: number | null | undefined) => (n === undefined || n === null ? "—" : formatMoneyCents(n));
+              return (
+                <>
+                  <dt>Original approved estimated cost</dt><dd>{baseline ? `${money(baseline.base_cost)} (v${baseline.number}, the baseline)` : "None yet: no version has been approved"}</dd>
+                  <dt>Latest estimated cost</dt><dd>{latest ? `${money(latest.base_cost)} (v${latest.number}, ${latest.status === "locked" ? "used for a document, not approved" : latest.status})` : "—"}</dd>
+                </>
+              );
+            })()}
+            <dt>Actual costs, invoices and payments</dt><dd className="muted">Not tracked here yet (Phase 4 compares them with the baseline). Nothing here means $0.</dd>
+          </dl>
         </section>
       </div>
     </>

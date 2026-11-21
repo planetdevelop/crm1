@@ -148,3 +148,33 @@ markup at I8, or a different grid). **44 of 45 match to the cent** on base cost,
 owner pay, owner pay and final price. The one that doesn't has a base cost typed over its formula on
 one line (F25 holds a number, not `=B*C*D*E`); the app always calculates a line from its inputs, so a
 hand-typed base is entered as a lump-sum line instead. The 12 older layouts are not claimed as parity.
+
+The engine hasn't changed since that run (3d only reworded a warning), so it wasn't repeated.
+
+## 7. Implementation checks (fixed cases, both engines)
+
+`supabase/tests/estimating_cases.json` holds 17 fictional cases whose expected figures were worked
+out apart from the app (Python `Decimal`, half up, in the order of §2). The same cases run through
+the screens' engine (`apps/web/test/estimatingCases.test.ts`, packages/core `calculateEstimate`) and
+through the database (`supabase/tests/planet_ops_estimating_cases_test.sql`, `private.estimate_totals`
+via `save_estimate_version`), and the web test checks the database test holds exactly the same cases.
+All 17 match to the cent in both, including each line's share of the price (the customer lines),
+which always adds up to the selling price.
+
+| Area | Verified behavior (tested) | Rule the app applies | Proposed / for the owner |
+| --- | --- | --- | --- |
+| Markup vs margin | 25% markup on $600 → $750; 25% target margin on $600 → $800 (the fee is 25% of the price) | One method per estimate, never both | none |
+| Owner pay | 10% of $750 → $75, added on top; on at 0% is allowed; on without a % is incomplete | Shown apart from profit and from the sheet margin | P9: cost or profit |
+| Burden | 20% burden: a $25 line excluding burden costs $30; a $45 fully loaded rate stays $45; equipment never burdened | Depends on the rate's *includes burden* flag (from the rate when picked); a preparer can't flip it | Whether rates are loaded or a % applies |
+| Overtime | An OT line is its own hourly rate (2 × 2 h at $37.50 = $150, burdened like any labor) | No "half-time" rule | P6 |
+| Fuel | Equipment whose rate includes fuel plus a fuel line for it: **a warning, not a block** (the estimate is still complete) | The warning names the machine and what to do | none |
+| Travel | Truck fuel in gallons × $/gal, mileage in miles × $/mile, separate lines | Each line says its unit | P2, P3 |
+| Disposal | Priced by what's billed (3.4 t × $85); loose CY, container CY and loads stored apart and never priced | A 20 CY container isn't 20 CY of debris | none |
+| Risk | Per-line %; the estimate's default fills a line saved without one (not one saved at 0%) | A preparer can't change either | P5 |
+| Contingency | A normal line; its absence is warned, not blocked | — | P8 |
+| Credits | Only an Other line can be negative; it lowers the base and shows as its own customer line | — | none |
+| Rounding | Half up from full precision once (10.005 → 10.01); the leftover cent goes to the largest line | Exact decimals, never floating point | none |
+| Missing / invalid | A line without a rate is incomplete (can't be approved or sent on); the database refuses a 100% margin, negative %, unknown units, numbers that aren't numbers | Errors name the line, never the stored row | none |
+
+Not claimed: the 12 older workbook layouts (§6), the Master Completed-Job Bid Intelligence benchmarks
+(Phase 8), and the actual-cost tabs (Phase 4).

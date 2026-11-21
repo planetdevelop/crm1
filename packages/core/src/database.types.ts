@@ -1974,14 +1974,14 @@ isOneToOne: false
                   ]
                 },"estimate_versions": {
                   Row: {
-                    "approval_note": string | null,"approved_at": string | null,"approved_by": string | null,"assumptions": Json,"base_cost": number | null,"based_on_version_id": string | null,"burden_pct": number | null,"calc_problems": Json,"calc_status": string,"company_id": string,"created_at": string,"created_by": string | null,"default_risk_pct": number | null,"estimate_id": string,"id": string,"markup_amount": number | null,"number": number,"owner_pay": number | null,"owner_pay_method": string,"owner_pct": number | null,"price_before_owner_pay": number | null,"pricing_method": string,"pricing_pct": number | null,"revision": number,"revision_reason": string | null,"risk_reserve": number | null,"saved_at": string | null,"saved_by": string | null,"scope": Json,"selling_price": number | null,"status": string,"subtotal": number | null
+                    "approval_note": string | null,"approved_at": string | null,"approved_by": string | null,"assumptions": Json,"base_cost": number | null,"based_on_version_id": string | null,"burden_pct": number | null,"calc_problems": Json,"calc_status": string,"company_id": string,"created_at": string,"created_by": string | null,"default_risk_pct": number | null,"estimate_id": string,"id": string,"locked_at": string | null,"locked_by": string | null,"markup_amount": number | null,"number": number,"owner_pay": number | null,"owner_pay_method": string,"owner_pct": number | null,"price_before_owner_pay": number | null,"pricing_method": string,"pricing_pct": number | null,"revision": number,"revision_reason": string | null,"risk_reserve": number | null,"saved_at": string | null,"saved_by": string | null,"scope": Json,"selling_price": number | null,"status": string,"subtotal": number | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "approval_note"?: string | null,"approved_at"?: string | null,"approved_by"?: string | null,"assumptions"?: Json,"base_cost"?: number | null,"based_on_version_id"?: string | null,"burden_pct"?: number | null,"calc_problems"?: Json,"calc_status"?: string,"company_id": string,"created_at"?: string,"created_by"?: string | null,"default_risk_pct"?: number | null,"estimate_id": string,"id"?: string,"markup_amount"?: number | null,"number": number,"owner_pay"?: number | null,"owner_pay_method"?: string,"owner_pct"?: number | null,"price_before_owner_pay"?: number | null,"pricing_method"?: string,"pricing_pct"?: number | null,"revision"?: number,"revision_reason"?: string | null,"risk_reserve"?: number | null,"saved_at"?: string | null,"saved_by"?: string | null,"scope"?: Json,"selling_price"?: number | null,"status"?: string,"subtotal"?: number | null
+                    "approval_note"?: string | null,"approved_at"?: string | null,"approved_by"?: string | null,"assumptions"?: Json,"base_cost"?: number | null,"based_on_version_id"?: string | null,"burden_pct"?: number | null,"calc_problems"?: Json,"calc_status"?: string,"company_id": string,"created_at"?: string,"created_by"?: string | null,"default_risk_pct"?: number | null,"estimate_id": string,"id"?: string,"locked_at"?: string | null,"locked_by"?: string | null,"markup_amount"?: number | null,"number": number,"owner_pay"?: number | null,"owner_pay_method"?: string,"owner_pct"?: number | null,"price_before_owner_pay"?: number | null,"pricing_method"?: string,"pricing_pct"?: number | null,"revision"?: number,"revision_reason"?: string | null,"risk_reserve"?: number | null,"saved_at"?: string | null,"saved_by"?: string | null,"scope"?: Json,"selling_price"?: number | null,"status"?: string,"subtotal"?: number | null
                   }
                   Update: {
-                    "approval_note"?: string | null,"approved_at"?: string | null,"approved_by"?: string | null,"assumptions"?: Json,"base_cost"?: number | null,"based_on_version_id"?: string | null,"burden_pct"?: number | null,"calc_problems"?: Json,"calc_status"?: string,"company_id"?: string,"created_at"?: string,"created_by"?: string | null,"default_risk_pct"?: number | null,"estimate_id"?: string,"id"?: string,"markup_amount"?: number | null,"number"?: number,"owner_pay"?: number | null,"owner_pay_method"?: string,"owner_pct"?: number | null,"price_before_owner_pay"?: number | null,"pricing_method"?: string,"pricing_pct"?: number | null,"revision"?: number,"revision_reason"?: string | null,"risk_reserve"?: number | null,"saved_at"?: string | null,"saved_by"?: string | null,"scope"?: Json,"selling_price"?: number | null,"status"?: string,"subtotal"?: number | null
+                    "approval_note"?: string | null,"approved_at"?: string | null,"approved_by"?: string | null,"assumptions"?: Json,"base_cost"?: number | null,"based_on_version_id"?: string | null,"burden_pct"?: number | null,"calc_problems"?: Json,"calc_status"?: string,"company_id"?: string,"created_at"?: string,"created_by"?: string | null,"default_risk_pct"?: number | null,"estimate_id"?: string,"id"?: string,"locked_at"?: string | null,"locked_by"?: string | null,"markup_amount"?: number | null,"number"?: number,"owner_pay"?: number | null,"owner_pay_method"?: string,"owner_pct"?: number | null,"price_before_owner_pay"?: number | null,"pricing_method"?: string,"pricing_pct"?: number | null,"revision"?: number,"revision_reason"?: string | null,"risk_reserve"?: number | null,"saved_at"?: string | null,"saved_by"?: string | null,"scope"?: Json,"selling_price"?: number | null,"status"?: string,"subtotal"?: number | null
                   }
                   Relationships: [
                     {
@@ -5549,7 +5549,7 @@ isOneToOne: false
 { Args: { "p_expected_revision": number,"p_payload": Json,"p_version": string }; Returns: Json
                            },
 "approve_estimate_version":
-{ Args: { "p_note"?: string,"p_version": string }; Returns: Json
+{ Args: { "p_expected_revision"?: number,"p_note"?: string,"p_version": string }; Returns: Json
                            },
 "revise_estimate":
 { Args: { "p_estimate": string,"p_reason"?: string }; Returns: string
@@ -5564,13 +5564,13 @@ isOneToOne: false
 { Args: { "p_version": string }; Returns: Json
                            },
 "create_quote_from_estimate":
-{ Args: { "p_presentation": string,"p_request_key": string,"p_version": string }; Returns: string
+{ Args: { "p_expected_revision"?: number,"p_presentation": string,"p_request_key": string,"p_version": string }; Returns: string
                            },
 "estimate_quote_diff":
 { Args: { "p_quote": string,"p_version": string }; Returns: Json
                            },
 "refresh_quote_from_estimate":
-{ Args: { "p_narrative"?: boolean,"p_quote": string,"p_version": string }; Returns: Json
+{ Args: { "p_expected"?: string,"p_narrative"?: boolean,"p_quote": string,"p_version": string }; Returns: Json
                            },
 "estimate_summary":
 { Args: { "p_estimate": string }; Returns: Json

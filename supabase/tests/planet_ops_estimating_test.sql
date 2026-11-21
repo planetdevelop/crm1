@@ -150,8 +150,8 @@ select tpo_es.check((select unit_cost = 75 and (rate_snapshot ->> 'unit_cost')::
 select tpo_es.check(tpo_es.as(:'prep', format('select (jsonb_array_elements(public.estimate_rate_list(%L)) ->> %L) is null', :'co', 'unit_cost')) = 'true', 'a preparer sees rates without their costs');
 
 -- ===== Approval freezes the original baseline; revisions stay separate ===========================
-select tpo_es.expect_error(format('select tpo_es.as(%L, %L)', :'est', format('select public.approve_estimate_version(%L)::text', :'v1')), 'an estimator can''t approve', '%Approve estimates area%');
-select tpo_es.as(:'owner', format('select public.approve_estimate_version(%L, %L)::text', :'v1', 'TEST approval')) as appr \gset
+select tpo_es.expect_error(format('select tpo_es.as(%L, %L)', :'est', format('select public.approve_estimate_version(%1$L, (select revision from public.estimate_versions where id = %1$L))::text', :'v1')), 'an estimator can''t approve', '%Approve estimates area%');
+select tpo_es.as(:'owner', format('select public.approve_estimate_version(%1$L, (select revision from public.estimate_versions where id = %1$L), p_note => %2$L)::text', :'v1', 'TEST approval')) as appr \gset
 select tpo_es.check((:'appr'::jsonb ->> 'baseline')::boolean and (select baseline_version_id = :'v1' from public.estimates where id = :'e1') and (select status = 'approved' and approved_by = :'owner' from public.estimate_versions where id = :'v1'),
   'the owner approves: version 1 is the original baseline');
 select selling_price as v1_price, base_cost as v1_base from public.estimate_versions where id = :'v1' \gset
@@ -171,7 +171,7 @@ select tpo_es.check((select selling_price = :'v1_price'::numeric and base_cost =
                     and (select selling_price > :'v1_price'::numeric from public.estimate_versions where id = :'v2'),
   'the revision''s changes leave the baseline as it was');
 select tpo_es.check((select unit_cost = 75 from public.estimate_lines where version_id = :'v2' and key = 'loader'), 'the revision keeps the rate snapshot it was copied with, though the rate has moved on');
-select tpo_es.as(:'owner', format('select public.approve_estimate_version(%L)::text', :'v2')) as appr2 \gset
+select tpo_es.as(:'owner', format('select public.approve_estimate_version(%1$L, (select revision from public.estimate_versions where id = %1$L))::text', :'v2')) as appr2 \gset
 select tpo_es.check(not (:'appr2'::jsonb ->> 'baseline')::boolean and (select baseline_version_id = :'v1' from public.estimates where id = :'e1'), 'approving the revision keeps version 1 as the original baseline');
 
 -- ===== What can't be approved =======================================================================
@@ -180,7 +180,7 @@ select current_version_id as e2v from public.estimates where id = :'e2' \gset
 select tpo_es.as(:'est', format($f$select public.save_estimate_version(%L, 0, '{"owner_pay_method": "percent_of_price", "lines": [{"section": "equipment", "name": "Excavator", "count": 1, "days": 1, "unit": "day"}]}'::jsonb)::text$f$, :'e2v')) as unresolved \gset
 select tpo_es.check(:'unresolved'::jsonb ->> 'calc_status' = 'unresolved' and :'unresolved'::jsonb -> 'calc_problems' @> '[{"field": "Unit cost"}]' and :'unresolved'::jsonb -> 'calc_problems' @> '[{"field": "Owner pay"}]',
   'a line without a rate, or owner pay without its percentage, leaves the estimate unresolved, saying which');
-select tpo_es.expect_error(format('select tpo_es.as(%L, %L)', :'owner', format('select public.approve_estimate_version(%L)::text', :'e2v')), 'and it can''t be approved', '%can''t be approved yet%');
+select tpo_es.expect_error(format('select tpo_es.as(%L, %L)', :'owner', format('select public.approve_estimate_version(%1$L, (select revision from public.estimate_versions where id = %1$L))::text', :'e2v')), 'and it can''t be approved', '%can''t be approved yet%');
 select tpo_es.expect_error(format('select tpo_es.as(%L, %L)', :'est', format($f$select public.save_estimate_version(%L, 1, '{"pricing_method": "margin", "pricing_pct": 1}'::jsonb)::text$f$, :'e2v')),
   'a target margin of 100% is refused');
 select tpo_es.check(not exists (select 1 from public.quotes where company_id = :'co') and not exists (select 1 from public.jobs where company_id = :'co')

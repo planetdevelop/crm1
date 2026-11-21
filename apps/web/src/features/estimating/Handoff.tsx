@@ -25,13 +25,13 @@ import { canEstimate, estimateKey, type VersionRow } from "./data";
 // Links in a sentence are underlined, not told apart by color alone (WCAG link-in-text-block).
 const U = { textDecoration: "underline" } as const;
 
-export function CreateDocumentDialog({ version, estimateTitle, onClose, onCreated }: { version: Pick<VersionRow, "id" | "number" | "status">; estimateTitle: string; onClose: () => void; onCreated: (quoteId: string) => void }) {
+export function CreateDocumentDialog({ version, estimateTitle, onClose, onCreated }: { version: Pick<VersionRow, "id" | "number" | "status" | "revision">; estimateTitle: string; onClose: () => void; onCreated: (quoteId: string) => void }) {
   const session = useSession();
   const queryClient = useQueryClient();
   const [presentation, setPresentation] = useState<"line_items" | "proposal">("proposal");
   const [key] = useState(() => crypto.randomUUID());
   const create = useMutation({
-    mutationFn: async () => unwrap(await supabase().rpc("create_quote_from_estimate", { p_version: version.id, p_presentation: presentation, p_request_key: key })) as unknown as string,
+    mutationFn: async () => unwrap(await supabase().rpc("create_quote_from_estimate", { p_version: version.id, p_presentation: presentation, p_request_key: key, p_expected_revision: version.revision })) as unknown as string,
     onSuccess: (id) => {
       toast.success("Draft made. Review it before sending: nothing has been sent.", { tone: "quote" });
       queryClient.invalidateQueries({ queryKey: ["quotes", session.company.id] });
@@ -50,7 +50,13 @@ export function CreateDocumentDialog({ version, estimateTitle, onClose, onCreate
           <Icon name="lock" size={16} />
           <span>Only customer items and their selling prices, and the scope written for the customer, go onto the document. Wages, costs, rates, markup, risk reserve, owner pay and internal notes stay in the estimate.</span>
         </div>
-        {version.status !== "approved" && <span className="small text-danger">This version isn't approved. If your business requires approval (Settings → Estimating), approve it first.</span>}
+        {version.status === "draft" && (
+          <span className="small text-danger">
+            This version isn't approved. If your business requires approval (Settings → Estimating), approve it first. If it doesn't, making the document locks
+            version {version.number} exactly as it is now: later changes to the estimate become a revision, and the document keeps what it was made from.
+          </span>
+        )}
+        {version.status === "locked" && <span className="small muted">Version {version.number} is already kept as it was for another document (it isn't approved).</span>}
         <FormError error={create.error} />
         <div className="form-actions">
           <Button onClick={onClose}>Cancel</Button>
@@ -124,7 +130,7 @@ export function EstimateDocuments({ estimateId }: { estimateId: string }) {
   );
 }
 
-interface Diff { quote_status: string; from_version: number | null; to_version: number; current: Array<{ name: string; amount: number }>; proposed: Array<{ name: string; amount: number }>; current_subtotal: number; proposed_subtotal: number }
+interface Diff { version_id: string; token: string; to_status: string; quote_status: string; from_version: number | null; to_version: number; current: Array<{ name: string; amount: number }>; proposed: Array<{ name: string; amount: number }>; current_subtotal: number; proposed_subtotal: number }
 
 /** On a quote or proposal: the estimate it came from, and an explicit refresh for an unsigned one. */
 export function EstimateLink({ quote }: { quote: { id: string; status: string; estimate_version_id?: string | null } }) {
@@ -143,11 +149,17 @@ export function EstimateLink({ quote }: { quote: { id: string; status: string; e
   });
   const [diff, setDiff] = useState<Diff | null>(null);
   const preview = useMutation({
-    mutationFn: async () => unwrap(await supabase().rpc("estimate_quote_diff", { p_quote: quote.id, p_version: link.data!.latest.id })) as unknown as Diff,
-    onSuccess: setDiff,
+    mutationFn: async () => {
+      const versionId = link.data!.latest.id;
+      return { ...(unwrap(await supabase().rpc("estimate_quote_diff", { p_quote: quote.id, p_version: versionId })) as unknown as Omit<Diff, "version_id">), version_id: versionId };
+    },
+    onSuccess: (d) => {
+      apply.reset();
+      setDiff(d);
+    },
   });
   const apply = useMutation({
-    mutationFn: async (narrative: boolean) => unwrap(await supabase().rpc("refresh_quote_from_estimate", { p_quote: quote.id, p_version: link.data!.latest.id, p_narrative: narrative })),
+    mutationFn: async (narrative: boolean) => unwrap(await supabase().rpc("refresh_quote_from_estimate", { p_quote: quote.id, p_version: diff!.version_id, p_narrative: narrative, p_expected: diff!.token })),
     onSuccess: () => {
       toast.success(`Refreshed from estimate version ${link.data!.latest.number}. Review it before sending.`, { tone: "quote" });
       setDiff(null);
@@ -159,7 +171,7 @@ export function EstimateLink({ quote }: { quote: { id: string; status: string; e
   const unsigned = ["draft", "sent", "changes_requested"].includes(quote.status);
   const newer = latest.number > version.number && latest.calc_status === "ok";
   return (
-    <div className="callout callout-info" data-planet-ops="estimate-link">
+    <div className="callout callout-info no-print" data-planet-ops="estimate-link">
       <Icon name="calculator" size={20} />
       <div className="grow small" style={{ fontWeight: 400 }}>
         From internal estimate <Link to={`/estimates/${estimate.id}`} style={U}>#{estimate.number} {estimate.title}</Link>, version {version.number}.
@@ -179,7 +191,9 @@ export function EstimateLink({ quote }: { quote: { id: string; status: string; e
                 <tr><td><strong>Subtotal</strong></td><td className="num tabular strong">{formatMoneyCents(diff.current_subtotal)}</td><td><strong>Subtotal</strong></td><td className="num tabular strong">{formatMoneyCents(diff.proposed_subtotal)}</td></tr>
               </tbody>
             </table>
+            {diff.to_status === "draft" && <span className="small muted">Version {diff.to_version} is a saved draft: refreshing from it keeps it exactly as it is now; later changes to the estimate become a revision.</span>}
             <FormError error={apply.error} />
+            {apply.error && <Button size="sm" loading={preview.isPending} onClick={() => { void queryClient.invalidateQueries({ queryKey: ["quote-estimate", quote.estimate_version_id] }); preview.mutate(); }} style={{ justifySelf: "start" }}>Review the differences again</Button>}
             <div className="form-actions">
               <Button onClick={() => setDiff(null)}>Keep it as it is</Button>
               <Button loading={apply.isPending} onClick={() => apply.mutate(true)}>Refresh prices and scope</Button>
@@ -194,3 +208,31 @@ export function EstimateLink({ quote }: { quote: { id: string; status: string; e
 }
 
 export { estimateKey };
+
+/** On a job: the internal estimate version its signed document was made from (Estimating people only). */
+export function JobEstimateLink({ jobId }: { jobId: string }) {
+  const session = useSession();
+  const allowed = canEstimate(session);
+  const link = useQuery({
+    queryKey: ["job-estimate", jobId],
+    enabled: allowed,
+    queryFn: async () => {
+      const job = unwrap(await supabase().from("jobs").select("estimate_version_id").eq("id", jobId).single()) as { estimate_version_id: string | null };
+      if (!job.estimate_version_id) return null;
+      const v = unwrap(await supabase().from("estimate_versions").select("id, number, status, estimate_id").eq("id", job.estimate_version_id).single());
+      const e = unwrap(await supabase().from("estimates").select("id, number, title").eq("id", v.estimate_id).single());
+      return { version: v, estimate: e };
+    },
+  });
+  if (!allowed || !link.data) return null;
+  const { version, estimate } = link.data;
+  return (
+    <div className="callout callout-info small no-print" style={{ fontWeight: 400 }} data-planet-ops="job-estimate-link">
+      <Icon name="calculator" size={20} />
+      <span>
+        Made from internal estimate <Link to={`/estimates/${estimate.id}?version=${version.id}`} style={U}>#{estimate.number} {estimate.title}</Link>, version {version.number}
+        {version.status === "approved" ? " (approved)" : version.status === "locked" ? " (used for the document; not approved)" : ""}: the version the signed document was made from. See its <Link to={`/estimates/${estimate.id}/summary`} style={U}>summary</Link>.
+      </span>
+    </div>
+  );
+}

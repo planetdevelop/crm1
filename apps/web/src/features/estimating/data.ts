@@ -30,11 +30,11 @@ export interface EstimateRow {
   client: { display_name: string } | null;
   property: { line1: string | null; city: string | null } | null;
   request: { number: number; title: string; outcome_reason: string | null; stage: { label: string; kind: string } | null } | null;
-  versions: Array<{ id: string; number: number; status: string; calc_status: string; saved_at: string | null; approved_at: string | null }>;
+  versions: Array<{ id: string; number: number; status: string; calc_status: string; saved_at: string | null; approved_at: string | null; locked_at: string | null }>;
 }
 
 const ESTIMATE_SELECT =
-  "id, number, title, project_type, estimator_id, request_id, client_id, property_id, baseline_version_id, current_version_id, archived_at, created_at, updated_at, client:clients(display_name), property:properties(line1, city), request:requests(number, title, outcome_reason, stage:pipeline_stages(label, kind)), versions:estimate_versions!estimate_versions_company_id_estimate_id_fkey(id, number, status, calc_status, saved_at, approved_at)";
+  "id, number, title, project_type, estimator_id, request_id, client_id, property_id, baseline_version_id, current_version_id, archived_at, created_at, updated_at, client:clients(display_name), property:properties(line1, city), request:requests(number, title, outcome_reason, stage:pipeline_stages(label, kind)), versions:estimate_versions!estimate_versions_company_id_estimate_id_fkey(id, number, status, calc_status, saved_at, approved_at, locked_at)";
 
 export const estimatesKey = (companyId: string) => ["estimates", companyId];
 export const useEstimates = (companyId: string, enabled = true) =>
@@ -48,7 +48,8 @@ export interface VersionRow {
   id: string;
   estimate_id: string;
   number: number;
-  status: "draft" | "approved";
+  /** draft (editable), locked (used for a customer document without approval: kept as it was), approved (frozen). */
+  status: "draft" | "locked" | "approved";
   revision: number;
   scope: Scope;
   assumptions: Array<{ text: string; source?: string }>;
@@ -62,6 +63,7 @@ export interface VersionRow {
   approved_at: string | null;
   approved_by: string | null;
   approval_note: string | null;
+  locked_at: string | null;
 }
 
 /** Project and site, as the guided editor keeps them. The customer_* parts are what a proposal says. */
@@ -124,7 +126,7 @@ export interface Costs {
 
 const LINE_COLUMNS =
   "id, sort, key, section, name, customer_item, customer_description, count, hours, days, unit, rate_id, risk_pct, role, overtime, includes_burden, includes_fuel, owned, fuel_for, material_stream, facility, est_tons, est_loose_cy, container_cy, expected_loads, notes";
-const VERSION_COLUMNS = "id, estimate_id, number, status, revision, scope, assumptions, pricing_method, owner_pay_method, calc_status, calc_problems, based_on_version_id, revision_reason, saved_at, approved_at, approved_by, approval_note";
+const VERSION_COLUMNS = "id, estimate_id, number, status, revision, scope, assumptions, pricing_method, owner_pay_method, calc_status, calc_problems, based_on_version_id, revision_reason, saved_at, approved_at, approved_by, approval_note, locked_at";
 
 export const estimateKey = (id: string) => ["estimate", id];
 export function useEstimate(id: string, versionId: string | null, costs: boolean) {
