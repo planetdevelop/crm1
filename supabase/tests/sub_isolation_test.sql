@@ -599,7 +599,10 @@ select t1070.check(array(
   -- Planet Ops 2: a follow-up on a request, logging a contact on one, the pipeline report and pricing
   -- history: people who sell only (each checks), never a sub.
   'add_request_follow_up(uuid, text, date, uuid, boolean)',
-  'answer_sub_offer(uuid, boolean, text, integer, uuid)',
+  
+  -- Planet Ops 5: tailgates, machine assignments, checks and defects, an employee's day: team members only
+  -- (is_member / schedule / equipment areas, each checks), never a sub.
+  'amend_tailgate(uuid, jsonb, text)', 'answer_sub_offer(uuid, boolean, text, integer, uuid)',
   -- Changing prices across repeating jobs (and price_change_history, price_change_preview and undo_price_change below): owners, admins and
   -- the office with Quotes and sales only (each checks), never a sub.
   'apply_price_change(uuid, uuid, jsonb, jsonb)',
@@ -609,7 +612,7 @@ select t1070.check(array(
   'approve_estimate_version(uuid, integer, text)',
   -- The company's switch for AI assistants, for the person's own assistant: on for anyone signed in
   -- themselves, and a business someone only subs for isn't counted (and tells them nothing).
-  'assistant_switch()',
+  'assign_machine(uuid, uuid, uuid, uuid, uuid, date, date, uuid, uuid[], text, boolean)', 'assistant_switch()',
   -- Attaching an unknown number's texts to a client: whoever may edit clients, never a sub.
   'attach_unknown_texts(uuid, text, uuid, text, text)',
   'automated_campaign_states(uuid)',
@@ -634,7 +637,7 @@ select t1070.check(array(
   -- job costs only (each checks), never a sub.
   'cost_document_duplicates(uuid, text, text, date, numeric)', 'create_company(text, text, text)',
   -- Planet Ops 3: estimating, people with the estimating areas only (each checks), never a sub.
-  'create_estimate(uuid, uuid, text, uuid, uuid, uuid, text, uuid)', 'create_invoice_for_job(uuid, text, numeric, date)', 'create_quote_from_estimate(uuid, text, uuid, integer)', 'dashboard(uuid)',
+  'create_estimate(uuid, uuid, text, uuid, uuid, uuid, text, uuid)', 'create_invoice_for_job(uuid, text, numeric, date)', 'create_quote_from_estimate(uuid, text, uuid, integer)', 'create_tailgate(uuid, uuid, uuid, date, jsonb, uuid, uuid, uuid[], uuid, uuid)', 'dashboard(uuid)',
   -- Deleting a time entry with a reason (20261113001800): runs as the caller, so a sub deletes no more this way than with a plain delete.
   'delete_time_entry(uuid, text)',
   'dismiss_client_duplicate(uuid, uuid, uuid)',
@@ -651,7 +654,7 @@ select t1070.check(array(
   'estimate_quote_diff(uuid, uuid)', 'estimate_rate_list(uuid, date)', 'estimate_summary(uuid)', 'estimate_version_costs(uuid)', 'global_search(uuid, text, integer)',
   'guide_feedback(uuid, boolean, text)', 'guide_quiz(uuid)',
   -- Bringing work over from Jobber: an owner's or admin's, never a sub's.
-  'import_jobber(uuid, text, jsonb)', 'inactive_client_count(uuid, integer)',
+  'hand_over_machine(uuid, uuid, date, text)', 'import_jobber(uuid, text, jsonb)', 'inactive_client_count(uuid, integer)',
   -- Invoicing a payment of a quote's schedule early: owners, admins and the office with invoices only (it checks), never a sub.
   'invoice_installment(uuid)',
   'invoice_summary(uuid, date)',
@@ -675,9 +678,9 @@ select t1070.check(array(
   -- Jobs with finished visits to invoice: runs as the caller, so a sub gets no more than the jobs of their own visits.
   'jobs_with_visits_to_invoice(uuid)', 'last_referral_ask(uuid, uuid)', 'last_review_ask(uuid, uuid)',
   'log_request_contact(uuid, text, text, text, text, timestamp with time zone)',
-  'marketing_set_enabled(uuid, boolean)', 'marketing_summary(uuid)', 'material_choices(uuid)', 'merge_clients(uuid, uuid, uuid)',
+  'machine_checks_due(uuid, date)', 'marketing_set_enabled(uuid, boolean)', 'marketing_summary(uuid)', 'material_choices(uuid)', 'merge_clients(uuid, uuid, uuid)',
   -- Saving a screen's own settings: runs as the caller, so owners and admins only, never a sub.
-  'merge_company_settings(uuid, jsonb)', 'my_crew_ids(uuid)', 'my_sub_offers(boolean, uuid)',
+  'merge_company_settings(uuid, jsonb)', 'my_crew_ids(uuid)', 'my_field_day(uuid, date)', 'my_sub_offers(boolean, uuid)',
   'my_sub_pay_totals(uuid)',
   -- The next request, quote, job and invoice numbers (and set_next_number below): owners and admins only, never a sub.
   'next_numbers(uuid)',
@@ -696,7 +699,7 @@ select t1070.check(array(
   'quote_fingerprint(uuid)',
   -- Why a quote can't be sent as it is (a payment's date to set, or past): runs as the caller, who reads only the quotes they can see. A sub sees none.
   'quote_send_problem(uuid)',
-  'record_disposal_ticket(uuid, uuid, jsonb, text, uuid)', 'record_photos(uuid, uuid, uuid)', 'referral_auto_apply(uuid, boolean)', 'referral_credits_for(uuid, uuid)', 'referral_give_credit(uuid)', 'referral_no_reward(uuid)',
+  'record_disposal_ticket(uuid, uuid, jsonb, text, uuid)', 'record_machine_check(uuid, uuid, date, jsonb, text, numeric, text, uuid)', 'record_photos(uuid, uuid, uuid)', 'referral_auto_apply(uuid, boolean)', 'referral_credits_for(uuid, uuid)', 'referral_give_credit(uuid)', 'referral_no_reward(uuid)',
   'referral_set_given(uuid)', 'referral_stats(uuid, timestamp with time zone, timestamp with time zone)', 'refresh_quote_from_estimate(uuid, uuid, boolean, text)',
   -- Taking a late fee off an invoice: owners, admins and the office with invoices only (it checks), never a sub.
   'register_cost_document(uuid, text, text, text, text, bigint, uuid)', 'remove_late_fee(uuid)',
@@ -704,14 +707,14 @@ select t1070.check(array(
   'remove_quote_option(uuid, uuid)', 'remove_referral_credit(uuid)',
   -- Renewing tags or an inspection sticker: runs as the caller, and only equipment managers can change them, never a sub.
   'renew_equipment_document(uuid, date, text, uuid)',
-  'request_manual_charges(uuid, uuid[], numeric[])',
+  'report_machine_defect(uuid, text, boolean, uuid)', 'request_manual_charges(uuid, uuid[], numeric[])',
   -- Planet Ops 1c: the office's reply to a customer's change request: people who sell only.
-  'respond_to_change_request(uuid, text)', 'review_cost_document(uuid, text, jsonb, jsonb)', 'review_stats(uuid)',
+  'resolve_machine_defect(uuid, text, jsonb)', 'respond_to_change_request(uuid, text)', 'review_cost_document(uuid, text, jsonb, jsonb)', 'review_stats(uuid)',
   -- Planet Ops 3: estimating, people with the estimating areas only (each checks), never a sub.
   'revise_estimate(uuid, text)', 'save_estimate_version(uuid, integer, jsonb)',
   -- Saving a read receipt as an expense: runs as the caller, so a sub can no more add one this way than any other.
-  'save_read_expense(jsonb, jsonb, uuid)',
-  'search_sops(uuid, text, integer, boolean)', 'send_sub_offer(uuid, timestamp with time zone)',
+  'save_machine_checklist(uuid, text, jsonb, uuid, text, uuid)', 'save_read_expense(jsonb, jsonb, uuid)',
+  'save_tailgate_template(uuid, text, text, text, text, uuid)', 'search_sops(uuid, text, integer, boolean)', 'send_sub_offer(uuid, timestamp with time zone)',
   -- Runs as the caller: no rule lets a sub link a checklist to an item.
   'set_checklist_services(uuid, uuid[])',
   -- Whether a client's contacts get the client's messages: owners and admins only, never a sub.
@@ -727,17 +730,17 @@ select t1070.check(array(
   'set_snow_storm_prices(uuid, jsonb)',
   'set_sub_reminders(uuid, boolean)', 'set_sub_sign_in_countries(uuid, text[])',
   -- Turning on what clients are told about their visits: the office with the Automations area only, never a sub.
-  'set_visit_notices(uuid, boolean, boolean)',
+  'set_tailgate_attendance(uuid, uuid, text)', 'set_visit_notices(uuid, boolean, boolean)',
   -- Weather rules: the owner and the office with Settings only, never a sub.
   'set_weather_rules(uuid, jsonb)',
   -- Where forecasts come from: the same people as the weather rules, never a sub.
   'set_weather_source(uuid, text)',
   -- Whether I can go out for snow on a day I was asked about: anyone asked, a sub too, and only their own answer.
-  'snow_answer(uuid, date, boolean)',
+  'sign_tailgate(uuid, integer, text, uuid)', 'snow_answer(uuid, date, boolean)',
   -- Scheduling the snow jobs that reach their trigger: the owner and the office with the schedule area only, never a sub.
   'snow_schedule(uuid, date, jsonb)',
   'social_photos(uuid, timestamp with time zone, uuid, integer, uuid)',
-  'storage_overview(uuid)', 'storage_set_allowance(uuid, uuid, text, bigint)', 'storage_set_limit(uuid, text, bigint, numeric)', 'stripe_fees(uuid, timestamp with time zone)', 'sub_1099_totals(uuid, integer)', 'sub_wc_audit(uuid, date, date)', 'suggest_cost_document(uuid, jsonb)', 'time_entry_places(uuid, uuid[])',
+  'storage_overview(uuid)', 'storage_set_allowance(uuid, uuid, text, bigint)', 'storage_set_limit(uuid, text, bigint, numeric)', 'stripe_fees(uuid, timestamp with time zone)', 'sub_1099_totals(uuid, integer)', 'sub_wc_audit(uuid, date, date)', 'suggest_cost_document(uuid, jsonb)', 'tailgate_status(uuid)', 'time_entry_places(uuid, uuid[])',
   -- Installs Paving, Roofing or Snow: owners and admins who connect apps only, never a sub.
   'trade_app_set_enabled(uuid, text, boolean)',
   'trash_delete_forever(uuid, jsonb)', 'undo_price_change(uuid, uuid)', 'visit_autopay(uuid)', 'visit_contact(uuid)',

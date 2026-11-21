@@ -2196,6 +2196,291 @@ isOneToOne: false
       referencedColumns: ["company_id", "id"]
     }
                   ]
+                },"tailgate_templates": {
+                  Row: {
+                    "active": boolean,"company_id": string,"controls": string | null,"created_at": string,"created_by": string | null,"hazards": string | null,"id": string,"title": string,"topic": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "active"?: boolean,"company_id": string,"controls"?: string | null,"created_at"?: string,"created_by"?: string | null,"hazards"?: string | null,"id"?: string,"title": string,"topic"?: string | null
+                  }
+                  Update: {
+                    "active"?: boolean,"company_id"?: string,"controls"?: string | null,"created_at"?: string,"created_by"?: string | null,"hazards"?: string | null,"id"?: string,"title"?: string,"topic"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "tailgate_templates_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"tailgate_meetings": {
+                  Row: {
+                    "attachments": Json,"company_id": string,"controls": string | null,"created_at": string,"created_by": string | null,"crew_id": string | null,"discussion": string | null,"hazards": string | null,"id": string,"job_id": string,"leader_id": string | null,"meeting_on": string,"request_key": string,"starts_at": string | null,"template_id": string | null,"title": string,"topic": string | null,"updated_at": string,"version": number,"visit_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "attachments"?: Json,"company_id": string,"controls"?: string | null,"created_at"?: string,"created_by"?: string | null,"crew_id"?: string | null,"discussion"?: string | null,"hazards"?: string | null,"id"?: string,"job_id": string,"leader_id"?: string | null,"meeting_on": string,"request_key": string,"starts_at"?: string | null,"template_id"?: string | null,"title": string,"topic"?: string | null,"updated_at"?: string,"version"?: number,"visit_id"?: string | null
+                  }
+                  Update: {
+                    "attachments"?: Json,"company_id"?: string,"controls"?: string | null,"created_at"?: string,"created_by"?: string | null,"crew_id"?: string | null,"discussion"?: string | null,"hazards"?: string | null,"id"?: string,"job_id"?: string,"leader_id"?: string | null,"meeting_on"?: string,"request_key"?: string,"starts_at"?: string | null,"template_id"?: string | null,"title"?: string,"topic"?: string | null,"updated_at"?: string,"version"?: number,"visit_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "tailgate_meetings_company_id_crew_id_fkey"
+      columns: ["company_id", "crew_id"]
+isOneToOne: false
+      referencedRelation: "crews"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "tailgate_meetings_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    },
+                    {
+      foreignKeyName: "tailgate_meetings_company_id_job_id_fkey"
+      columns: ["company_id", "job_id"]
+isOneToOne: false
+      referencedRelation: "jobs"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "tailgate_meetings_company_id_template_id_fkey"
+      columns: ["company_id", "template_id"]
+isOneToOne: false
+      referencedRelation: "tailgate_templates"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "tailgate_meetings_company_id_visit_id_fkey"
+      columns: ["company_id", "visit_id"]
+isOneToOne: false
+      referencedRelation: "visits"
+      referencedColumns: ["company_id", "id"]
+    }
+                  ]
+                },"tailgate_versions": {
+                  Row: {
+                    "company_id": string,"content": Json,"content_hash": string,"created_at": string,"created_by": string | null,"meeting_id": string,"reason": string | null,"version": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"content": Json,"content_hash": string,"created_at"?: string,"created_by"?: string | null,"meeting_id": string,"reason"?: string | null,"version": number
+                  }
+                  Update: {
+                    "company_id"?: string,"content"?: Json,"content_hash"?: string,"created_at"?: string,"created_by"?: string | null,"meeting_id"?: string,"reason"?: string | null,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "tailgate_versions_company_id_meeting_id_fkey"
+      columns: ["company_id", "meeting_id"]
+isOneToOne: false
+      referencedRelation: "tailgate_meetings"
+      referencedColumns: ["company_id", "id"]
+    }
+                  ]
+                },"tailgate_attendees": {
+                  Row: {
+                    "added_at": string,"added_late": boolean,"company_id": string,"meeting_id": string,"status": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "added_at"?: string,"added_late"?: boolean,"company_id": string,"meeting_id": string,"status"?: string,"user_id": string
+                  }
+                  Update: {
+                    "added_at"?: string,"added_late"?: boolean,"company_id"?: string,"meeting_id"?: string,"status"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "tailgate_attendees_company_id_meeting_id_fkey"
+      columns: ["company_id", "meeting_id"]
+isOneToOne: false
+      referencedRelation: "tailgate_meetings"
+      referencedColumns: ["company_id", "id"]
+    }
+                  ]
+                },"tailgate_signatures": {
+                  Row: {
+                    "company_id": string,"content_hash": string,"id": string,"meeting_id": string,"request_key": string,"signature": string,"signed_at": string,"user_id": string,"version": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"content_hash": string,"id"?: string,"meeting_id": string,"request_key": string,"signature": string,"signed_at"?: string,"user_id": string,"version": number
+                  }
+                  Update: {
+                    "company_id"?: string,"content_hash"?: string,"id"?: string,"meeting_id"?: string,"request_key"?: string,"signature"?: string,"signed_at"?: string,"user_id"?: string,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "tailgate_signatures_company_id_meeting_id_fkey"
+      columns: ["company_id", "meeting_id"]
+isOneToOne: false
+      referencedRelation: "tailgate_meetings"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "tailgate_signatures_meeting_id_version_fkey"
+      columns: ["meeting_id", "version"]
+isOneToOne: false
+      referencedRelation: "tailgate_versions"
+      referencedColumns: ["meeting_id", "version"]
+    }
+                  ]
+                },"machine_checklists": {
+                  Row: {
+                    "company_id": string,"created_at": string,"created_by": string | null,"current": boolean,"equipment_id": string | null,"equipment_kind": string | null,"family_id": string,"id": string,"items": Json,"name": string,"version": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company_id": string,"created_at"?: string,"created_by"?: string | null,"current"?: boolean,"equipment_id"?: string | null,"equipment_kind"?: string | null,"family_id": string,"id"?: string,"items": Json,"name": string,"version"?: number
+                  }
+                  Update: {
+                    "company_id"?: string,"created_at"?: string,"created_by"?: string | null,"current"?: boolean,"equipment_id"?: string | null,"equipment_kind"?: string | null,"family_id"?: string,"id"?: string,"items"?: Json,"name"?: string,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "machine_checklists_company_id_equipment_id_fkey"
+      columns: ["company_id", "equipment_id"]
+isOneToOne: false
+      referencedRelation: "equipment"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "machine_checklists_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"machine_assignments": {
+                  Row: {
+                    "authorized_ids": string[],"company_id": string,"created_at": string,"created_by": string | null,"ended_at": string | null,"ends_on": string,"equipment_id": string,"handover_from": string | null,"handover_notes": string | null,"id": string,"job_id": string,"operator_id": string,"request_key": string,"shift": string | null,"starts_on": string,"visit_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "authorized_ids"?: string[],"company_id": string,"created_at"?: string,"created_by"?: string | null,"ended_at"?: string | null,"ends_on": string,"equipment_id": string,"handover_from"?: string | null,"handover_notes"?: string | null,"id"?: string,"job_id": string,"operator_id": string,"request_key": string,"shift"?: string | null,"starts_on": string,"visit_id"?: string | null
+                  }
+                  Update: {
+                    "authorized_ids"?: string[],"company_id"?: string,"created_at"?: string,"created_by"?: string | null,"ended_at"?: string | null,"ends_on"?: string,"equipment_id"?: string,"handover_from"?: string | null,"handover_notes"?: string | null,"id"?: string,"job_id"?: string,"operator_id"?: string,"request_key"?: string,"shift"?: string | null,"starts_on"?: string,"visit_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "machine_assignments_company_id_equipment_id_fkey"
+      columns: ["company_id", "equipment_id"]
+isOneToOne: false
+      referencedRelation: "equipment"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "machine_assignments_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    },
+                    {
+      foreignKeyName: "machine_assignments_company_id_handover_from_fkey"
+      columns: ["company_id", "handover_from"]
+isOneToOne: false
+      referencedRelation: "machine_assignments"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "machine_assignments_company_id_job_id_fkey"
+      columns: ["company_id", "job_id"]
+isOneToOne: false
+      referencedRelation: "jobs"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "machine_assignments_company_id_visit_id_fkey"
+      columns: ["company_id", "visit_id"]
+isOneToOne: false
+      referencedRelation: "visits"
+      referencedColumns: ["company_id", "id"]
+    }
+                  ]
+                },"machine_checks": {
+                  Row: {
+                    "assignment_id": string,"check_on": string,"checklist_id": string,"checklist_version": number,"company_id": string,"critical_failure": boolean,"equipment_id": string,"id": string,"kind": string,"meter_reading": number | null,"operator_id": string,"request_key": string,"responses": Json,"signature": string,"signed_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "assignment_id": string,"check_on": string,"checklist_id": string,"checklist_version": number,"company_id": string,"critical_failure"?: boolean,"equipment_id": string,"id"?: string,"kind"?: string,"meter_reading"?: number | null,"operator_id": string,"request_key": string,"responses": Json,"signature": string,"signed_at"?: string
+                  }
+                  Update: {
+                    "assignment_id"?: string,"check_on"?: string,"checklist_id"?: string,"checklist_version"?: number,"company_id"?: string,"critical_failure"?: boolean,"equipment_id"?: string,"id"?: string,"kind"?: string,"meter_reading"?: number | null,"operator_id"?: string,"request_key"?: string,"responses"?: Json,"signature"?: string,"signed_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "machine_checks_company_id_assignment_id_fkey"
+      columns: ["company_id", "assignment_id"]
+isOneToOne: false
+      referencedRelation: "machine_assignments"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "machine_checks_company_id_checklist_id_fkey"
+      columns: ["company_id", "checklist_id"]
+isOneToOne: false
+      referencedRelation: "machine_checklists"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "machine_checks_company_id_equipment_id_fkey"
+      columns: ["company_id", "equipment_id"]
+isOneToOne: false
+      referencedRelation: "equipment"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "machine_checks_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"machine_defects": {
+                  Row: {
+                    "check_id": string | null,"company_id": string,"critical": boolean,"description": string,"equipment_id": string,"evidence": Json,"id": string,"job_id": string | null,"reported_at": string,"reported_by": string | null,"resolution": string | null,"resolved_at": string | null,"resolved_by": string | null,"status": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "check_id"?: string | null,"company_id": string,"critical"?: boolean,"description": string,"equipment_id": string,"evidence"?: Json,"id"?: string,"job_id"?: string | null,"reported_at"?: string,"reported_by"?: string | null,"resolution"?: string | null,"resolved_at"?: string | null,"resolved_by"?: string | null,"status"?: string
+                  }
+                  Update: {
+                    "check_id"?: string | null,"company_id"?: string,"critical"?: boolean,"description"?: string,"equipment_id"?: string,"evidence"?: Json,"id"?: string,"job_id"?: string | null,"reported_at"?: string,"reported_by"?: string | null,"resolution"?: string | null,"resolved_at"?: string | null,"resolved_by"?: string | null,"status"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "machine_defects_company_id_check_id_fkey"
+      columns: ["company_id", "check_id"]
+isOneToOne: false
+      referencedRelation: "machine_checks"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "machine_defects_company_id_equipment_id_fkey"
+      columns: ["company_id", "equipment_id"]
+isOneToOne: false
+      referencedRelation: "equipment"
+      referencedColumns: ["company_id", "id"]
+    },
+                    {
+      foreignKeyName: "machine_defects_company_id_fkey"
+      columns: ["company_id"]
+isOneToOne: false
+      referencedRelation: "companies"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"follow_up_tasks": {
                   Row: {
                     "assigned_to": string | null,"body": string | null,"closed_reason": string | null,"company_id": string,"created_at": string,"created_by": string | null,"done_at": string | null,"done_by": string | null,"due_on": string | null,"id": string,"link": string | null,"related_id": string | null,"related_type": string | null,"source": string,"source_id": string,"title": string

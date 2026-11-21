@@ -39,6 +39,22 @@ export function summaryHtml(s: Loose): string {
   ].join("\n");
 }
 
+/** A tailgate briefing's record: each version's content and who signed which version, when. */
+export function tailgateHtml(t: Loose): string {
+  const versions = ((t.versions ?? []) as Loose[])
+    .map((v) => `<h2>Version ${escape(v.version)}${v.reason ? ` (amended: ${escape(v.reason)})` : ""}</h2><p><b>Topic:</b> ${escape(v.content?.topic)}</p><p><b>Hazards:</b> ${escape(v.content?.hazards)}</p><p><b>Controls:</b> ${escape(v.content?.controls)}</p><p>${escape(v.content?.discussion)}</p>`)
+    .join("");
+  const people = ((t.attendees ?? []) as Loose[])
+    .map((a) => `<tr><td>${escape(a.name)}</td><td>${escape(a.status)}${a.added_late ? " (late)" : ""}</td><td>${a.signed_version ? `v${escape(a.signed_version)}` : "not signed"}</td><td>${a.needs_signature ? "needs to sign the current version" : "signed the current version"}</td></tr>`)
+    .join("");
+  return [
+    `<!doctype html><meta charset="utf-8"><title>Tailgate ${escape(t.meeting_on)} ${escape(t.title)}</title>`,
+    `<h1>Tailgate meeting: ${escape(t.title)}</h1><p>${escape(t.meeting_on)} · current version ${escape(t.version)}</p>`,
+    versions,
+    `<h2>Attendance and signatures</h2><table border="1" cellpadding="4"><tr><th>Person</th><th>Attendance</th><th>Signed</th><th>Current version</th></tr>${people}</table>`,
+  ].join("\n");
+}
+
 export function supabaseStore(admin: Admin): PdosStore {
   const call = async <T>(fn: string, args: Record<string, unknown>): Promise<T> => {
     const r = await admin.rpc(fn as never, args as never);
@@ -69,6 +85,10 @@ export function supabaseStore(admin: Admin): PdosStore {
         const blob = await admin.storage.from("files").download(d.data.storage_path);
         if (blob.error) throw new Error(`storage: ${blob.error.message}`);
         return { mime: blob.data.type || "application/octet-stream", body: new Uint8Array(await blob.data.arrayBuffer()) };
+      }
+      if (file.source_kind === "tailgate") {
+        const status = await call<Loose>("tailgate_status", { p_meeting: file.source_id });
+        return { mime: "text/html", body: new TextEncoder().encode(tailgateHtml(status)) };
       }
       throw new Error(`No copy for ${file.source_kind} yet`);
     },
